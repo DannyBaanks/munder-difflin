@@ -336,7 +336,7 @@
       "organisation": "Organización",
       "orgKey": "Clave de organización",
       "orgKeyDesc": "Cómo la instalación de un compañero de equipo aborda la tuya.",
-      "apiKey": "XQZPROTECTED0Clave XQZ",
+      "apiKey": "Clave API",
       "orgKeyPlaceholder": "pega la clave de tu organización",
       "orgConfigOnly": "Configuración solo por ahora. El servicio de mensajería de la organización aún no existe, por lo que una clave aquí no inicia el transporte: se guarda, se muestra en la pestaña Activadores y espera."
     },
@@ -578,6 +578,7 @@
   },
   "onboarding": {
     "titles": {
+      "language": "ELIGE TU IDIOMA",
       "persona": "BIENVENIDO A MUNDER DIFFLIN",
       "welcome": "CONOCE TU OFICINA",
       "home": "PASO 1 DE 4 · ARNÉS INICIO",
@@ -588,6 +589,15 @@
       "reposPlain": "PASO 3 DE 4 · TUS PROYECTOS",
       "permissions": "PASO 4 DE 4 · PERMISOS Y CONFIABILIDAD",
       "done": "LISTO"
+    },
+    "language": {
+      "desc": "Elige el idioma del asistente de configuración y de toda la aplicación. Puedes cambiarlo más tarde en Ajustes.",
+      "names": {
+        "en": "Inglés",
+        "es": "Español",
+        "zh-CN": "Chino (simplificado)",
+        "ar": "Árabe"
+      }
     },
     "persona": {
       "headline": "UN CLON DE TI, TRABAJANDO 24/7",

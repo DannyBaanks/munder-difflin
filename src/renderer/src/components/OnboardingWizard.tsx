@@ -12,13 +12,14 @@ import {
 } from '@shared/engineAvailability';
 import type { ToolStatus } from '@shared/toolCatalog';
 import { useResolvedGodName } from '@/hooks/useResolvedGodName';
+import { LANGUAGES, setLanguage } from '@/i18n';
 
 export interface OnboardingWizardProps {
   onComplete: (config: HarnessConfig) => void;
 }
 
 type Audience = 'technical' | 'non-technical';
-type Step = 'persona' | 'welcome' | 'home' | 'orchestrator' | 'repos' | 'permissions' | 'done';
+type Step = 'language' | 'persona' | 'welcome' | 'home' | 'orchestrator' | 'repos' | 'permissions' | 'done';
 
 // First-run showcase "— the highest-value features a brand-new user should grasp
 // before any setup. Labels and copy live in i18n (two registers: `desc` for the
@@ -88,10 +89,14 @@ const PROVIDER_BLURB_KEYS: Partial<Record<AgentProvider, string>> = {
 };
 
 export function OnboardingWizard({ onComplete }: OnboardingWizardProps) {
-  const { t } = useTranslation();
+  const { t, i18n } = useTranslation();
   // Onboarding runs before god exists in the store, so read the persisted name.
   const godName = useResolvedGodName();
-  const [step, setStep] = useState<Step>('persona');
+  // The wizard opens on the language picker so the ENTIRE flow — Michael, the
+  // persona question, every step after — runs in the language the user chose.
+  // `setLanguage` flips i18n (and <html dir>) live, so the picker previews as
+  // you click; the card ring follows i18n.language, no separate state needed.
+  const [step, setStep] = useState<Step>('language');
   // Self-identified audience (item 1). Undefined until chosen on the first screen;
   // the rest of the wizard reads `plain` to swap copy registers.
   const [audience, setAudience] = useState<Audience | undefined>();
@@ -253,7 +258,8 @@ export function OnboardingWizard({ onComplete }: OnboardingWizardProps) {
         <PixelPanel
           variant="dialog"
           title={
-            step === 'persona' ? t('onboarding.titles.persona')
+            step === 'language' ? t('onboarding.titles.language')
+            : step === 'persona' ? t('onboarding.titles.persona')
             : step === 'welcome' ? t('onboarding.titles.welcome')
             : step === 'home' ? (plain ? t('onboarding.titles.homePlain') : t('onboarding.titles.home'))
             : step === 'orchestrator' ? (plain ? t('onboarding.titles.orchestratorPlain') : t('onboarding.titles.orchestrator'))
@@ -264,6 +270,36 @@ export function OnboardingWizard({ onComplete }: OnboardingWizardProps) {
           noPadding
         >
           <div style={{ padding: 20, display: 'flex', flexDirection: 'column', gap: 16, maxHeight: '86vh', overflowY: 'auto' }}>
+
+            {step === 'language' && (
+              <>
+                <div style={{ display: 'flex', gap: 12, alignItems: 'flex-start' }}>
+                  <div style={{
+                    width: 56, height: 56, flexShrink: 0,
+                    background: 'var(--cth-sky-light)',
+                    boxShadow: 'inset 0 0 0 1.5px var(--cth-ink-500)',
+                    display: 'flex', alignItems: 'flex-end', justifyContent: 'center', overflow: 'hidden'
+                  }}>
+                    <SpritePortrait character="michael" scale={2} />
+                  </div>
+                  <div style={{ fontSize: 12, color: 'var(--cth-ink-700)', lineHeight: '19px', alignSelf: 'center' }}>
+                    {t('onboarding.language.desc')}
+                  </div>
+                </div>
+
+                <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 10 }}>
+                  {LANGUAGES.map((l) => (
+                    <LanguageCard
+                      key={l.code}
+                      nativeLabel={l.label}
+                      desc={t(`onboarding.language.names.${l.code}`)}
+                      selected={i18n.language === l.code}
+                      onClick={() => setLanguage(l.code)}
+                    />
+                  ))}
+                </div>
+              </>
+            )}
 
             {step === 'persona' && (
               <>
@@ -747,7 +783,7 @@ export function OnboardingWizard({ onComplete }: OnboardingWizardProps) {
             <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginTop: 4 }}>
               <Dots step={step} />
               <div style={{ display: 'flex', gap: 8 }}>
-                {step !== 'persona' && step !== 'welcome' && (
+                {step !== 'language' && step !== 'persona' && step !== 'welcome' && (
                   <PixelButton variant="ghost" size="md" onClick={() => setStep(prevStep(step))} disabled={busy}>
                     {t('common.back')}
                   </PixelButton>
@@ -795,6 +831,32 @@ export function OnboardingWizard({ onComplete }: OnboardingWizardProps) {
         </PixelPanel>
       </div>
     </div>
+  );
+}
+
+function LanguageCard({ nativeLabel, desc, selected, onClick }: {
+  nativeLabel: string;
+  desc: string;
+  selected: boolean;
+  onClick: () => void;
+}) {
+  return (
+    <button
+      onClick={onClick}
+      style={{
+        textAlign: 'left', cursor: 'pointer', border: 'none',
+        padding: 12, display: 'flex', flexDirection: 'column', gap: 6,
+        background: selected ? 'var(--cth-mint-light)' : 'var(--cth-paper-100)',
+        boxShadow: `inset 0 0 0 ${selected ? 2 : 1}px ${selected ? 'var(--cth-mint)' : 'var(--cth-ink-300)'}`
+      }}
+    >
+      <span style={{ fontFamily: 'var(--cth-font-display)', fontSize: 13, lineHeight: '18px', color: 'var(--cth-ink-900)' }}>
+        {nativeLabel}
+      </span>
+      <span style={{ fontSize: 12, lineHeight: '16px', color: 'var(--cth-ink-700)' }}>
+        {desc}
+      </span>
+    </button>
   );
 }
 
@@ -873,7 +935,7 @@ function ToggleRow({ icon, label, desc, on, tint, edge, onChange }: {
 }
 
 function Dots({ step }: { step: Step }) {
-  const order: Step[] = ['persona', 'welcome', 'home', 'orchestrator', 'repos', 'permissions'];
+  const order: Step[] = ['language', 'persona', 'welcome', 'home', 'orchestrator', 'repos', 'permissions'];
   return (
     <div style={{ display: 'flex', gap: 4 }}>
       {order.map((s) => (
@@ -888,7 +950,8 @@ function Dots({ step }: { step: Step }) {
 }
 
 function nextStep(s: Step): Step {
-  return s === 'persona' ? 'welcome'
+  return s === 'language' ? 'persona'
+    : s === 'persona' ? 'welcome'
     : s === 'welcome' ? 'home'
     : s === 'home' ? 'orchestrator'
     : s === 'orchestrator' ? 'repos'
@@ -901,7 +964,8 @@ function prevStep(s: Step): Step {
     : s === 'orchestrator' ? 'home'
     : s === 'home' ? 'welcome'
     : s === 'welcome' ? 'persona'
-    : 'persona';
+    : s === 'persona' ? 'language'
+    : 'language';
 }
 
 const inputStyle: React.CSSProperties = {

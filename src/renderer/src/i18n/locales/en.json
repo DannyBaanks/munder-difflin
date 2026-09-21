@@ -578,6 +578,7 @@
   },
   "onboarding": {
     "titles": {
+      "language": "CHOOSE YOUR LANGUAGE",
       "persona": "WELCOME TO MUNDER DIFFLIN",
       "welcome": "MEET YOUR OFFICE",
       "home": "STEP 1 OF 4 · HARNESS HOME",
@@ -588,6 +589,15 @@
       "reposPlain": "STEP 3 OF 4 · YOUR PROJECTS",
       "permissions": "STEP 4 OF 4 · PERMISSIONS & RELIABILITY",
       "done": "ALL SET"
+    },
+    "language": {
+      "desc": "Pick the language for the setup wizard and the whole app. You can change it later in Settings.",
+      "names": {
+        "en": "English",
+        "es": "Spanish",
+        "zh-CN": "Chinese (Simplified)",
+        "ar": "Arabic"
+      }
     },
     "persona": {
       "headline": "A CLONE OF YOU, WORKING 24/7",
