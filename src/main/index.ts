@@ -108,6 +108,21 @@ process.on('unhandledRejection', (reason) => {
   console.error('[main] unhandledRejection (kept alive):', reason);
 });
 
+// Linux: el freeze "Detenido" al aceptar la sesión del harness es un SIGTSTP
+// enviado por el job control del shell cuando el árbol Electron (main + zygote +
+// gpu + renderers) está pegado a la terminal y node-pty arranca los agentes.
+// Evidencia: bridge PR opencode/maintainer/pr-munder-sandbox ("node-pty SIGTSTP
+// freeze on harness OK") + runs [1..3] "Detenido" del usuario + la instancia
+// despegada (nohup sin tty) que nunca se congeló. Este handler no resuelve la
+// causa raíz (los hijos zygote/gpu/renderers también recibirían la señal), pero
+// impide que el main se congele en silencio y deja rastro en el log para
+// diagnosticar. Fix completo: lanzar despegado (setsid) — ver start.sh.
+if (process.platform !== 'win32' && process.stdin?.isTTY) {
+  process.on('SIGTSTP', () => {
+    console.warn('[main] SIGTSTP recibido (job control) — ignorado. Lanzar la app despegada (setsid) para evitar que el árbol completo se congele. Ver start.sh.');
+  });
+}
+
 const ptyManager = new PtyManager();
 
 function runCodexDaemonCommand(
@@ -2940,7 +2955,7 @@ async function spawnAgentCore(opts: AgentSpawnOptions, owner: Electron.WebConten
   // the local-LLM path, a per-provider base URL. Keys are write-only in the broker
   // (read MAIN-ONLY here, never logged); base URLs ride HarnessConfig. Claude/codex
   // use their own login, so they skip this. Pam guardrails #3/#4/#5.
-  if (opts.hive && (provider === 'opencode' || provider === 'crush' || provider === 'pi' || provider === 'qwen')) {
+  if (opts.hive && (provider === 'opencode' || provider === 'openisy' || provider === 'crush' || provider === 'pi' || provider === 'qwen')) {
     const cfg = readConfig();
     const extra: Record<string, string> = {};
     // 1) BYOK keys — LEAST-PRIVILEGE (Pam/Jim NIT-2): inject ONLY the key for the
@@ -2966,12 +2981,12 @@ async function spawnAgentCore(opts: AgentSpawnOptions, owner: Electron.WebConten
     // 2) Floor auto-state for pi's bundled extension auto-allow (guardrail #5): it
     //    only auto-approves tool calls when this is '1' (i.e. floor auto mode on).
     extra.HIVE_AUTO_APPROVE = cfg.autoMode ? '1' : '0';
-    // 3) OpenCode's auto-approve + local provider live in its single config-injection
+    // 3) OpenCode/OpenISy's auto-approve + local provider live in its single config-injection
     //    env var, built dynamically so permission:allow is GATED on autoMode (#2).
-    if (provider === 'opencode') {
+    if (provider === 'opencode' || provider === 'openisy') {
       const oc: Record<string, unknown> = { autoupdate: false };
       if (cfg.autoMode) oc.permission = { edit: 'allow', bash: 'allow', webfetch: 'allow' };
-      const baseUrl = cfg.providerBaseUrls?.opencode;
+      const baseUrl = cfg.providerBaseUrls?.[provider];
       if (baseUrl) {
         // Register the model id the user actually selects (the part after 'local/')
         // so `--model local/<id>` resolves; default to 'local'. Without this the
