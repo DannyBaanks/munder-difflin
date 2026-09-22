@@ -211,7 +211,8 @@ test('no Arabic string is left as its English source', () => {
     'addAgent.projectPlaceholder',           // /path/to/your/project — a filesystem path
     'onboarding.home.placeholder',           // /path/to/HarnessAgents — same
     'mcpDefaults.toggleNote',                // "{{id}}: {{state}}" — pure interpolation
-    'webhooksSection.summary'                // "{{count}} · {{state}}" — same
+    'webhooksSection.summary',               // "{{count}} · {{state}}" — same
+    'editAgent.namePlaceholder',             // "Stanley" — example proper name; translating a name would be wrong
   ]);
   const e = pathsOf(en), a = pathsOf(ar);
   const untranslated = [];
