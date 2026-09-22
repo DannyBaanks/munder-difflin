@@ -17,12 +17,23 @@ set -euo pipefail
 # este build y cualquier `npm run dev` del checkout de desarrollo. No lances
 # ambos a la vez: la segunda instancia muere al arrancar (second-instance).
 #
+# SESIONES PARALELAS (2 harnesses a la vez): cada instancia necesita su PROPIO
+# userData (ahí viven el singleton lock, config.json y harness.db — compartirlo
+# es lo que impide el paralelo). Receta:
+#   ./start.sh --user-data-dir ~/.config/munder-difflin          # sesión 1 (default)
+#   ./start.sh --user-data-dir ~/.config/munder-difflin-harness2 # sesión 2
+# Cada userData tiene su propio config.json → cada uno apunta a su propio
+# harness home (el botón "create new config…" del HivePicker los crea). Los
+# puertos del broker/telemetry son efímeros (no colisionan). OJO: no pongas a
+# dos sesiones a trabajar sobre los mismos repos a la vez.
+#
 # Uso:
 #   ./start.sh                 lanza la app despegada (recomendado)
 #   ./start.sh --fg            modo viejo adjunto — SOLO debug, puede congelarse
-#   ./start.sh --stop          detiene la app
+#   ./start.sh --stop          detiene la app (TODAS las instancias de este build)
 #   ./start.sh --check         verifica electron + build
 #   ./start.sh --electron-version  versión de electron
+#   ./start.sh --user-data-dir DIR  userData propio (sesiones paralelas)
 #
 # Logs:    tail -f "$(readlink -f ~/.local/state/munder-difflin/latest.log)"
 
@@ -37,6 +48,25 @@ STATE_DIR="${XDG_STATE_HOME:-$HOME/.local/state}/munder-difflin"
 GPU_SIG="GPU process.*isn't usable|GPU process launch failed"
 
 say() { printf 'start.sh: %s\n' "$*"; }
+
+# Pre-barre --user-data-dir (formas `--user-data-dir DIR` y `--user-data-dir=DIR`)
+# antes del dispatch por $1, para que combine con --fg/--stop/lanzamiento.
+USER_DATA_DIR=""
+FILTERED_ARGS=()
+while [[ $# -gt 0 ]]; do
+  case "$1" in
+    --user-data-dir)
+      USER_DATA_DIR="${2:-}"; shift 2 || { printf 'start.sh: --user-data-dir necesita un directorio\n' >&2; exit 2; }
+      [[ -n "$USER_DATA_DIR" ]] || { printf 'start.sh: --user-data-dir necesita un directorio\n' >&2; exit 2; }
+      ;;
+    --user-data-dir=*)
+      USER_DATA_DIR="${1#--user-data-dir=}"; shift
+      [[ -n "$USER_DATA_DIR" ]] || { printf 'start.sh: --user-data-dir necesita un directorio\n' >&2; exit 2; }
+      ;;
+    *) FILTERED_ARGS+=("$1"); shift ;;
+  esac
+done
+if [[ ${#FILTERED_ARGS[@]} -gt 0 ]]; then set -- "${FILTERED_ARGS[@]}"; else set --; fi
 
 if [[ "${1:-}" == "--check" ]]; then
   [[ -x "$ELECTRON" ]] || { printf 'Electron no encontrado: %s\n' "$ELECTRON" >&2; exit 1; }
@@ -79,6 +109,17 @@ if [[ "${MUNDER_NO_SANDBOX:-auto}" == "1" ]] || {
 }; then
   ELECTRON_FLAGS+=(--no-sandbox)
 fi
+# userData propio → instancia independiente (singleton, config.json y
+# harness.db separados): la base de las sesiones paralelas. Chromium lo consume
+# nativamente; va en flags para que aplique igual en despegado y --fg.
+if [[ -n "$USER_DATA_DIR" ]]; then
+  ELECTRON_FLAGS+=("--user-data-dir=$USER_DATA_DIR")
+fi
+# Guardia singleton acotada al userData: sin --user-data-dir cubre todo el
+# build (comportamiento anterior); con flag solo vigila esa instancia para
+# no bloquear el paralelo.
+GUARD_PATTERN="$APP_BIN"
+[[ -n "$USER_DATA_DIR" ]] && GUARD_PATTERN="$APP_BIN.*$USER_DATA_DIR"
 
 if [[ "${1:-}" == "--fg" ]]; then
   # Modo viejo: adjunto a esta terminal. Puede recibir SIGTSTP del job control
@@ -100,7 +141,7 @@ launch_detached() {
   setsid "$ELECTRON" "${ELECTRON_FLAGS[@]}" "$@" "$APP_ROOT" </dev/null >>"$RUN_LOG" 2>&1 &
 }
 
-if pgrep -f "$APP_BIN" >/dev/null; then
+if pgrep -f "$GUARD_PATTERN" >/dev/null; then
   printf 'start.sh: ya hay una instancia corriendo (singleton compartido) — no lanzo otra\n'
   exit 0
 fi
@@ -112,7 +153,7 @@ launch_detached
 # Si el proceso muere y el log firma el fallo de GPU, reintenta con software.
 for _ in $(seq 1 12); do
   sleep 0.5
-  if ! pgrep -f "$APP_BIN" >/dev/null; then
+  if ! pgrep -f "$GUARD_PATTERN" >/dev/null; then
     if grep -Eq "$GPU_SIG" "$RUN_LOG"; then
       printf 'start.sh: proceso GPU falló — reintentando con render por software\n'
       launch_detached --disable-gpu --use-gl=swiftshader
@@ -125,7 +166,7 @@ for _ in $(seq 1 12); do
   fi
 done
 
-PID_MAIN="$(pgrep -f "$APP_BIN" | head -1 || true)"
+PID_MAIN="$(pgrep -f "$GUARD_PATTERN" | head -1 || true)"
 printf 'start.sh: en marcha (pid main: %s)\n' "${PID_MAIN:-?}"
 printf 'start.sh: log de esta corrida: %s\n' "$RUN_LOG"
 printf 'start.sh: parar: ./start.sh --stop\n'

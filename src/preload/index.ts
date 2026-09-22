@@ -670,6 +670,12 @@ const api = {
    *  on failure (e.g. copy error) returns { ok: false, error }. */
   changeHome: (newHome: string, mode: 'move' | 'fresh'): Promise<{ ok: boolean; error?: string }> =>
     ipcRenderer.invoke('config:changeHome', { newHome, mode }),
+  /** Create a NEW harness home folder (parent + typed name → mkdir). Refuses
+   *  existing targets — those go through "open existing". On success the caller
+   *  opens the returned path via changeHome('fresh'), which registers it in
+   *  recents and relaunches (same path as onboarding's home step). */
+  createHome: (parent: string, name: string): Promise<{ ok: true; path: string } | { ok: false; error: string }> =>
+    ipcRenderer.invoke('config:createHome', { parent, name }),
 
   // ─── Filesystem (sandboxed to cwd) ───────────────────────────────────────
   listDir: (root: string, rel: string): Promise<

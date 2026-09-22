@@ -18,7 +18,7 @@ import {
   readConfig, writeConfig, setAgentTokenCap, resetConfig, onConfigWritten, ensureHarnessHome, ensureClaudePermissionsAccepted,
   modelForRole, OPS_STANDUP_MISSION, HEARTBEAT_MISSION, COMPACT_MAINTENANCE_MISSION, type HarnessConfig, type ScheduledMission
 } from './config';
-import { listDir, readFileText, readFileBinary, writeFileText, statAbs, expandTilde } from './fs';
+import { listDir, readFileText, readFileBinary, writeFileText, statAbs, expandTilde, isValidHarnessFolderName } from './fs';
 import { normalizeWeekly, weeklyDelayMs } from '../shared/weeklySchedule';
 import {
   getBranch, getStatus, getLog, getBranches, getAheadBehind, isRepo, getDiff, mainRepoRoot,
@@ -3306,6 +3306,26 @@ ipcMain.handle('config:changeHome', async (_evt, payload: unknown) => {
   app.relaunch();
   app.exit(0);
   return { ok: true as const }; // unreachable (process exits) — typed for the renderer
+});
+
+// Create a NEW harness home folder: parent (from the folder dialog) + a typed
+// name → mkdir. The caller then opens it through the normal changeHome 'fresh'
+// path (registers in recents + relaunches, bootstrapping services lazily —
+// the same tested path as onboarding's home step, which also only mkdirs here
+// and lets the boot sequence build hive/palace/roster). Refuses existing
+// targets so create-vs-open stays unambiguous (the picker has "open existing"
+// for those); the check-then-mkdir is best-effort against races, and a lost
+// race just surfaces mkdir's own error.
+ipcMain.handle('config:createHome', (_evt, payload: unknown) => {
+  const p = (payload ?? {}) as { parent?: unknown; name?: unknown };
+  if (typeof p.parent !== 'string' || !p.parent) return { ok: false, error: 'invalid parent' };
+  const check = isValidHarnessFolderName(p.name);
+  if (!check.ok) return check;
+  const target = join(resolve(expandTilde(p.parent)), check.name);
+  if (existsSync(target)) return { ok: false, error: 'That folder already exists — open it instead.' };
+  const ensured = ensureHarnessHome(target);
+  if (!ensured.ok) return ensured;
+  return { ok: true as const, path: target };
 });
 
 // ─── IPC: filesystem (sandboxed to a root) ──────────────────────────────────

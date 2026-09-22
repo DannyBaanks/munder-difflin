@@ -350,6 +350,35 @@ export function normalizeHiveHome(
   return { home: abs, recentHives: recentHives.slice(0, cap) };
 }
 
+/** Maximum harness folder-name length the create-harness flow accepts. Generous
+ *  on purpose (NAME_MAX is 255, eCryptfs caps at 143); the cap exists only to
+ *  reject garbage/paste accidents, not to police taste. */
+export const HARNESS_FOLDER_NAME_MAX = 128;
+
+/** Validate a user-typed harness folder NAME (not a path). Pure — the create
+ *  button on the HivePicker and the `config:createHome` IPC share it, and the
+ *  focused tests exercise it without touching disk. Returns the trimmed name
+ *  on success so `hive ` and `hive` resolve to the same folder. */
+export function isValidHarnessFolderName(
+  name: unknown
+): { ok: true; name: string } | { ok: false; error: string } {
+  if (typeof name !== 'string') return { ok: false, error: 'invalid name' };
+  const trimmed = name.trim();
+  if (!trimmed) return { ok: false, error: 'Type a folder name.' };
+  if (trimmed.length > HARNESS_FOLDER_NAME_MAX) {
+    return { ok: false, error: `Keep it under ${HARNESS_FOLDER_NAME_MAX} characters.` };
+  }
+  if (trimmed === '.' || trimmed === '..') return { ok: false, error: 'That name is reserved.' };
+  if (/[/\\\0]/.test(trimmed)) return { ok: false, error: 'A folder name cannot contain slashes.' };
+  // Windows device names (CON, PRN, AUX, NUL, COM1-9, LPT1-9) cannot be created
+  // as files/folders on Windows — refuse them on every OS so a harness created
+  // here stays portable.
+  if (/^(con|prn|aux|nul|com[1-9]|lpt[1-9])(\.|$)/i.test(trimmed)) {
+    return { ok: false, error: 'That name is reserved by Windows.' };
+  }
+  return { ok: true, name: trimmed };
+}
+
 /** Existence/metadata check for an ABSOLUTE path (v0.3.4 — backs the terminal
  *  ⌘-click markdown flow). `~/` is expanded here (the renderer doesn't know
  *  the home dir). Read-only metadata: returns whether a regular file exists and

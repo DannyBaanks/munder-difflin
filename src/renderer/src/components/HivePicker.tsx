@@ -32,6 +32,11 @@ export function HivePicker({ config, onOpenCurrent }: HivePickerProps) {
   const recents = (config.recentHives ?? []).filter((h) => h && h !== current);
   const [busy, setBusy] = useState<string | undefined>();
   const [error, setError] = useState<string | undefined>();
+  // Create flow: parent folder picked via dialog, then a typed name. Kept as
+  // local state (not a step machine) — it collapses back to the footer on
+  // cancel, success, or error-retry.
+  const [createParent, setCreateParent] = useState<string | null>(null);
+  const [newName, setNewName] = useState('');
 
   // Open a hive. Same folder as the current one → just enter it (no relaunch).
   // A different folder → changeHome('fresh') re-points + relaunches the process.
@@ -61,6 +66,46 @@ export function HivePicker({ config, onOpenCurrent }: HivePickerProps) {
     const res = await window.cth.chooseFolder();
     if (res.ok) void openHive(res.path);
     else if (res.error !== 'cancelled') setError(res.error);
+  };
+
+  // CREATE — two taps: pick the PARENT folder, then type the new folder's
+  // name. Main mkdirs parent/name (refusing existing targets so create and
+  // open stay unambiguous), then we open it through the normal changeHome
+  // 'fresh' path: registers in recents + relaunches, bootstrapping services.
+  // NOTE (i18n): this picker is pre-i18n — every string here is hardcoded
+  // English like the rest of the file. Translate the whole picker in one
+  // human pass (no machine-translated keys) rather than mixing languages.
+  const startCreate = async () => {
+    setError(undefined);
+    const res = await window.cth.chooseFolder();
+    if (!res.ok) {
+      if (res.error !== 'cancelled') setError(res.error);
+      return;
+    }
+    setCreateParent(res.path);
+    setNewName('');
+  };
+
+  const doCreate = async () => {
+    if (!createParent) return;
+    setError(undefined);
+    setBusy(createParent);
+    try {
+      const res = await window.cth.createHome(createParent, newName);
+      if (!res.ok) {
+        setError(res.error ?? 'Could not create that folder.');
+        setBusy(undefined);
+        return;
+      }
+      setCreateParent(null);
+      setNewName('');
+      // openHive sets its own busy + SKIP_KEY and relaunches via changeHome.
+      setBusy(undefined);
+      await openHive(res.path);
+    } catch (e) {
+      setError(e instanceof Error ? e.message : String(e));
+      setBusy(undefined);
+    }
   };
 
   return (
@@ -162,15 +207,57 @@ export function HivePicker({ config, onOpenCurrent }: HivePickerProps) {
               </div>
             )}
 
-            {/* OPEN / CREATE — both browse to a folder; "fresh" mode re-points at it
-                (bootstrapping an empty one, or reusing existing hive data in place). */}
+            {/* CREATE PANEL — parent picked, now the new folder's name. */}
+            {createParent && (
+              <div style={{
+                padding: 12, display: 'flex', flexDirection: 'column', gap: 8,
+                background: 'var(--cth-paper-100)', boxShadow: 'inset 0 0 0 1px var(--cth-ink-300)'
+              }}>
+                <div style={{ fontFamily: 'var(--cth-font-display)', fontSize: 10, color: 'var(--cth-ink-700)' }}>
+                  NEW HARNESS FOLDER
+                </div>
+                <div style={{
+                  fontFamily: 'var(--cth-font-mono)', fontSize: 11, color: 'var(--cth-ink-500)',
+                  whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis', direction: 'rtl', textAlign: 'left'
+                }} title={createParent}>{createParent}</div>
+                <div style={{ display: 'flex', gap: 8 }}>
+                  <input
+                    autoFocus
+                    value={newName}
+                    onChange={(e) => setNewName(e.target.value)}
+                    onKeyDown={(e) => { if (e.key === 'Enter') void doCreate(); }}
+                    placeholder="folder name…"
+                    disabled={!!busy}
+                    style={{
+                      flex: 1, minWidth: 0, padding: '6px 8px 4px',
+                      background: 'var(--cth-cream-100)',
+                      border: 'none', boxShadow: 'inset 0 0 0 1px var(--cth-ink-300)',
+                      fontFamily: 'var(--cth-font-mono)', fontSize: 13, color: 'var(--cth-ink-900)', outline: 'none'
+                    }}
+                  />
+                  <PixelButton variant="primary" size="md" onClick={doCreate} disabled={!!busy || !newName.trim()}>
+                    create
+                  </PixelButton>
+                  <PixelButton
+                    variant="ghost" size="md" disabled={!!busy}
+                    onClick={() => { setCreateParent(null); setNewName(''); setError(undefined); }}
+                  >
+                    cancel
+                  </PixelButton>
+                </div>
+              </div>
+            )}
+
+            {/* OPEN / CREATE — open browses straight to a folder; create picks
+                the parent first, then the name above, then re-points at the new
+                folder ("fresh" bootstraps an empty one in place). */}
             <div style={{ display: 'flex', gap: 8, justifyContent: 'flex-end', flexWrap: 'wrap' }}>
               <PixelButton variant="secondary" size="md" onClick={browse} disabled={!!busy}>
                 <span style={{ display: 'inline-flex', gap: 6, alignItems: 'center' }}>
                   <Icon name="folder" /> open existing config…
                 </span>
               </PixelButton>
-              <PixelButton variant="secondary" size="md" onClick={browse} disabled={!!busy}>
+              <PixelButton variant="secondary" size="md" onClick={startCreate} disabled={!!busy}>
                 <span style={{ display: 'inline-flex', gap: 6, alignItems: 'center' }}>
                   <Icon name="plus" /> create new config…
                 </span>
