@@ -49,6 +49,10 @@ test('SpritePortrait repaints on the shared generation', () => {
 });
 
 test('the hook degrades gracefully (no preload/main dependency)', () => {
-  assert.ok(!/window\.cth/.test(HOOK), 'no preload coupling — works in dev and build');
   assert.ok(!/ipcRenderer|webContents/.test(HOOK), 'no Electron imports — renderer-only');
+});
+
+test('M3: the hook subscribes to on-demand repaint, guarded for old preloads', () => {
+  assert.ok(/onUiRepaint\?\.\(/.test(HOOK), 'subscribes via optional preload call');
+  assert.ok(/catch/.test(HOOK), 'a missing channel never breaks mounting');
 });

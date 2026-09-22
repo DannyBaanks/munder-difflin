@@ -21,6 +21,9 @@ export interface ControlChannelOptions {
   spawn?: ChannelSpawnFn;
   /** Kill delegate (M2). Same 501 rule. */
   kill?: ChannelKillFn;
+  /** Repaint broadcast delegate (M3): tells every live window to repaint its
+   *  canvases. Returns the window count reached. Absent → 501. */
+  repaint?: () => number;
 }
 
 /** Subset of SpawnOptions the channel accepts — the same fields the renderer
@@ -163,11 +166,13 @@ export class ControlChannel {
   private readonly token: string;
   private readonly spawn?: ChannelSpawnFn;
   private readonly kill?: ChannelKillFn;
+  private readonly repaint?: () => number;
 
   constructor(opts: ControlChannelOptions) {
     this.token = opts.token;
     this.spawn = opts.spawn;
     this.kill = opts.kill;
+    this.repaint = opts.repaint;
   }
 
   /** Bind a loopback port (0 ⇒ OS-assigned). Resolves the actual bound port. */
@@ -235,6 +240,23 @@ export class ControlChannel {
       void this.handleMutation(req, res, path).catch((e: unknown) => {
         json(res, 500, { ok: false, error: e instanceof Error ? e.message : String(e) });
       });
+      return;
+    }
+    if (req.method === 'POST' && path === '/repaint') {
+      if (!this.authorized(req)) {
+        json(res, 401, { ok: false, error: 'unauthorized' });
+        return;
+      }
+      if (!this.repaint) {
+        json(res, 501, { ok: false, error: 'repaint no disponible en este build' });
+        return;
+      }
+      try {
+        const windows = this.repaint();
+        json(res, 200, { ok: true, windows });
+      } catch (e: unknown) {
+        json(res, 500, { ok: false, error: e instanceof Error ? e.message : String(e) });
+      }
       return;
     }
     json(res, 404, { ok: false, error: 'not found' });

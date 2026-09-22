@@ -1396,6 +1396,13 @@ const api = {
     ipcRenderer.on('update:status', listener);
     return () => ipcRenderer.removeListener('update:status', listener);
   },
+  /** Repaint request from main (M3 `munder repaint`): a GPU death left canvases
+   *  blind with no recovery event. Renderers repaint instead of restarting. */
+  onUiRepaint: (cb: (info: { at: number }) => void): (() => void) => {
+    const listener = (_e: IpcRendererEvent, payload: { at: number }) => cb(payload);
+    ipcRenderer.on('ui:repaint', listener);
+    return () => ipcRenderer.removeListener('ui:repaint', listener);
+  },
   /** The last known status — a reloaded window subscribes AFTER main may have
    *  already emitted, so it pulls the current state instead of waiting 6h. */
   updateCurrent: (): Promise<UpdateStatus> => ipcRenderer.invoke('update:current'),

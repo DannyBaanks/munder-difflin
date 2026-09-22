@@ -33,23 +33,32 @@ import { useEffect, useState } from 'react';
  * behavior) and never breaks anything.
  */
 export function useCanvasRepaint(intervalMs = 30_000): number {
-  const [generation, setGeneration] = useState(0);
+  const [gen, setGen] = useState(0);
 
   useEffect(() => {
     let live = true;
-    const bump = () => { if (live) setGeneration((g) => g + 1); };
+    const bump = () => { if (live) setGen((g) => g + 1); };
     const onVisibility = () => { if (!document.hidden) bump(); };
     const onTick = () => { if (!document.hidden) bump(); };
     document.addEventListener('visibilitychange', onVisibility);
     window.addEventListener('focus', bump);
     const timer = setInterval(onTick, intervalMs);
+    // M3 on-demand repaint (`munder repaint` → main broadcast → here): instant
+    // recovery without restart. Guarded — old preloads lack the channel and
+    // HMR renderers can outrun the main that serves them.
+    let offIpc: (() => void) | undefined;
+    try {
+      offIpc = window.cth.onUiRepaint?.(() => bump());
+    } catch { /* preload predates the channel — timer/focus still cover */
+    }
     return () => {
       live = false;
       document.removeEventListener('visibilitychange', onVisibility);
       window.removeEventListener('focus', bump);
       clearInterval(timer);
+      try { offIpc?.(); } catch { /* noop */ }
     };
   }, [intervalMs]);
 
-  return generation;
+  return gen;
 }

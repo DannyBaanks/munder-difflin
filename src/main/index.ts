@@ -1783,6 +1783,18 @@ async function startControlChannel(): Promise<void> {
     const token = randomBytes(24).toString('hex');
     const next = new ControlChannel({
       token,
+      repaint: () => {
+        // M3: tell every live window to repaint its canvases (avatars gone
+        // blind after a GPU death come back without restarting anything).
+        // Same allWindows loop as the config:changed broadcast.
+        let reached = 0;
+        for (const w of allWindows) {
+          if (w.isDestroyed() || w.webContents.isDestroyed()) continue;
+          try { w.webContents.send('ui:repaint', { at: Date.now() }); reached++; } catch { /* tearing down */ }
+        }
+        if (reached > 0) console.log(`[control] ui:repaint broadcast a ${reached} ventana(s)`);
+        return reached;
+      },
       spawn: (opts) => spawnAgentCore({
         ...opts,
         // The channel carries provider as an unconstrained string (JSON);

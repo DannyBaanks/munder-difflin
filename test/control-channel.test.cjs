@@ -233,3 +233,43 @@ test('session routes without delegates answer 501 (M0 builds stay valid)', async
     ch.stop();
   }
 });
+
+/* ─── M3: repaint broadcast ──────────────────────────────────────────────── */
+
+test('POST /repaint broadcasts and reports windows reached', async () => {
+  let calls = 0;
+  const ch = new ControlChannel({ token: 'test-token-123', repaint: () => { calls++; return 3; } });
+  const { port } = await ch.start(0);
+  try {
+    const r = await post(port, '/repaint', {});
+    assert.equal(r.status, 200);
+    assert.deepEqual(r.body, { ok: true, windows: 3 });
+    assert.equal(calls, 1);
+  } finally {
+    ch.stop();
+  }
+});
+
+test('POST /repaint without auth is 401 and never broadcasts', async () => {
+  let calls = 0;
+  const ch = new ControlChannel({ token: 'test-token-123', repaint: () => { calls++; return 1; } });
+  const { port } = await ch.start(0);
+  try {
+    const res = await fetch(`http://127.0.0.1:${port}/repaint`, { method: 'POST' });
+    assert.equal(res.status, 401);
+    assert.equal(calls, 0);
+  } finally {
+    ch.stop();
+  }
+});
+
+test('POST /repaint without delegate is 501', async () => {
+  const ch = new ControlChannel({ token: 'test-token-123' });
+  const { port } = await ch.start(0);
+  try {
+    const r = await post(port, '/repaint', {});
+    assert.equal(r.status, 501);
+  } finally {
+    ch.stop();
+  }
+});
