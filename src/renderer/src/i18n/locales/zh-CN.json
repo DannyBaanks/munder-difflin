@@ -1534,5 +1534,46 @@
     "closeBodyOther": "Closing the harness will terminate all {{count}} running claude sessions and discard any unsaved progress they were holding in memory. The conversation history inside each session is lost when the PTY exits.",
     "tip": "Tip: <strong>closing time</strong> is the safe way out — the orchestrator has every agent commit its work and save its memory, and the app closes itself once the whole floor has confirmed. No data loss.",
     "errStart": "Closing time could not start."
+  },
+  "updateBadge": {
+    "labelDownloading": "downloading {{percent}}%",
+    "titleDownloading": "Downloading v{{version}}… {{percent}}%",
+    "labelDownloaded": "v{{pending}} · restart",
+    "titleDownloaded": "Click to restart and install v{{pending}}",
+    "labelAvailable": "v{{pending}} · 更新",
+    "titleAvailable": "Downloading v{{pending}} in the background; click to start it if it has not begun",
+    "labelManual": "v{{pending}} · 下载",
+    "titleManual": "Click to download v{{pending}}, then replace the app you have",
+    "titleManualReason": "Click to download v{{pending}}, then replace the app you have ({{reason}})",
+    "labelChecking": "checking…",
+    "titleChecking": "Checking for updates (you're on v{{v}})",
+    "labelError": "update check failed",
+    "titleError": "{{message}} — click to try again",
+    "labelLatest": "latest",
+    "titleLatest": "v{{v}} is the latest version — click to check again",
+    "titleIdle": "v{{v}} — click to check for updates",
+    "hoverTitle": "Click to download v{{pending}}",
+    "hoverBody": "Download the latest version and replace the app you have. Prefer the app to update itself? Settings → Updates.",
+    "hoverOs": "开 {{os}}",
+    "startedTitle": "v{{started}} is downloading in your browser.",
+    "startedBody": "When it lands, quit this app and install the new version over the current one. Open it and pick the same project. Your agents, memory and settings stay where they are.",
+    "installAria": "Install the update",
+    "gotIt": "got it",
+    "checkedTitle": "You are on the latest version.",
+    "checkedBody": "v{{v}} is the newest release. Checked just now."
+  },
+  "installSteps": {
+    "darwin": [
+      "Open the .dmg and drag Munder Difflin onto Applications. Choose Replace when asked.",
+      "Quit this app, open the new one from Applications, and pick the same project."
+    ],
+    "win32": [
+      "Quit this app, then run the downloaded setup .exe. It replaces the installed version.",
+      "Open Munder Difflin again and pick the same project."
+    ],
+    "linux": [
+      "Make the downloaded .AppImage executable (chmod +x) and move it over the one you run now.",
+      "Quit this app, launch the new AppImage, and pick the same project."
+    ]
   }
 }

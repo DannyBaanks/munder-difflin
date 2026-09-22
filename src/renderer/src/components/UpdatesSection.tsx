@@ -39,6 +39,22 @@ export function UpdatesSection() {
   const pending = pendingVersion(status, __APP_VERSION__);
   const [manualStarted, setManualStarted] = useState<string | null>(null);
   const steps = manualInstallSteps(window.cth.platform ?? 'darwin');
+  // Translated OS install instructions (indexed keys, OfficeFloor precedent).
+  // `steps.os` stays the proper-noun OS name from the shared helper.
+  const platKey = (() => {
+    const p = window.cth.platform ?? 'darwin';
+    return p === 'darwin' ? 'darwin' : p === 'win32' ? 'win32' : 'linux';
+  })();
+  const installStepsList: string[] = (() => {
+    const out: string[] = [];
+    for (let i = 0; i < 8; i++) {
+      const key = `installSteps.${platKey}.${i}`;
+      const s = t(key);
+      if (s === key) break;
+      out.push(s);
+    }
+    return out;
+  })();
   const downloadManually = () => {
     if (!status) return;
     const url = manualDownloadUrl(status, window.cth.platform, window.cth.arch);
@@ -196,7 +212,7 @@ export function UpdatesSection() {
             pick the same project. On {steps.os}:
           </Trans>
           <ol style={{ margin: '4px 0 0', paddingLeft: 18, color: 'var(--cth-ink-700)' }}>
-            {steps.steps.map((t) => <li key={t}>{t}</li>)}
+            {installStepsList.map((s) => <li key={s}>{s}</li>)}
           </ol>
         </div>
       )}

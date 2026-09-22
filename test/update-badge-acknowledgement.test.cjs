@@ -28,8 +28,17 @@ test('the check branch acknowledges a no-update result', () => {
 test('the acknowledgement renders and auto-dismisses', () => {
   assert.ok(/checkedOk && !started &&/.test(SRC),
     'the acknowledgement popover must render when checkedOk is set');
-  assert.ok(/on the latest version/i.test(SRC),
+  // The "already current" words may be a literal or an i18n lookup
+  // (translated chrome); either way they must resolve to that message.
+  const direct = /on the latest version/i.test(SRC);
+  const viaKey = /t\('updateBadge\.checkedTitle'\)/.test(SRC);
+  assert.ok(direct || viaKey,
     'it must say, in words, that the user is already current');
+  if (viaKey) {
+    const en = JSON.parse(read('src/renderer/src/i18n/locales/en.json'));
+    assert.match(en.updateBadge.checkedTitle, /latest version/i,
+      'updateBadge.checkedTitle must stay the already-current message');
+  }
   assert.ok(/setTimeout\(\(\) => setCheckedOk\(false\)/.test(SRC),
     'it must auto-dismiss, or it is a stuck mode instead of a flash');
 });

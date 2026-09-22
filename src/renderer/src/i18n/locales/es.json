@@ -1534,5 +1534,46 @@
     "closeBodyOther": "Cerrar el arnés terminará las {{count}} sesiones claude en curso y descartará cualquier progreso no guardado que tuvieran en memoria. El historial de conversación de cada sesión se pierde cuando el PTY sale.",
     "tip": "Consejo: <strong>la hora de cierre</strong> es la salida segura — el orquestador hace que cada agente suba su trabajo y guarde su memoria, y la aplicación se cierra sola cuando todo el piso confirma. Sin pérdida de datos.",
     "errStart": "No se pudo iniciar la hora de cierre."
+  },
+  "updateBadge": {
+    "labelDownloading": "descargando {{percent}}%",
+    "titleDownloading": "Descargando v{{version}}… {{percent}}%",
+    "labelDownloaded": "v{{pending}} · reiniciar",
+    "titleDownloaded": "Clic para reiniciar e instalar v{{pending}}",
+    "labelAvailable": "v{{pending}} · actualizar",
+    "titleAvailable": "Descargando v{{pending}} en segundo plano; clic para iniciarla si no empezó",
+    "labelManual": "v{{pending}} · descargar",
+    "titleManual": "Clic para descargar v{{pending}}, luego reemplaza tu aplicación",
+    "titleManualReason": "Clic para descargar v{{pending}}, luego reemplaza tu aplicación ({{reason}})",
+    "labelChecking": "buscando…",
+    "titleChecking": "Buscando actualizaciones (estás en v{{v}})",
+    "labelError": "falló la búsqueda",
+    "titleError": "{{message}} — clic para reintentar",
+    "labelLatest": "al día",
+    "titleLatest": "v{{v}} es la última versión — clic para buscar de nuevo",
+    "titleIdle": "v{{v}} — clic para buscar actualizaciones",
+    "hoverTitle": "Clic para descargar v{{pending}}",
+    "hoverBody": "Descarga la última versión y reemplaza tu aplicación. ¿Prefieres que se actualice sola? Ajustes → Actualizaciones.",
+    "hoverOs": "En {{os}}",
+    "startedTitle": "v{{started}} se está descargando en tu navegador.",
+    "startedBody": "Cuando llegue, cierra esta aplicación e instala la nueva versión sobre la actual. Ábrela y elige el mismo proyecto. Tus agentes, memoria y ajustes quedan donde están.",
+    "installAria": "Instalar la actualización",
+    "gotIt": "entendido",
+    "checkedTitle": "Estás en la última versión.",
+    "checkedBody": "v{{v}} es la versión más nueva. Revisado ahora mismo."
+  },
+  "installSteps": {
+    "darwin": [
+      "Abre el .dmg y arrastra Munder Difflin a Aplicaciones. Elige Reemplazar cuando pregunte.",
+      "Cierra esta aplicación, abre la nueva desde Aplicaciones y elige el mismo proyecto."
+    ],
+    "win32": [
+      "Cierra esta aplicación y ejecuta el .exe de instalación descargado. Reemplaza la versión instalada.",
+      "Abre Munder Difflin de nuevo y elige el mismo proyecto."
+    ],
+    "linux": [
+      "Haz ejecutable el .AppImage descargado (chmod +x) y muévelo sobre el que usas ahora.",
+      "Cierra esta aplicación, lanza el nuevo AppImage y elige el mismo proyecto."
+    ]
   }
 }

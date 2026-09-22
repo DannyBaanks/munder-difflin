@@ -13,12 +13,14 @@
  * is wiring and pixels.
  */
 import { useCallback, useEffect, useState } from 'react';
-import { describeUpdate, manualDownloadUrl, manualInstallSteps, pendingVersion, reduceStatus, type UpdateStatus } from '@shared/updateState';
+import { useTranslation } from 'react-i18next';
+import { clampPercent, describeUpdate, manualDownloadUrl, manualInstallSteps, pendingVersion, reduceStatus, type UpdateStatus } from '@shared/updateState';
 import { PixelButton } from './PixelButton';
 
 declare const __APP_VERSION__: string;
 
 export function UpdateBadge() {
+  const { t } = useTranslation();
   const [status, setStatus] = useState<UpdateStatus | null>(null);
   const [busy, setBusy] = useState(false);
   const [hover, setHover] = useState(false);
@@ -50,6 +52,86 @@ export function UpdateBadge() {
   }, [checkedOk]);
 
   const view = describeUpdate(status, __APP_VERSION__);
+
+  // Localized chip text. describeUpdate stays the single source of truth for
+  // tone/action/busy (shared, unit-tested); the PROSE is re-derived here per
+  // status so it goes through i18n — the same split UpdatesSection uses for
+  // its headline/detail/button. Branching mirrors describeUpdate exactly.
+  const pending = pendingVersion(status, __APP_VERSION__);
+  const errMessage = status?.state === 'error' ? status.message : '';
+  const localized: { label: string | null; title: string } = (() => {
+    if (status?.state === 'downloading') {
+      const percent = clampPercent(status.percent);
+      return {
+        label: t('updateBadge.labelDownloading', { percent }),
+        title: t('updateBadge.titleDownloading', { version: status.version, percent })
+      };
+    }
+    if (pending) {
+      if (status?.state === 'downloaded') {
+        return {
+          label: t('updateBadge.labelDownloaded', { pending }),
+          title: t('updateBadge.titleDownloaded', { pending })
+        };
+      }
+      if (status?.state === 'available') {
+        return {
+          label: t('updateBadge.labelAvailable', { pending }),
+          title: t('updateBadge.titleAvailable', { pending })
+        };
+      }
+      const reason = status?.state === 'available-manual' ? status.reason : undefined;
+      return {
+        label: t('updateBadge.labelManual', { pending }),
+        title: reason
+          ? t('updateBadge.titleManualReason', { pending, reason })
+          : t('updateBadge.titleManual', { pending })
+      };
+    }
+    switch (status?.state) {
+      case 'checking':
+        return {
+          label: t('updateBadge.labelChecking'),
+          title: t('updateBadge.titleChecking', { v: __APP_VERSION__ })
+        };
+      case 'error':
+        // The tooltip carries the verbatim error, like describeUpdate does.
+        return {
+          label: t('updateBadge.labelError'),
+          title: t('updateBadge.titleError', { message: errMessage })
+        };
+      case 'not-available':
+      case 'just-updated':
+        return {
+          label: t('updateBadge.labelLatest'),
+          title: t('updateBadge.titleLatest', { v: __APP_VERSION__ })
+        };
+      case 'idle':
+      default:
+        return {
+          label: null,
+          title: t('updateBadge.titleIdle', { v: __APP_VERSION__ })
+        };
+    }
+  })();
+
+  // Translated OS install instructions. Indexed keys (OfficeFloor precedent —
+  // no returnObjects in this codebase); stops at the first missing index so a
+  // longer list never renders a raw key. `os` names stay proper nouns.
+  const platKey = (() => {
+    const p = window.cth.platform ?? 'darwin';
+    return p === 'darwin' ? 'darwin' : p === 'win32' ? 'win32' : 'linux';
+  })();
+  const installStepsList: string[] = (() => {
+    const out: string[] = [];
+    for (let i = 0; i < 8; i++) {
+      const key = `installSteps.${platKey}.${i}`;
+      const s = t(key);
+      if (s === key) break;
+      out.push(s);
+    }
+    return out;
+  })();
 
   const onClick = useCallback(async () => {
     if (view.action === 'none' || busy) return;
@@ -90,7 +172,8 @@ export function UpdateBadge() {
       : view.tone === 'warn' ? 'var(--cth-amber-light, #f6e2b3)'
         : 'transparent';
 
-  const pending = pendingVersion(status, __APP_VERSION__);
+  // `pending` comes from the localized block above (single declaration);
+  // `steps.os` (proper-noun OS names) is still read here for the hover card.
   const steps = manualInstallSteps(window.cth.platform ?? 'darwin');
   const INK = 'var(--cth-ink-900)';
 
@@ -104,8 +187,8 @@ export function UpdateBadge() {
       className="cth-titlebar-nodrag"
       onClick={() => { void onClick(); }}
       disabled={!interactive}
-      title={view.title}
-      aria-label={view.label ? `${view.title}` : `Version ${__APP_VERSION__} — check for updates`}
+      title={localized.title}
+      aria-label={localized.title}
       aria-busy={view.busy || busy}
       style={{
         display: 'inline-flex', alignItems: 'center', gap: 6,
@@ -124,10 +207,10 @@ export function UpdateBadge() {
       }}
     >
       <span>v{__APP_VERSION__}</span>
-      {view.label && (
+      {localized.label && (
         <>
           <span aria-hidden style={{ color: 'var(--cth-ink-500)' }}>·</span>
-          <span style={{ fontWeight: view.tone === 'idle' ? 400 : 600 }}>{view.label}</span>
+          <span style={{ fontWeight: view.tone === 'idle' ? 400 : 600 }}>{localized.label}</span>
         </>
       )}
     </button>
@@ -146,17 +229,17 @@ export function UpdateBadge() {
         }}
       >
         <div style={{ fontFamily: 'var(--cth-font-mono, monospace)', fontWeight: 700, fontSize: 12.5 }}>
-          Click to download v{pending}
+          {pending ? t('updateBadge.hoverTitle', { pending }) : null}
         </div>
         <div style={{ marginTop: 4, color: 'var(--cth-ink-700)' }}>
-          Download the latest version and replace the app you have. Prefer the app to update itself? Settings &rarr; Updates.
+          {t('updateBadge.hoverBody')}
         </div>
         <div style={{
           marginTop: 8, fontFamily: 'var(--cth-font-mono, monospace)', fontSize: 9,
           letterSpacing: '.18em', textTransform: 'uppercase', color: 'var(--cth-ink-500)'
-        }}>On {steps.os}</div>
+        }}>{t('updateBadge.hoverOs', { os: steps.os })}</div>
         <ol style={{ margin: '4px 0 0', paddingLeft: 18, color: 'var(--cth-ink-700)' }}>
-          {steps.steps.map((t) => <li key={t}>{t}</li>)}
+          {installStepsList.map((s) => <li key={s}>{s}</li>)}
         </ol>
       </div>
     )}
@@ -165,7 +248,7 @@ export function UpdateBadge() {
     {started && (
       <div
         role="dialog"
-        aria-label="Install the update"
+        aria-label={t('updateBadge.installAria')}
         className="cth-titlebar-nodrag"
         style={{
           position: 'absolute', top: 'calc(100% + 6px)', left: 0, zIndex: 400,
@@ -176,17 +259,16 @@ export function UpdateBadge() {
         }}
       >
         <div style={{ fontFamily: 'var(--cth-font-mono, monospace)', fontWeight: 700, fontSize: 13 }}>
-          v{started} is downloading in your browser.
+          {t('updateBadge.startedTitle', { started })}
         </div>
         <div style={{ marginTop: 6, color: 'var(--cth-ink-700)' }}>
-          When it lands, quit this app and install the new version over the current one. Open it and
-          pick the same project. Your agents, memory and settings stay where they are.
+          {t('updateBadge.startedBody')}
         </div>
         <ol style={{ margin: '8px 0 0', paddingLeft: 18, color: 'var(--cth-ink-700)' }}>
-          {steps.steps.map((t) => <li key={t}>{t}</li>)}
+          {installStepsList.map((s) => <li key={s}>{s}</li>)}
         </ol>
         <div style={{ display: 'flex', gap: 8, marginTop: 10, justifyContent: 'flex-end' }}>
-          <PixelButton variant="ghost" size="sm" onClick={() => setStarted(null)}>got it</PixelButton>
+          <PixelButton variant="ghost" size="sm" onClick={() => setStarted(null)}>{t('updateBadge.gotIt')}</PixelButton>
         </div>
       </div>
     )}
@@ -212,10 +294,10 @@ export function UpdateBadge() {
             width: 18, height: 18, borderRadius: 999,
             background: 'var(--cth-mint-light, #d0f0e0)', color: 'var(--cth-ink-900)', fontSize: 12
           }}>&#10003;</span>
-          You are on the latest version.
+          {t('updateBadge.checkedTitle')}
         </div>
         <div style={{ marginTop: 4, color: 'var(--cth-ink-700)' }}>
-          v{__APP_VERSION__} is the newest release. Checked just now.
+          {t('updateBadge.checkedBody', { v: __APP_VERSION__ })}
         </div>
       </div>
     )}
