@@ -10,6 +10,7 @@ import { join, resolve, sep, basename, dirname, isAbsolute } from 'node:path';
 import { homedir } from 'node:os';
 import { request as httpsRequest } from 'node:https';
 import { PtyManager, type SpawnOptions } from './pty';
+import { openTerminalAtFolder } from './openTerminal';
 import { resolveCommand as resolveCliCommand, isSafeCommandName } from './shellEnv';
 import { initAutoUpdater, abortPendingRestart } from './updater';
 import { RealtimeFloorWatcher } from './realtimeFloorWatcher';
@@ -3106,19 +3107,13 @@ ipcMain.handle('dialog:chooseFolder', async (evt) => {
   return { ok: true as const, path: res.filePaths[0] };
 });
 
-// ─── IPC: Terminal.app at a folder ──────────────────────────────────────────
+// ─── IPC: open the OS terminal at a folder ──────────────────────────────────
+// (Was "Terminal.app at a folder": it ran `open -a Terminal` on EVERY platform.
+// `-a` is macOS-only; on Linux /usr/bin/open is the Debian alternative for
+// xdg-open, which has no -a flag → "xdg-open: unexpected option '-a'".
+// Platform logic now lives in ./openTerminal — see that file for the evidence.)
 ipcMain.handle('terminal:openAtFolder', async (_evt, cwd: unknown) => {
-  if (typeof cwd !== 'string' || cwd.length === 0) return { ok: false, error: 'invalid cwd' };
-  return new Promise<{ ok: boolean; error?: string }>((resolve) => {
-    const p = spawn('open', ['-a', 'Terminal', cwd]);
-    let err = '';
-    p.stderr.on('data', (d) => { err += d.toString(); });
-    p.on('error', (e) => resolve({ ok: false, error: e.message }));
-    p.on('close', (code) => {
-      if (code === 0) resolve({ ok: true });
-      else resolve({ ok: false, error: err.trim() || `open exited ${code}` });
-    });
-  });
+  return openTerminalAtFolder(cwd);
 });
 
 // ─── IPC: integrations (Phase 2 registry — backend for Ryan's Settings UI) ────
