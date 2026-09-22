@@ -18,7 +18,7 @@ import {
   readConfig, writeConfig, setAgentTokenCap, resetConfig, onConfigWritten, ensureHarnessHome, ensureClaudePermissionsAccepted,
   modelForRole, OPS_STANDUP_MISSION, HEARTBEAT_MISSION, COMPACT_MAINTENANCE_MISSION, type HarnessConfig, type ScheduledMission
 } from './config';
-import { listDir, readFileText, readFileBinary, writeFileText, statAbs, expandTilde, isValidHarnessFolderName } from './fs';
+import { listDir, readFileText, readFileBinary, writeFileText, statAbs, expandTilde, isValidHarnessFolderName, validateHomeSwitch } from './fs';
 import { normalizeWeekly, weeklyDelayMs } from '../shared/weeklySchedule';
 import {
   getBranch, getStatus, getLog, getBranches, getAheadBehind, isRepo, getDiff, mainRepoRoot,
@@ -3246,14 +3246,11 @@ ipcMain.handle('config:changeHome', async (_evt, payload: unknown) => {
   const oldRaw = readConfig().harnessHome;
   const oldHome = oldRaw ? resolve(oldRaw) : null;
 
-  // Guard against same-folder / nested-folder (a move would self-copy forever).
-  if (oldHome) {
-    if (newHome === oldHome) return { ok: false, error: 'That is already the current home folder.' };
-    const a = newHome + sep, b = oldHome + sep;
-    if (a.startsWith(b) || b.startsWith(a)) {
-      return { ok: false, error: 'Pick a folder that is not inside (or a parent of) the current home.' };
-    }
-  }
+  // Same-folder is always refused; nested folders only for 'move' (self-copy
+  // forever) — 'fresh' never copies, so a harness inside/above the current
+  // home is the normal multi-harness layout. See validateHomeSwitch.
+  const allowed = validateHomeSwitch(oldHome, newHome, mode);
+  if (!allowed.ok) return allowed;
 
   const ensured = ensureHarnessHome(newHome);
   if (!ensured.ok) return ensured;

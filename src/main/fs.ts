@@ -351,6 +351,40 @@ export function normalizeHiveHome(
   return { home: abs, recentHives: recentHives.slice(0, cap) };
 }
 
+/** Switch mode for validateHomeSwitch — mirrors the `config:changeHome` IPC. */
+export type HomeSwitchMode = 'move' | 'fresh';
+
+/**
+ * May the app re-point from `oldHome` to `newHome`? Both must already be
+ * absolute + normalized (the handler expandTildes + resolves first) — this
+ * is pure string math so the focused tests can pin it without Electron.
+ *
+ * Same-folder is always refused (the picker opens it in place instead).
+ * NESTED folders are refused ONLY for 'move': copying a home into itself
+ * (or over its own parent) would self-copy forever. 'fresh' never copies —
+ * it re-points and bootstraps an empty home — so a harness inside (or above)
+ * the current home is the normal multi-harness layout, not an error. That
+ * distinction is what lets the create button put a new harness anywhere,
+ * e.g. DEVELOPMENT/harness2 while the current home IS DEVELOPMENT.
+ */
+export function validateHomeSwitch(
+  oldHome: string | null | undefined,
+  newHome: string,
+  mode: HomeSwitchMode
+): { ok: true } | { ok: false; error: string } {
+  if (!newHome) return { ok: false, error: 'invalid newHome' };
+  if (oldHome) {
+    if (newHome === oldHome) return { ok: false, error: 'That is already the current home folder.' };
+    if (mode === 'move') {
+      const a = newHome + sep, b = oldHome + sep;
+      if (a.startsWith(b) || b.startsWith(a)) {
+        return { ok: false, error: 'Pick a folder that is not inside (or a parent of) the current home.' };
+      }
+    }
+  }
+  return { ok: true };
+}
+
 /** Maximum harness folder-name length the create-harness flow accepts. Generous
  *  on purpose (NAME_MAX is 255, eCryptfs caps at 143); the cap exists only to
  *  reject garbage/paste accidents, not to police taste. */

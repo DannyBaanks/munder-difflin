@@ -75,6 +75,44 @@ test('rejects Windows device names and absurd lengths', () => {
   assert.strictEqual(fsmod.isValidHarnessFolderName('h'.repeat(128)).ok, true, '128 chars accepted');
 });
 
+test('validateHomeSwitch allows nested homes in fresh mode (multi-harness layout)', () => {
+  const dev = '/home/danny/Development';
+  // The create button's case: new harness INSIDE the current home.
+  assert.deepStrictEqual(
+    fsmod.validateHomeSwitch(dev, `${dev}/harness-isYco`, 'fresh'), { ok: true });
+  // And above it: switching to a parent is equally copy-free in fresh mode.
+  assert.deepStrictEqual(
+    fsmod.validateHomeSwitch(`${dev}/ISyCo`, dev, 'fresh'), { ok: true });
+  // Siblings and fresh starts were never blocked.
+  assert.deepStrictEqual(
+    fsmod.validateHomeSwitch(dev, '/tmp/otro', 'fresh'), { ok: true });
+  assert.deepStrictEqual(
+    fsmod.validateHomeSwitch(null, `${dev}/harness-isYco`, 'fresh'), { ok: true });
+});
+
+test('validateHomeSwitch keeps refusing same-folder and nested moves', () => {
+  const dev = '/home/danny/Development';
+  assert.deepStrictEqual(
+    fsmod.validateHomeSwitch(dev, dev, 'fresh'),
+    { ok: false, error: 'That is already the current home folder.' });
+  assert.deepStrictEqual(
+    fsmod.validateHomeSwitch(dev, dev, 'move'),
+    { ok: false, error: 'That is already the current home folder.' });
+  // 'move' COPIES: nesting would self-copy forever, so it stays refused.
+  const r1 = fsmod.validateHomeSwitch(dev, `${dev}/harness-isYco`, 'move');
+  assert.strictEqual(r1.ok, false);
+  assert.match(r1.error, /not inside/);
+  const r2 = fsmod.validateHomeSwitch(`${dev}/ISyCo`, dev, 'move');
+  assert.strictEqual(r2.ok, false);
+  assert.match(r2.error, /not inside/);
+  // Sibling prefix lookalikes are NOT nesting ('harness2' vs 'harness').
+  assert.deepStrictEqual(
+    fsmod.validateHomeSwitch(`${dev}/harness`, `${dev}/harness2`, 'move'), { ok: true });
+  assert.deepStrictEqual(
+    fsmod.validateHomeSwitch(dev, '', 'fresh'),
+    { ok: false, error: 'invalid newHome' });
+});
+
 test('normalizeHiveHome puts the created home first in recents', () => {
   const r = fsmod.normalizeHiveHome('/home/danny/harness2', ['/home/danny/Development']);
   assert.strictEqual(r.home, '/home/danny/harness2');
