@@ -28,7 +28,7 @@ import {
 import { linkWorktreeDeps, unlinkWorktreeDeps } from './worktreeDeps';
 import { HiveManager, type AgentMeta, type HiveMessage, type HiveTask } from './hive';
 import { HookServer } from './hooks';
-import { ControlChannel } from './controlChannel';
+import { ControlChannel, buildSessionView } from './controlChannel';
 import { CircuitBreaker, type BreakerInput } from './breaker';
 import type { UsageProvider } from './usage';
 import { MemoryManager } from './memory';
@@ -1783,6 +1783,21 @@ async function startControlChannel(): Promise<void> {
     const token = randomBytes(24).toString('hex');
     const next = new ControlChannel({
       token,
+      read: () => {
+        // Registry identity (static) + live PTYs, joined by buildSessionView.
+        // provider llega como union AgentProvider: cast a string para la vista
+        // (los valores SON strings en runtime; el validador no los interpreta).
+        const reg = hive.registry().agents;
+        const agents: Record<string, { id: string; name: string; provider?: string; role?: string; cwd?: string }> = {};
+        for (const [id, a] of Object.entries(reg)) {
+          agents[id] = {
+            id: a.id, name: a.name,
+            provider: a.provider as string | undefined,
+            role: a.role, cwd: a.cwd,
+          };
+        }
+        return { agents: buildSessionView(ptyManager.list(), agents) };
+      },
       repaint: () => {
         // M3: tell every live window to repaint its canvases (avatars gone
         // blind after a GPU death come back without restarting anything).

@@ -21,6 +21,8 @@ export interface ControlChannelOptions {
   spawn?: ChannelSpawnFn;
   /** Kill delegate (M2). Same 501 rule. */
   kill?: ChannelKillFn;
+  /** Session read delegate (M1): registry + live PTYs merged. Absent → 501. */
+  read?: SessionReaderFn;
   /** Repaint broadcast delegate (M3): tells every live window to repaint its
    *  canvases. Returns the window count reached. Absent → 501. */
   repaint?: () => number;
@@ -49,6 +51,71 @@ export type ChannelSpawnFn = (opts: ChannelSpawnOpts) => Promise<{
 export type ChannelKillFn = (id: string) =>
   | { ok: boolean; error?: string }
   | Promise<{ ok: boolean; error?: string }>;
+
+/** Registry-side agent facts (subset of RegistryAgent used for display). */
+export interface RegistryAgentView {
+  id: string;
+  name: string;
+  provider?: string;
+  role?: string;
+  cwd?: string;
+}
+
+/** Live PTY facts (subset of ptyManager.list()). */
+export interface PtyView {
+  id: string;
+  cwd: string;
+  command: string;
+  pid: number;
+}
+
+/** One row of `sesion ver`: registry identity + liveness. */
+export interface SessionAgentView {
+  id: string;
+  name: string;
+  provider?: string;
+  role?: string;
+  cwd?: string;
+  live: boolean;
+  pid?: number;
+}
+
+export type SessionReaderFn = () =>
+  | { agents: SessionAgentView[] }
+  | Promise<{ agents: SessionAgentView[] }>;
+
+/**
+ * Join registry identity with PTY liveness. Pure: `pty-<id>` links a live PTY
+ * to its agent (the convention AddAgentModal establishes); PTYs with no
+ * registry entry (orphans, pre-registry spawns) show as live unknowns rather
+ * than vanishing. NOTE: no `model` column — models live renderer-side (store
+ * + spawn args), not in the registry; M6 handles model selection at build.
+ */
+export function buildSessionView(
+  ptyList: PtyView[],
+  registryAgents: Record<string, RegistryAgentView>
+): SessionAgentView[] {
+  const out: SessionAgentView[] = [];
+  for (const [id, meta] of Object.entries(registryAgents)) {
+    const live = ptyList.find((p) => p.id === `pty-${id}`);
+    out.push({
+      id,
+      name: meta.name ?? id,
+      provider: meta.provider,
+      role: meta.role,
+      cwd: meta.cwd,
+      live: !!live,
+      pid: live?.pid,
+    });
+  }
+  for (const p of ptyList) {
+    const known = Object.keys(registryAgents).some((id) => `pty-${id}` === p.id);
+    // Keys always present (undefined, never absent): the JSON wire format is
+    // identical either way, but explicit shape keeps deepEqual/tests honest.
+    if (!known) out.push({ id: p.id, name: p.id, provider: undefined, role: undefined, cwd: p.cwd, live: true, pid: p.pid });
+  }
+  return out;
+}
 
 /** User-facing agent description (CLI `sesion armar`) → spawn opts. Pure. */
 export interface AgentSpec {
@@ -167,19 +234,25 @@ export class ControlChannel {
   private readonly spawn?: ChannelSpawnFn;
   private readonly kill?: ChannelKillFn;
   private readonly repaint?: () => number;
+  private readonly read?: SessionReaderFn;
 
   constructor(opts: ControlChannelOptions) {
     this.token = opts.token;
     this.spawn = opts.spawn;
     this.kill = opts.kill;
     this.repaint = opts.repaint;
+    this.read = opts.read;
   }
 
   /** Bind a loopback port (0 ⇒ OS-assigned). Resolves the actual bound port. */
   start(preferredPort = 0): Promise<{ ok: boolean; port?: number; error?: string }> {
     return new Promise((resolve) => {
       if (this.server) { resolve({ ok: false, error: 'already running' }); return; }
-      const server = createServer((req, res) => this.handle(req, res));
+      const server = createServer((req, res) => {
+        void this.handle(req, res).catch(() => {
+          try { json(res, 500, { ok: false, error: 'internal' }); } catch { /* socket gone */ }
+        });
+      });
       const onError = (e: Error): void => {
         server.off('listening', onListening);
         resolve({ ok: false, error: e instanceof Error ? e.message : String(e) });
@@ -216,7 +289,7 @@ export class ControlChannel {
     return header === `Bearer ${this.token}`;
   }
 
-  private handle(req: IncomingMessage, res: ServerResponse): void {
+  private async handle(req: IncomingMessage, res: ServerResponse): Promise<void> {
     // Defense in depth: even bound loopback-only, refuse any non-loopback peer.
     if (!isLoopback(req.socket.remoteAddress ?? '')) {
       json(res, 403, { ok: false, error: 'loopback only' });
@@ -229,6 +302,24 @@ export class ControlChannel {
         return;
       }
       json(res, 200, { ok: true, service: 'munder-control' });
+      return;
+    }
+    if (req.method === 'GET' && path === '/sesion') {
+      if (!this.authorized(req)) {
+        json(res, 401, { ok: false, error: 'unauthorized' });
+        return;
+      }
+      if (!this.read) {
+        json(res, 501, { ok: false, error: 'lectura no disponible en este build' });
+        return;
+      }
+      try {
+        const snap = await this.read();
+        const agents = Array.isArray(snap?.agents) ? snap.agents : [];
+        json(res, 200, { ok: true, agents, count: agents.length });
+      } catch (e: unknown) {
+        json(res, 500, { ok: false, error: e instanceof Error ? e.message : String(e) });
+      }
       return;
     }
     if ((req.method === 'POST' && path === '/sesion/agentes') ||

@@ -17,7 +17,7 @@ const test = require('node:test');
 const assert = require('node:assert/strict');
 const loadTs = require('./load-ts.cjs');
 
-const { ControlChannel, validateAgentSpec, uniqueAgentId, buildChannelSpawnOpts } = loadTs('src/main/controlChannel.ts');
+const { ControlChannel, validateAgentSpec, uniqueAgentId, buildChannelSpawnOpts, buildSessionView } = loadTs('src/main/controlChannel.ts');
 
 async function start() {
   const ch = new ControlChannel({ token: 'test-token-123' });
@@ -269,6 +269,69 @@ test('POST /repaint without delegate is 501', async () => {
   try {
     const r = await post(port, '/repaint', {});
     assert.equal(r.status, 501);
+  } finally {
+    ch.stop();
+  }
+});
+
+/* ─── M1: session read ───────────────────────────────────────────────────── */
+
+test('buildSessionView joins registry identity with PTY liveness', () => {
+  const view = buildSessionView(
+    [{ id: 'pty-jim-1', cwd: '/tmp', command: 'claude', pid: 111 }],
+    {
+      'jim-1': { id: 'jim-1', name: 'Jim', provider: 'claude', role: 'ventas', cwd: '/tmp' },
+      'pam-1': { id: 'pam-1', name: 'Pam', provider: 'codex', cwd: '/tmp' },
+    }
+  );
+  assert.deepEqual(view, [
+    { id: 'jim-1', name: 'Jim', provider: 'claude', role: 'ventas', cwd: '/tmp', live: true, pid: 111 },
+    { id: 'pam-1', name: 'Pam', provider: 'codex', role: undefined, cwd: '/tmp', live: false, pid: undefined },
+  ]);
+});
+
+test('buildSessionView surfaces orphan PTYs as live unknowns (never drops)', () => {
+  const view = buildSessionView(
+    [{ id: 'pty-huerfano', cwd: '/tmp', command: 'bash', pid: 222 }],
+    {}
+  );
+  assert.deepEqual(view, [
+    { id: 'pty-huerfano', name: 'pty-huerfano', provider: undefined, role: undefined, cwd: '/tmp', live: true, pid: 222 },
+  ]);
+  assert.deepEqual(buildSessionView([], {}), []);
+});
+
+test('GET /sesion returns the reader snapshot with count', async () => {
+  const ch = new ControlChannel({
+    token: 'test-token-123',
+    read: () => ({ agents: [{ id: 'jim-1', name: 'Jim', live: true, pid: 111 }] }),
+  });
+  const { port } = await ch.start(0);
+  try {
+    const res = await fetch(`http://127.0.0.1:${port}/sesion`, {
+      headers: { authorization: 'Bearer test-token-123' },
+    });
+    assert.equal(res.status, 200);
+    assert.deepEqual(await res.json(), {
+      ok: true,
+      agents: [{ id: 'jim-1', name: 'Jim', live: true, pid: 111 }],
+      count: 1,
+    });
+  } finally {
+    ch.stop();
+  }
+});
+
+test('GET /sesion without reader is 501, without auth is 401', async () => {
+  const ch = new ControlChannel({ token: 'test-token-123' });
+  const { port } = await ch.start(0);
+  try {
+    const r = await fetch(`http://127.0.0.1:${port}/sesion`, {
+      headers: { authorization: 'Bearer test-token-123' },
+    });
+    assert.equal(r.status, 501);
+    const r2 = await fetch(`http://127.0.0.1:${port}/sesion`);
+    assert.equal(r2.status, 401);
   } finally {
     ch.stop();
   }
