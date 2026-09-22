@@ -97,7 +97,9 @@ export function buildSessionView(
 ): SessionAgentView[] {
   const out: SessionAgentView[] = [];
   for (const [id, meta] of Object.entries(registryAgents)) {
-    const live = ptyList.find((p) => p.id === `pty-${id}`);
+    // Live PTYs use `pty-<id>` (UI hires) or, for restored/ephemeral workers,
+    // the agent id itself — match either, never drop.
+    const live = ptyList.find((p) => p.id === `pty-${id}` || p.id === id);
     out.push({
       id,
       name: meta.name ?? id,
@@ -109,7 +111,7 @@ export function buildSessionView(
     });
   }
   for (const p of ptyList) {
-    const known = Object.keys(registryAgents).some((id) => `pty-${id}` === p.id);
+    const known = Object.keys(registryAgents).some((id) => `pty-${id}` === p.id || id === p.id);
     // Keys always present (undefined, never absent): the JSON wire format is
     // identical either way, but explicit shape keeps deepEqual/tests honest.
     if (!known) out.push({ id: p.id, name: p.id, provider: undefined, role: undefined, cwd: p.cwd, live: true, pid: p.pid });

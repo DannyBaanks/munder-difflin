@@ -290,6 +290,16 @@ test('buildSessionView joins registry identity with PTY liveness', () => {
   ]);
 });
 
+test('buildSessionView matches live PTYs by pty-<id> OR bare agent id', () => {
+  const view = buildSessionView(
+    [{ id: 'worker-piton-jim-r3', cwd: '/tmp', command: 'claude', pid: 333 }],
+    { 'worker-piton-jim-r3': { id: 'worker-piton-jim-r3', name: 'Jim', provider: 'claude', cwd: '/tmp' } }
+  );
+  assert.deepEqual(view, [
+    { id: 'worker-piton-jim-r3', name: 'Jim', provider: 'claude', role: undefined, cwd: '/tmp', live: true, pid: 333 },
+  ]);
+});
+
 test('buildSessionView surfaces orphan PTYs as live unknowns (never drops)', () => {
   const view = buildSessionView(
     [{ id: 'pty-huerfano', cwd: '/tmp', command: 'bash', pid: 222 }],
