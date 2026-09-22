@@ -1764,12 +1764,35 @@ async function startSlackReplyServer(): Promise<void> {
  *  the other loopback services; see controlChannel.ts. */
 let controlChannel: ControlChannel | null = null;
 
+/** Kill by agent id OR pty id (tries both, like a human would). Mirrors the
+ *  `pty:kill` handler exactly (kill + idempotent teardown). */
+function killAgentById(id: string): { ok: boolean; error?: string } {
+  if (typeof id !== 'string' || !id) return { ok: false, error: 'invalid id' };
+  let known: string[] = [];
+  try { known = ptyManager.list().map((s) => s.id); } catch { /* fall through to direct attempt */ }
+  const target = known.includes(id) ? id : known.includes(`pty-${id}`) ? `pty-${id}` : id;
+  const res = ptyManager.kill(target);
+  teardownPty(target);
+  return res;
+}
+
 async function startControlChannel(): Promise<void> {
   try {
     try { controlChannel?.stop(); } catch { /* noop */ }
     controlChannel = null;
     const token = randomBytes(24).toString('hex');
-    const next = new ControlChannel({ token });
+    const next = new ControlChannel({
+      token,
+      spawn: (opts) => spawnAgentCore({
+        ...opts,
+        // The channel carries provider as an unconstrained string (JSON);
+        // spawnAgentCore re-infers it (unknown → custom fallback), so the
+        // cast is safe — same as the untyped pty:spawn IPC boundary.
+        provider: opts.provider as AgentProvider,
+        hive: opts.hive ? { ...opts.hive, provider: opts.hive.provider as AgentProvider } : undefined,
+      }, null),
+      kill: (id) => killAgentById(id),
+    });
     const r = await next.start();
     if (!r.ok || r.port === undefined) {
       console.error('[control] control channel failed to start:', r.error);

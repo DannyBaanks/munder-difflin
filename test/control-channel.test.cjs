@@ -17,7 +17,7 @@ const test = require('node:test');
 const assert = require('node:assert/strict');
 const loadTs = require('./load-ts.cjs');
 
-const { ControlChannel } = loadTs('src/main/controlChannel.ts');
+const { ControlChannel, validateAgentSpec, uniqueAgentId, buildChannelSpawnOpts } = loadTs('src/main/controlChannel.ts');
 
 async function start() {
   const ch = new ControlChannel({ token: 'test-token-123' });
@@ -92,4 +92,144 @@ test('port() tracks lifecycle (null when stopped)', async () => {
   assert.equal(ch.port(), r.port);
   ch.stop();
   assert.equal(ch.port(), null);
+});
+
+/* ─── M2: session routes (injectable spawner/killer) ─────────────────────── */
+
+async function post(port, path, body, token = 'test-token-123') {
+  const res = await fetch(`http://127.0.0.1:${port}${path}`, {
+    method: 'POST',
+    headers: { authorization: `Bearer ${token}`, 'content-type': 'application/json' },
+    body: typeof body === 'string' ? body : JSON.stringify(body),
+  });
+  return { status: res.status, body: await res.json() };
+}
+
+async function del(port, path, token = 'test-token-123') {
+  const headers = token ? { authorization: `Bearer ${token}` } : {};
+  const res = await fetch(`http://127.0.0.1:${port}${path}`, { method: 'DELETE', headers });
+  return { status: res.status, body: await res.json() };
+}
+
+test('validateAgentSpec mirrors the UI hire checks', () => {
+  assert.deepEqual(validateAgentSpec({ name: 'jim', cwd: '/tmp', command: 'claude' }), { ok: true });
+  assert.deepEqual(validateAgentSpec({ name: '  ', cwd: '/tmp', command: 'claude' }).ok, false);
+  assert.deepEqual(validateAgentSpec({ name: 'jim', cwd: '', command: 'claude' }).ok, false);
+  assert.deepEqual(validateAgentSpec({ name: 'jim', cwd: '/tmp', command: '  ' }).ok, false);
+  assert.deepEqual(validateAgentSpec(null).ok, false);
+  assert.deepEqual(validateAgentSpec({ name: 'jim', cwd: '/tmp', command: 'claude', capabilities: 'x' }).ok, false);
+  assert.deepEqual(validateAgentSpec({ name: 'jim', cwd: '/tmp', command: 'claude', capabilities: ['a', 'b'] }).ok, true);
+});
+
+test('uniqueAgentId slugifies like the UI (pty- prefix added by builder)', () => {
+  const id = uniqueAgentId('Jim Halpert');
+  assert.match(id, /^jim-halpert-[0-9a-z]+$/);
+  assert.match(uniqueAgentId('  '), /^agent-[0-9a-z]+$/);
+});
+
+test('POST /sesion/agentes spawns through the injected delegate', async () => {
+  const seen = [];
+  const ch = new ControlChannel({
+    token: 'test-token-123',
+    spawn: async (opts) => { seen.push(opts); return { ok: true, cwd: '/tmp/wt', worktreePath: '/tmp/wt' }; },
+  });
+  const { port } = await ch.start(0);
+  try {
+    const r = await post(port, '/sesion/agentes', {
+      name: 'Pam Beesly', cwd: '/tmp', command: 'claude --model opus', provider: 'claude', role: 'reception',
+    });
+    assert.equal(r.status, 200);
+    assert.equal(r.body.ok, true);
+    assert.match(r.body.id, /^pam-beesly-[0-9a-z]+$/);
+    assert.equal(r.body.ptyId, `pty-${r.body.id}`);
+    assert.equal(seen.length, 1);
+    const o = seen[0];
+    assert.equal(o.id, r.body.ptyId);
+    assert.equal(o.command, 'claude');
+    assert.deepEqual(o.args, ['--model', 'opus']);
+    assert.equal(o.hive.name, 'Pam Beesly');
+    assert.equal(o.hive.role, 'reception');
+    assert.equal(o.cols, 100);
+  } finally {
+    ch.stop();
+  }
+});
+
+test('POST rejects invalid specs without touching the spawner', async () => {
+  let calls = 0;
+  const ch = new ControlChannel({
+    token: 'test-token-123',
+    spawn: async () => { calls++; return { ok: true }; },
+  });
+  const { port } = await ch.start(0);
+  try {
+    for (const bad of [
+      {},
+      { name: '', cwd: '/tmp', command: 'claude' },
+      { name: 'jim', cwd: '/tmp', command: '' },
+      { name: 'jim', command: 'claude' },
+    ]) {
+      const r = await post(port, '/sesion/agentes', bad);
+      assert.equal(r.status, 400, JSON.stringify(bad));
+      assert.equal(r.body.ok, false);
+    }
+    const r2 = await post(port, '/sesion/agentes', 'no-json{{{', 'test-token-123');
+    assert.equal(r2.status, 400);
+    assert.equal(calls, 0, 'spawner never invoked on invalid input');
+  } finally {
+    ch.stop();
+  }
+});
+
+test('POST surfaces spawner failure with the pty:spawn contract (200 + ok:false)', async () => {
+  const ch = new ControlChannel({
+    token: 'test-token-123',
+    spawn: async () => ({ ok: false, error: 'cwd missing' }),
+  });
+  const { port } = await ch.start(0);
+  try {
+    const r = await post(port, '/sesion/agentes', { name: 'jim', cwd: '/nope', command: 'claude' });
+    assert.equal(r.status, 200);
+    assert.deepEqual(r.body, { ok: false, error: 'cwd missing' });
+  } finally {
+    ch.stop();
+  }
+});
+
+test('DELETE kills by id; unknown id is 404', async () => {
+  const killed = [];
+  const ch = new ControlChannel({
+    token: 'test-token-123',
+    kill: (id) => {
+      if (id === 'jim-abc' || id === 'pty-jim-abc') { killed.push(id); return { ok: true }; }
+      return { ok: false, error: `no pty: ${id}` };
+    },
+  });
+  const { port } = await ch.start(0);
+  try {
+    const r = await del(port, '/sesion/agentes/jim-abc');
+    assert.equal(r.status, 200);
+    assert.deepEqual(r.body, { ok: true, id: 'jim-abc' });
+    assert.deepEqual(killed, ['jim-abc']);
+    const r2 = await del(port, '/sesion/agentes/nadie');
+    assert.equal(r2.status, 404);
+    assert.equal(r2.body.ok, false);
+    const r3 = await del(port, '/sesion/agentes/%2F');
+    assert.equal(r3.status, 400);
+  } finally {
+    ch.stop();
+  }
+});
+
+test('session routes without delegates answer 501 (M0 builds stay valid)', async () => {
+  const ch = new ControlChannel({ token: 'test-token-123' });
+  const { port } = await ch.start(0);
+  try {
+    const r = await post(port, '/sesion/agentes', { name: 'jim', cwd: '/tmp', command: 'claude' });
+    assert.equal(r.status, 501);
+    const r2 = await del(port, '/sesion/agentes/jim');
+    assert.equal(r2.status, 501);
+  } finally {
+    ch.stop();
+  }
 });
