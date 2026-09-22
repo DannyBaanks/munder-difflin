@@ -1,4 +1,5 @@
 import { readdir, lstat, open, realpath, stat } from 'node:fs/promises';
+import { existsSync, readFileSync, writeFileSync } from 'node:fs';
 import type { FileHandle } from 'node:fs/promises';
 import { constants } from 'node:fs';
 import { basename, dirname, isAbsolute, join, normalize, relative, resolve, sep } from 'node:path';
@@ -377,6 +378,47 @@ export function isValidHarnessFolderName(
     return { ok: false, error: 'That name is reserved by Windows.' };
   }
   return { ok: true, name: trimmed };
+}
+
+/** Runtime entries a harness home accumulates (agents, memory, tasks, history,
+ *  roster). Keep in sync with the changeHome 'move' list (hive, palace,
+ *  roster.json, roster-backups) — everything the harness writes at home level
+ *  must be ignored here, or a harness created INSIDE a git repo pollutes
+ *  `git status` with runtime state. */
+export const HARNESS_GITIGNORE_ENTRIES: readonly string[] = [
+  'hive/',
+  'palace/',
+  'roster.json',
+  'roster-backups/'
+];
+
+const HARNESS_GITIGNORE_MARK = '# munder-difflin harness runtime (auto-generated — safe to edit)';
+
+/** Make the harness home ignore its own runtime state. Appends (never
+ *  overwrites): an existing user .gitignore keeps every line, missing harness
+ *  entries are added under the marker (trailing-slash-insensitive, so a user
+ *  `hive` covers our `hive/`). Idempotent — a second run changes nothing.
+ *  Best-effort: returns false instead of throwing so home creation (onboarding,
+ *  create button, changeHome) never fails over an ignore file. */
+export function ensureHarnessGitignore(home: string): boolean {
+  try {
+    const dir = expandTilde(home);
+    if (!dir) return false;
+    const p = join(dir, '.gitignore');
+    const current = existsSync(p) ? readFileSync(p, 'utf8') : '';
+    const have = new Set(
+      current.split('\n').map((l) => l.trim().replace(/\/+$/, '')).filter(Boolean)
+    );
+    const missing = HARNESS_GITIGNORE_ENTRIES.filter(
+      (e) => !have.has(e.replace(/\/+$/, ''))
+    );
+    if (missing.length === 0) return true;
+    const block = ['', HARNESS_GITIGNORE_MARK, ...missing, ''].join('\n');
+    writeFileSync(p, current + (current && !current.endsWith('\n') ? '\n' : '') + block, 'utf8');
+    return true;
+  } catch {
+    return false;
+  }
 }
 
 /** Existence/metadata check for an ABSOLUTE path (v0.3.4 — backs the terminal

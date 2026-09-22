@@ -11,7 +11,7 @@ import {
 } from '../shared/agentProvider';
 import { defaultMcpDefaults } from '../shared/mcpCatalog';
 import { MAX_AGENT_TOKEN_CAP } from '../shared/tokenCaps';
-import { expandTilde, normalizeHiveHome } from './fs';
+import { ensureHarnessGitignore, expandTilde, normalizeHiveHome } from './fs';
 import type { IntegrationRecord } from '../shared/integrations';
 import {
   DEFAULT_CONTEXT_TRIGGER,
@@ -319,7 +319,7 @@ export interface HarnessConfig {
    *  themes fall back to 'office' in the loader. */
   officeTheme?: 'office' | 'friends' | 'brooklyn99' | 'siliconvalley' | 'got' | 'hogwarts';
   /** Per-CLI-provider local/self-hosted base URL (Ollama/LM Studio/vLLM, …) for the
-   *  OpenCode/Crush/pi/qwen engines; applied at spawn (config-injection or proxy
+   *  OpenCode/OpenISy/Crush/pi/qwen engines; applied at spawn (config-injection or proxy
    *  upstream). API KEYS are NOT stored here — they live write-only in the secret
    *  broker (integrations.ts), read MAIN-ONLY at spawn. */
   providerBaseUrls?: Partial<Record<AgentProvider, string>>;
@@ -776,6 +776,10 @@ export function ensureHarnessHome(path: string): { ok: boolean; error?: string }
     // "defense-in-depth at the consumers" the expandTilde doc calls for: the
     // ingestion point normalizes, and the consumer refuses to trust that it did.
     mkdirSync(expandTilde(path), { recursive: true });
+    // A harness created INSIDE a git repo would otherwise pollute `git status`
+    // with its runtime state (hive/, palace/, roster…) — ignore it at birth.
+    // Best-effort (never fails creation): a false return only means "no ignore".
+    ensureHarnessGitignore(path);
     return { ok: true };
   } catch (e) {
     return { ok: false, error: e instanceof Error ? e.message : String(e) };

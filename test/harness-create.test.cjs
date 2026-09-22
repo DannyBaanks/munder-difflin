@@ -81,6 +81,36 @@ test('normalizeHiveHome puts the created home first in recents', () => {
   assert.deepStrictEqual(r.recentHives.slice(0, 2), ['/home/danny/harness2', '/home/danny/Development']);
 });
 
+test('ensureHarnessGitignore writes runtime ignores into a fresh home', () => {
+  const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'hh-'));
+  assert.strictEqual(fsmod.ensureHarnessGitignore(dir), true);
+  const content = fs.readFileSync(path.join(dir, '.gitignore'), 'utf8');
+  for (const e of ['hive/', 'palace/', 'roster.json', 'roster-backups/']) {
+    assert.ok(content.split('\n').some((l) => l.trim() === e), `${e} ignored`);
+  }
+});
+
+test('ensureHarnessGitignore appends without clobbering and is idempotent', () => {
+  const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'hh-'));
+  fs.writeFileSync(path.join(dir, '.gitignore'), '# mis notas\n*.key\n');
+  assert.strictEqual(fsmod.ensureHarnessGitignore(dir), true);
+  const once = fs.readFileSync(path.join(dir, '.gitignore'), 'utf8');
+  assert.ok(once.includes('# mis notas'), 'user lines kept');
+  assert.ok(once.includes('*.key'), 'user rules kept');
+  assert.ok(once.includes('hive/'), 'harness entries added');
+  assert.strictEqual(fsmod.ensureHarnessGitignore(dir), true);
+  const twice = fs.readFileSync(path.join(dir, '.gitignore'), 'utf8');
+  assert.strictEqual(twice, once, 'second run changes nothing');
+});
+
+test('ensureHarnessGitignore treats user `hive` as covering `hive/`', () => {
+  const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'hh-'));
+  fs.writeFileSync(path.join(dir, '.gitignore'), 'hive\npalace/\nroster.json\nroster-backups/\n');
+  assert.strictEqual(fsmod.ensureHarnessGitignore(dir), true);
+  const content = fs.readFileSync(path.join(dir, '.gitignore'), 'utf8');
+  assert.ok(!content.includes('auto-generated'), 'nothing added when covered');
+});
+
 test('start.sh --check passes and accepts --user-data-dir (both forms)', () => {
   const sh = path.join(ROOT, 'start.sh');
   const check = spawnSync('bash', [sh, '--check'], { encoding: 'utf8', timeout: 15000 });
