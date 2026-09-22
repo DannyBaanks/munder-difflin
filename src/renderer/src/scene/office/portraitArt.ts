@@ -464,7 +464,7 @@ function outlinePass(buf: Buf): void {
 }
 
 // ─── recipes ─────────────────────────────────────────────────────────────────
-interface Recipe {
+export interface Recipe {
   skin: string; hairc: RGB; hair: HairStyle; hairargs?: HairArgs;
   cloth: Cloth; c1: RGB; c2?: RGB; tie?: RGB; pants?: RGB;
   brow?: Brow; mouth?: Mouth; blush?: boolean; facial?: Facial; glasses?: boolean;
@@ -507,6 +507,35 @@ const RECIPES: Record<OfficeCharacterName, Recipe> = {
   creed:    { skin: 'light', hairc: [170, 166, 156], hair: 'styleBald',   cloth: 'dressshirt', c1: [126, 130, 96], facial: 'stubble', brow: 'flat', mouth: 'neutral' },
   meredith: { skin: 'light', hairc: [154, 82, 46],  hair: 'styleMessy',  hairargs: { length: 15 }, cloth: 'blouse', c1: [176, 86, 74], brow: 'raised', mouth: 'smile', lashes: true },
 };
+
+/**
+ * External avatar-compiler surface (munder CLI `avatar compilar`).
+ *
+ * Purely additive: nothing above changes behavior. The CLI transpiles this
+ * module to dependency-free CJS (see tools/munder-cli/sync-avatar-engine)
+ * and calls composeAvatar with recipes built from Spanish text — the SAME
+ * composer the app uses, so CLI avatars and in-app portraits cannot drift.
+ */
+
+/** Standalone portrait composer: recipe in, 18×28 RGBA buffer out. */
+export function composeAvatar(r: Recipe): Buf {
+  return compose(r);
+}
+
+/** Runtime vocabulary mirror for external compilers. Values match the union
+ *  types above by construction (pinned by test: every RECIPES entry validates
+ *  against these lists). */
+export const AVATAR_VOCAB = {
+  skins: Object.keys(SKIN),
+  hairs: Object.keys(HAIR_FNS),
+  cloths: ['suit', 'dressshirt', 'polo', 'blouse', 'cardigan', 'sweater'],
+  facials: ['mustache', 'mustacheSm', 'stubble', 'goatee'],
+  brows: ['flat', 'angry', 'raised', 'soft'],
+  mouths: ['neutral', 'smile', 'frown', 'grin'],
+} as const;
+
+/** All builtin recipes, for regression pins (buffers must never change). */
+export const AVATAR_RECIPES: Readonly<Record<string, Recipe>> = RECIPES;
 
 /** The face/hair group (head → face → facial hair → hair → glasses), no clothing. */
 function drawHeadGroup(buf: Buf, r: Recipe): void {
