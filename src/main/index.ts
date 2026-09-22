@@ -28,6 +28,7 @@ import {
 import { linkWorktreeDeps, unlinkWorktreeDeps } from './worktreeDeps';
 import { HiveManager, type AgentMeta, type HiveMessage, type HiveTask } from './hive';
 import { HookServer } from './hooks';
+import { ControlChannel } from './controlChannel';
 import { CircuitBreaker, type BreakerInput } from './breaker';
 import type { UsageProvider } from './usage';
 import { MemoryManager } from './memory';
@@ -1453,6 +1454,13 @@ function slackReplyConfigPath(): string {
   return join(app.getPath('userData'), 'slack-reply.json');
 }
 
+/** Where the CLI discovers `{ port, token }` for the local control channel
+ *  (M0). Same convention as the Slack reply endpoint: userData, 0600,
+ *  per-boot token, unlinked on stop. */
+function controlChannelPath(): string {
+  return join(app.getPath('userData'), 'munder-control.json');
+}
+
 /** Ledger of task ids whose done-summary has already been posted. Ids ONLY — no
  *  secret ever lands here. Under userData (out of the repo, out of MemPalace). */
 function slackDoneNotifiedPath(): string {
@@ -1749,6 +1757,40 @@ async function startSlackReplyServer(): Promise<void> {
   } catch (e) {
     console.error('[slack] could not write reply config:', e);
   }
+}
+
+/** Local control channel for the `munder` CLI (M0: health only; session routes
+ *  arrive in M1/M2 on this same server and auth). Started/stopped alongside
+ *  the other loopback services; see controlChannel.ts. */
+let controlChannel: ControlChannel | null = null;
+
+async function startControlChannel(): Promise<void> {
+  try {
+    try { controlChannel?.stop(); } catch { /* noop */ }
+    controlChannel = null;
+    const token = randomBytes(24).toString('hex');
+    const next = new ControlChannel({ token });
+    const r = await next.start();
+    if (!r.ok || r.port === undefined) {
+      console.error('[control] control channel failed to start:', r.error);
+      return;
+    }
+    try {
+      writeFileSync(controlChannelPath(), JSON.stringify({ port: r.port, token }), { mode: 0o600 });
+    } catch (e) {
+      console.error('[control] could not write control config:', e);
+    }
+    controlChannel = next;
+    console.log('[control] control channel listening on 127.0.0.1:' + r.port);
+  } catch (e) {
+    console.error('[control] start failed:', e instanceof Error ? e.message : e);
+  }
+}
+
+function stopControlChannel(): void {
+  try { controlChannel?.stop(); } catch (e) { console.error('[control] stop failed:', e); }
+  controlChannel = null;
+  try { if (existsSync(controlChannelPath())) unlinkSync(controlChannelPath()); } catch { /* noop */ }
 }
 
 /** Stop and forget the Slack server (+ reply endpoint). Best-effort; safe to call
@@ -3263,6 +3305,7 @@ ipcMain.handle('config:changeHome', async (_evt, payload: unknown) => {
   try { stopWebhookDoneObserver(); } catch (e) { console.error('[changeHome] stopWebhookDoneObserver:', e); }
   try { stopEphemeralWorkerWatcher(); } catch (e) { console.error('[changeHome] stopWorkerWatcher:', e); }
   try { integrationBroker.stop(); } catch (e) { console.error('[changeHome] broker.stop:', e); }
+  try { stopControlChannel(); } catch (e) { console.error('[changeHome] control.stop:', e); }
   try { hive.stopRouter(); } catch (e) { console.error('[changeHome] stopRouter:', e); }
   try { hookServer.stop(); } catch (e) { console.error('[changeHome] hookServer.stop:', e); }
   try { stopSlackServer(); } catch (e) { console.error('[changeHome] slack.stop:', e); }
@@ -3783,6 +3826,7 @@ function teardownAndQuit(): void {
   try { stopWebhookDoneObserver(); } catch (e) { console.error('[quit] stopWebhookDoneObserver:', e); }
   try { stopEphemeralWorkerWatcher(); } catch (e) { console.error('[quit] stopWorkerWatcher:', e); }
   try { integrationBroker.stop(); } catch (e) { console.error('[quit] broker.stop:', e); }
+  try { stopControlChannel(); } catch (e) { console.error('[quit] control.stop:', e); }
   try { hive.stopRouter(); } catch (e) { console.error('[quit] stopRouter:', e); }
   try { hookServer.stop(); } catch (e) { console.error('[quit] hookServer.stop:', e); }
   try { telemetry.stop(); } catch (e) { console.error('[quit] telemetry.stop:', e); }
@@ -5108,6 +5152,9 @@ function bootstrapHiveServices(): void {
     if (r.ok) console.log('[broker] integration broker listening on', integrationBroker.url());
     else console.error('[broker] failed to start:', r.error);
   });
+  // M0: local control channel for the `munder` CLI (health only for now).
+  // Same fire-and-forget shape as the broker; session routes arrive in M1/M2.
+  void startControlChannel();
   ensureDefaultMissions(); // one-time: seed the built-in hourly ops standup
   syncMissions(); // arm recurring auto-dispatch missions now the router is live
   syncContextTriggers(); // …and the context trigger's own compact/clear cadences
