@@ -1,4 +1,5 @@
 import { useState } from 'react';
+import { Trans, useTranslation } from 'react-i18next';
 import { PixelPanel } from './PixelPanel';
 import { PixelButton } from './PixelButton';
 import { Icon } from './Icon';
@@ -28,6 +29,7 @@ function folderName(path: string): string {
  * every switch is a clean process restart (cheap here, before any work is live).
  */
 export function HivePicker({ config, onOpenCurrent }: HivePickerProps) {
+  const { t } = useTranslation();
   const current = config.harnessHome;
   const recents = (config.recentHives ?? []).filter((h) => h && h !== current);
   const [busy, setBusy] = useState<string | undefined>();
@@ -51,7 +53,7 @@ export function HivePicker({ config, onOpenCurrent }: HivePickerProps) {
       // Success never returns (the process relaunches). A return means an error.
       if (!res.ok) {
         window.localStorage.removeItem(SKIP_KEY);
-        setError(res.error ?? 'Could not open that folder.');
+        setError(res.error ?? t('hivePicker.errOpen'));
         setBusy(undefined);
       }
     } catch (e) {
@@ -93,7 +95,7 @@ export function HivePicker({ config, onOpenCurrent }: HivePickerProps) {
     try {
       const res = await window.cth.createHome(createParent, newName);
       if (!res.ok) {
-        setError(res.error ?? 'Could not create that folder.');
+        setError(res.error ?? t('hivePicker.errCreate'));
         setBusy(undefined);
         return;
       }
@@ -119,20 +121,17 @@ export function HivePicker({ config, onOpenCurrent }: HivePickerProps) {
       padding: 32
     }}>
       <div style={{ width: 560, maxWidth: '94vw' }}>
-        <PixelPanel variant="dialog" title="SELECT A HARNESS CONFIG" noPadding>
+        <PixelPanel variant="dialog" title={t('hivePicker.title')} noPadding>
           <div style={{ padding: 20, display: 'flex', flexDirection: 'column', gap: 14 }}>
             <p style={{ margin: 0, fontSize: 12, lineHeight: '19px', color: 'var(--cth-ink-700)' }}>
-              A <strong>harness config</strong> is the folder where the app keeps everything for one
-              workspace — its settings, your agents and their memory, tasks, triggers, and history.
-              Each config is separate and self-contained, so you can run different setups side by side.
-              Open the one you were working in, switch to another, or start a new one.
+              <Trans i18nKey="hivePicker.desc" components={{ strong: <strong /> }} />
             </p>
 
             {/* CURRENT — the last-used home, the one-click default. */}
             {current && (
               <div>
                 <div style={{ fontFamily: 'var(--cth-font-display)', fontSize: 9, color: 'var(--cth-ink-500)', marginBottom: 4 }}>
-                  CURRENT
+                  {t('hivePicker.current')}
                 </div>
                 <div style={{
                   display: 'flex', alignItems: 'center', gap: 10, padding: '10px 12px',
@@ -149,7 +148,7 @@ export function HivePicker({ config, onOpenCurrent }: HivePickerProps) {
                     }}>{current}</div>
                   </div>
                   <PixelButton variant="primary" size="md" onClick={onOpenCurrent} disabled={!!busy}>
-                    open
+                    {t('hivePicker.open')}
                   </PixelButton>
                 </div>
               </div>
@@ -159,7 +158,7 @@ export function HivePicker({ config, onOpenCurrent }: HivePickerProps) {
             {recents.length > 0 && (
               <div>
                 <div style={{ fontFamily: 'var(--cth-font-display)', fontSize: 9, color: 'var(--cth-ink-500)', marginBottom: 4 }}>
-                  RECENT
+                  {t('hivePicker.recent')}
                 </div>
                 <div style={{ display: 'flex', flexDirection: 'column', gap: 6, maxHeight: 220, overflowY: 'auto' }}>
                   {recents.map((h) => (
@@ -186,7 +185,7 @@ export function HivePicker({ config, onOpenCurrent }: HivePickerProps) {
                         }}>{h}</div>
                       </div>
                       <span style={{ fontSize: 11, color: 'var(--cth-ink-500)', flexShrink: 0 }}>
-                        {busy === h ? 'opening…' : 'switch →'}
+                        {busy === h ? t('hivePicker.opening') : t('hivePicker.switch')}
                       </span>
                     </button>
                   ))}
@@ -203,7 +202,7 @@ export function HivePicker({ config, onOpenCurrent }: HivePickerProps) {
 
             {busy && (
               <div style={{ fontSize: 12, color: 'var(--cth-ink-500)' }}>
-                Opening {folderName(busy)} — the app will reload…
+                {t('hivePicker.openingNow', { name: folderName(busy) })}
               </div>
             )}
 
@@ -214,7 +213,7 @@ export function HivePicker({ config, onOpenCurrent }: HivePickerProps) {
                 background: 'var(--cth-paper-100)', boxShadow: 'inset 0 0 0 1px var(--cth-ink-300)'
               }}>
                 <div style={{ fontFamily: 'var(--cth-font-display)', fontSize: 10, color: 'var(--cth-ink-700)' }}>
-                  NEW HARNESS FOLDER
+                  {t('hivePicker.createTitle')}
                 </div>
                 <div style={{
                   fontFamily: 'var(--cth-font-mono)', fontSize: 11, color: 'var(--cth-ink-500)',
@@ -226,7 +225,7 @@ export function HivePicker({ config, onOpenCurrent }: HivePickerProps) {
                     value={newName}
                     onChange={(e) => setNewName(e.target.value)}
                     onKeyDown={(e) => { if (e.key === 'Enter') void doCreate(); }}
-                    placeholder="folder name…"
+                    placeholder={t('hivePicker.folderNamePlaceholder')}
                     disabled={!!busy}
                     style={{
                       flex: 1, minWidth: 0, padding: '6px 8px 4px',
@@ -236,13 +235,13 @@ export function HivePicker({ config, onOpenCurrent }: HivePickerProps) {
                     }}
                   />
                   <PixelButton variant="primary" size="md" onClick={doCreate} disabled={!!busy || !newName.trim()}>
-                    create
+                    {t('hivePicker.create')}
                   </PixelButton>
                   <PixelButton
                     variant="ghost" size="md" disabled={!!busy}
                     onClick={() => { setCreateParent(null); setNewName(''); setError(undefined); }}
                   >
-                    cancel
+                    {t('hivePicker.cancel')}
                   </PixelButton>
                 </div>
               </div>
@@ -254,12 +253,12 @@ export function HivePicker({ config, onOpenCurrent }: HivePickerProps) {
             <div style={{ display: 'flex', gap: 8, justifyContent: 'flex-end', flexWrap: 'wrap' }}>
               <PixelButton variant="secondary" size="md" onClick={browse} disabled={!!busy}>
                 <span style={{ display: 'inline-flex', gap: 6, alignItems: 'center' }}>
-                  <Icon name="folder" /> open existing config…
+                  <Icon name="folder" /> {t('hivePicker.openExisting')}
                 </span>
               </PixelButton>
               <PixelButton variant="secondary" size="md" onClick={startCreate} disabled={!!busy}>
                 <span style={{ display: 'inline-flex', gap: 6, alignItems: 'center' }}>
-                  <Icon name="plus" /> create new config…
+                  <Icon name="plus" /> {t('hivePicker.createNew')}
                 </span>
               </PixelButton>
             </div>

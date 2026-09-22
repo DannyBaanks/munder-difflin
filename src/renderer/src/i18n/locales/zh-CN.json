@@ -1415,5 +1415,63 @@
     "viewSource": "查看源码",
     "loading": "正在加载图片…",
     "decodeFailed": "无法解码此图片——文件可能已损坏或扩展名有误"
+  },
+  "hivePicker": {
+    "title": "SELECT A HARNESS CONFIG",
+    "desc": "A <strong>harness config</strong> is the folder where the app keeps everything for one workspace — its settings, your agents and their memory, tasks, triggers, and history. Each config is separate and self-contained, so you can run different setups side by side. Open the one you were working in, switch to another, or start a new one.",
+    "current": "CURRENT",
+    "open": "打开",
+    "recent": "RECENT",
+    "switch": "switch →",
+    "opening": "opening…",
+    "openingNow": "Opening {{name}} — the app will reload…",
+    "openExisting": "open existing config…",
+    "createNew": "create new config…",
+    "createTitle": "新建 HARNESS 文件夹",
+    "folderNamePlaceholder": "文件夹 名称…",
+    "create": "创建",
+    "cancel": "取消",
+    "errOpen": "Could not open that folder.",
+    "errCreate": "Could not create that folder."
+  },
+  "michaelBooting": {
+    "title": "CLOCKING IN",
+    "body": "{{godName}} is settling into the corner office and getting the floor ready. Hang tight…"
+  },
+  "agentName": {
+    "errRequired": "名称 is 必填",
+    "errRename": "Could not rename agent",
+    "renameAria": "重命名 {{name}}",
+    "renameHint": "{{name}} — double-click to rename"
+  },
+  "releaseDrop": {
+    "closeTitle": "关闭 (Esc)",
+    "closeAria": "Close release notes",
+    "notesTitle": "/ release notes"
+  },
+  "codeEditor": {
+    "copyPath": "copy path",
+    "copyPathTitle": "Copy absolute path",
+    "save": "保存",
+    "saving": "...",
+    "saved": "saved",
+    "saveError": "err",
+    "saveTitle": "保存 (Cmd-S)",
+    "openIde": "Open in the IDE",
+    "loading": "loading…"
+  },
+  "updateToast": {
+    "titleDownloaded": "Update v{{version}} downloaded",
+    "titleAvailable": "v{{version}} is available",
+    "whatsNew": "What’s new",
+    "restartNote": "Restart Munder Difflin whenever you like to apply it — nothing restarts on its own.",
+    "manualNote": "This install can’t update itself — grab the new build from the releases page.",
+    "readMore": "Read more",
+    "starAsk": "⭐ Star us on GitHub",
+    "later": "稍后",
+    "restarting": "restarting…",
+    "restartNow": "restart to update",
+    "downloadVersion": "下载 {{version}}",
+    "openReleases": "open releases"
   }
 }

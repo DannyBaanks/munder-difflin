@@ -1415,5 +1415,63 @@
     "viewSource": "Ver fuente",
     "loading": "cargando imagen…",
     "decodeFailed": "No se pudo decodificar esta imagen: el archivo puede estar dañado o tener un nombre incorrecto"
+  },
+  "hivePicker": {
+    "title": "ELIGE UNA CONFIGURACIÓN DEL ARNÉS",
+    "desc": "Una <strong>configuración del arnés</strong> es la carpeta donde la aplicación guarda todo de un espacio de trabajo — sus ajustes, tus agentes y su memoria, tareas, disparadores e historial. Cada configuración es separada y autocontenida, así puedes correr distintas configuraciones en paralelo. Abre la que estabas usando, cambia a otra o empieza una nueva.",
+    "current": "ACTUAL",
+    "open": "abrir",
+    "recent": "RECIENTES",
+    "switch": "cambiar →",
+    "opening": "abriendo…",
+    "openingNow": "Abriendo {{name}} — la aplicación se recargará…",
+    "openExisting": "abrir configuración existente…",
+    "createNew": "crear configuración nueva…",
+    "createTitle": "NUEVA CARPETA DEL ARNÉS",
+    "folderNamePlaceholder": "nombre de la carpeta…",
+    "create": "crear",
+    "cancel": "cancelar",
+    "errOpen": "No se pudo abrir esa carpeta.",
+    "errCreate": "No se pudo crear esa carpeta."
+  },
+  "michaelBooting": {
+    "title": "FICHANDO",
+    "body": "{{godName}} se está instalando en la oficina de la esquina y preparando el piso. Aguanta un momento…"
+  },
+  "agentName": {
+    "errRequired": "El nombre es obligatorio",
+    "errRename": "No se pudo renombrar el agente",
+    "renameAria": "Renombrar {{name}}",
+    "renameHint": "{{name}} — doble clic para renombrar"
+  },
+  "releaseDrop": {
+    "closeTitle": "Cerrar (Esc)",
+    "closeAria": "Cerrar las notas de la versión",
+    "notesTitle": "/ notas de la versión"
+  },
+  "codeEditor": {
+    "copyPath": "copiar ruta",
+    "copyPathTitle": "Copiar ruta absoluta",
+    "save": "guardar",
+    "saving": "...",
+    "saved": "guardado",
+    "saveError": "err",
+    "saveTitle": "Guardar (Cmd-S)",
+    "openIde": "Abrir en el IDE",
+    "loading": "cargando…"
+  },
+  "updateToast": {
+    "titleDownloaded": "Actualización v{{version}} descargada",
+    "titleAvailable": "v{{version}} disponible",
+    "whatsNew": "Novedades",
+    "restartNote": "Reinicia Munder Difflin cuando quieras para aplicarla — nada se reinicia solo.",
+    "manualNote": "Esta instalación no puede actualizarse sola — descarga la nueva versión desde la página de releases.",
+    "readMore": "Leer más",
+    "starAsk": "⭐ Danos una estrella en GitHub",
+    "later": "después",
+    "restarting": "reiniciando…",
+    "restartNow": "reiniciar para actualizar",
+    "downloadVersion": "descargar {{version}}",
+    "openReleases": "abrir releases"
   }
 }

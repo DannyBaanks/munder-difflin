@@ -1415,5 +1415,63 @@
     "viewSource": "view source",
     "loading": "loading image…",
     "decodeFailed": "could not decode this image — the file may be corrupt or misnamed"
+  },
+  "hivePicker": {
+    "title": "SELECT A HARNESS CONFIG",
+    "desc": "A <strong>harness config</strong> is the folder where the app keeps everything for one workspace — its settings, your agents and their memory, tasks, triggers, and history. Each config is separate and self-contained, so you can run different setups side by side. Open the one you were working in, switch to another, or start a new one.",
+    "current": "CURRENT",
+    "open": "open",
+    "recent": "RECENT",
+    "switch": "switch →",
+    "opening": "opening…",
+    "openingNow": "Opening {{name}} — the app will reload…",
+    "openExisting": "open existing config…",
+    "createNew": "create new config…",
+    "createTitle": "NEW HARNESS FOLDER",
+    "folderNamePlaceholder": "folder name…",
+    "create": "create",
+    "cancel": "cancel",
+    "errOpen": "Could not open that folder.",
+    "errCreate": "Could not create that folder."
+  },
+  "michaelBooting": {
+    "title": "CLOCKING IN",
+    "body": "{{godName}} is settling into the corner office and getting the floor ready. Hang tight…"
+  },
+  "agentName": {
+    "errRequired": "Name is required",
+    "errRename": "Could not rename agent",
+    "renameAria": "Rename {{name}}",
+    "renameHint": "{{name}} — double-click to rename"
+  },
+  "releaseDrop": {
+    "closeTitle": "Close (Esc)",
+    "closeAria": "Close release notes",
+    "notesTitle": "/ release notes"
+  },
+  "codeEditor": {
+    "copyPath": "copy path",
+    "copyPathTitle": "Copy absolute path",
+    "save": "save",
+    "saving": "...",
+    "saved": "saved",
+    "saveError": "err",
+    "saveTitle": "Save (Cmd-S)",
+    "openIde": "Open in the IDE",
+    "loading": "loading…"
+  },
+  "updateToast": {
+    "titleDownloaded": "Update v{{version}} downloaded",
+    "titleAvailable": "v{{version}} is available",
+    "whatsNew": "What’s new",
+    "restartNote": "Restart Munder Difflin whenever you like to apply it — nothing restarts on its own.",
+    "manualNote": "This install can’t update itself — grab the new build from the releases page.",
+    "readMore": "Read more",
+    "starAsk": "⭐ Star us on GitHub",
+    "later": "later",
+    "restarting": "restarting…",
+    "restartNow": "restart to update",
+    "downloadVersion": "download {{version}}",
+    "openReleases": "open releases"
   }
 }

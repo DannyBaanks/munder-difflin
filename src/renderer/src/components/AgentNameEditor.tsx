@@ -1,4 +1,5 @@
 import { useEffect, useRef, useState } from 'react';
+import { useTranslation } from 'react-i18next';
 import { isComposingKey } from '@shared/imeGuard';
 
 export interface AgentNameEditorProps {
@@ -16,6 +17,7 @@ export function AgentNameEditor({
   uppercase = false,
   fontSize = 'var(--cth-text-display-sm)'
 }: AgentNameEditorProps) {
+  const { t } = useTranslation();
   const [editing, setEditing] = useState(false);
   const [draft, setDraft] = useState(name);
   const [error, setError] = useState<string>();
@@ -36,7 +38,7 @@ export function AgentNameEditor({
     if (committing.current || cancelling.current) return;
     const nextName = draft.trim();
     if (!nextName) {
-      setError('Name is required');
+      setError(t('agentName.errRequired'));
       return;
     }
     if (nextName === name) {
@@ -49,9 +51,9 @@ export function AgentNameEditor({
     try {
       const result = await onCommit(nextName);
       if (result.ok) setEditing(false);
-      else setError(result.error ?? 'Could not rename agent');
+      else setError(result.error ?? t('agentName.errRename'));
     } catch (commitError) {
-      setError(commitError instanceof Error ? commitError.message : 'Could not rename agent');
+      setError(commitError instanceof Error ? commitError.message : t('agentName.errRename'));
     } finally {
       committing.current = false;
     }
@@ -63,7 +65,7 @@ export function AgentNameEditor({
         autoFocus
         draggable={false}
         value={draft}
-        aria-label={`Rename ${name}`}
+        aria-label={t('agentName.renameAria', { name })}
         title={error}
         onFocus={(event) => event.currentTarget.select()}
         onChange={(event) => setDraft(event.target.value)}
@@ -100,7 +102,7 @@ export function AgentNameEditor({
     <span style={{ display: 'inline-flex', alignItems: 'center', gap: 3, minWidth: 0, flex: 1 }}>
       <span
         onDoubleClick={(event) => { event.stopPropagation(); beginEditing(); }}
-        title={`${name} — double-click to rename`}
+        title={t('agentName.renameHint', { name })}
         style={{
           fontFamily: 'var(--cth-font-display)', fontSize,
           color: 'var(--cth-ink-900)',
@@ -110,8 +112,8 @@ export function AgentNameEditor({
       <button
         type="button"
         draggable={false}
-        aria-label={`Rename ${name}`}
-        title={`Rename ${name}`}
+        aria-label={t('agentName.renameAria', { name })}
+        title={t('agentName.renameAria', { name })}
         onClick={(event) => { event.stopPropagation(); beginEditing(); }}
         onMouseDown={(event) => event.stopPropagation()}
         style={{
