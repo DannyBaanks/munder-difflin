@@ -130,7 +130,10 @@ mac:
       arch: [universal]
     - target: zip
       arch: [universal]
-  artifactName: Munder-Difflin-${version}-mac-${arch}.${ext}
+  # Community edition: the word is in every public file name so a Pro build
+  # (named without it, served from app.harnessmd.com) can never be mistaken for
+  # one on the GitHub page. scripts/check-update-feeds.mjs asserts it after publish.
+  artifactName: Munder-Difflin-Community-${version}-mac-${arch}.${ext}
 
 dmg:
   title: Munder Difflin ${version}
@@ -148,11 +151,11 @@ nsis:
   oneClick: false
   perMachine: false
   allowToChangeInstallationDirectory: true
-  artifactName: Munder-Difflin-${version}-win-x64-setup.exe
+  artifactName: Munder-Difflin-Community-${version}-win-x64-setup.exe
   shortcutName: Munder Difflin
 
 portable:
-  artifactName: Munder-Difflin-${version}-win-x64-portable.exe
+  artifactName: Munder-Difflin-Community-${version}-win-x64-portable.exe
 
 # ---- Linux ----
 linux:
@@ -161,4 +164,4 @@ linux:
   target:
     - target: AppImage
       arch: [x64]
-  artifactName: Munder-Difflin-${version}-linux-x86_64.AppImage
+  artifactName: Munder-Difflin-Community-${version}-linux-x86_64.AppImage

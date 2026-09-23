@@ -40,9 +40,10 @@ export const REPO = 'chaitanyagiri/munder-difflin';
  *  `downloadUrl` of its own (the native updater path never does). */
 export function installerUrl(version: string, platform: string, arch: string): string {
   const v = version.replace(/^v/, '');
-  const file = platform === 'darwin' ? `Munder-Difflin-${v}-mac-${arch}.dmg`
-    : platform === 'win32' ? `Munder-Difflin-${v}-win-x64-setup.exe`
-    : `Munder-Difflin-${v}-linux-x86_64.AppImage`;
+  // Community edition file names (electron-builder.yml artifactName).
+  const file = platform === 'darwin' ? `Munder-Difflin-Community-${v}-mac-${arch}.dmg`
+    : platform === 'win32' ? `Munder-Difflin-Community-${v}-win-x64-setup.exe`
+    : `Munder-Difflin-Community-${v}-linux-x86_64.AppImage`;
   return `https://github.com/${REPO}/releases/download/v${v}/${file}`;
 }
 
