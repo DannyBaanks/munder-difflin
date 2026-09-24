@@ -4,9 +4,17 @@
   <subtitle>Guides, deep dives, and comparisons on running multi-agent Claude Code: orchestration, agent memory, automation, and the tooling landscape.</subtitle>
   <link href="https://munderdiffl.in/blog/feed.xml" rel="self" />
   <link href="https://munderdiffl.in/blog/" />
-  <updated>2026-09-15T00:00:00.000Z</updated>
+  <updated>2026-09-25T00:00:00.000Z</updated>
   <id>https://munderdiffl.in/blog/</id>
   <author><name>Chaitanya Giri</name><uri>https://munderdiffl.in</uri></author>
+  <entry>
+    <title>Top 10 Indian open source projects that are giving US big tech a tough time</title>
+    <link href="https://munderdiffl.in/blog/indian-open-source-ai-projects-vs-big-tech/" />
+    <id>https://munderdiffl.in/blog/indian-open-source-ai-projects-vs-big-tech/</id>
+    <published>2026-09-25T00:00:00.000Z</published>
+    <updated>2026-09-25T00:00:00.000Z</updated><category term="Comparisons" />
+    <summary>Ten open source AI projects from Indian developers, each lined up against the big tech product it takes on. Laya vs Jev, Munder Difflin vs Muse and Grok Bot.</summary>
+  </entry>
   <entry>
     <title>Aider vs Claude Code in 2026: Which Should You Use?</title>
     <link href="https://munderdiffl.in/blog/aider-vs-claude-code/" />
@@ -478,13 +486,5 @@
     <published>2026-06-22T00:00:00.000Z</published>
     <updated>2026-09-10T00:00:00.000Z</updated><category term="Guides" />
     <summary>Run a whole Munder Difflin office offline on an Apple silicon Mac mini: size the model to your unified memory, install Ollama or LM Studio, and wire OpenCode, Crush, Qwen and Pi to it. Current as of Munder Difflin 0.5.2 and the M6 and M5 Pro Mac mini.</summary>
-  </entry>
-  <entry>
-    <title>Run Munder Difflin on Open Source Models: Fully Local or Through a Provider</title>
-    <link href="https://munderdiffl.in/blog/run-munder-difflin-on-open-models/" />
-    <id>https://munderdiffl.in/blog/run-munder-difflin-on-open-models/</id>
-    <published>2026-06-22T00:00:00.000Z</published>
-    <updated>2026-09-10T00:00:00.000Z</updated><category term="Guides" />
-    <summary>Munder Difflin can run your whole agent floor on open weight models like gpt-oss, Qwen3, DeepSeek, Llama, GLM and Kimi: fully local with Ollama, LM Studio or vLLM, or through a provider with your own key. The wiring for each engine, current as of 0.5.2.</summary>
   </entry>
 </feed>
