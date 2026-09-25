@@ -189,6 +189,8 @@ export interface SpawnInjection {
   degraded?: string;
 }
 
+/** The operator's ChatGPT principal (tools/munder/lib-gpt.cjs): a mailbox, not an agent. */
+export const GPT_PRINCIPAL = 'gpt';
 const HOP_CAP = 12;
 
 function sleepSync(ms: number): void {
@@ -1559,7 +1561,10 @@ export class HiveManager {
    *  Returns false when the recipient has no inbox, so the caller can bounce and
    *  log the drop rather than let the message vanish. */
   private deliver(msg: HiveMessage, toId: string): boolean {
-    const inbox = join(this.agentDir(toId), 'inbox');
+    // `gpt` is not an agent: it is the operator's ChatGPT principal. Its mailbox
+    // (<hive>/gpt/inbox) exists only while `munder gpt` has it configured;
+    // otherwise this returns false and the message bounces like any unknown id.
+    const inbox = toId === GPT_PRINCIPAL ? join(this.root()!, 'gpt', 'inbox') : join(this.agentDir(toId), 'inbox');
     if (!existsSync(inbox)) return false; // unknown recipient — the caller reports it
     this.atomicWriteJson(join(inbox, `${msg.id}.json`), msg);
     return true;
@@ -1604,6 +1609,14 @@ export class HiveManager {
       // task brief plus the follow-up reprimand about the unread inbox, both
       // unread for hours). Bounce such mail to god instead, so the sender's intent
       // surfaces immediately and nothing is silently lost.
+      // The GPT principal has a mailbox, no terminal: straight to it, or (gateway
+      // not configured) the same drop log + bounce as any unknown recipient.
+      if (t === GPT_PRINCIPAL) {
+        if (this.deliver(msg, t)) { delivered.push(t); continue; }
+        this.appendLog({ kind: 'drop', reason: 'no-inbox', from: msg.from, to: t, id: msg.id });
+        this.deliver({ ...msg, to: godId, subject: `[undeliverable — the GPT gateway is not set up (munder gpt); nobody reads "gpt"] ${msg.subject}` }, godId);
+        continue;
+      }
       if (reg.agents[t]?.isAssistant) {
         this.deliver({
           ...msg,
@@ -2955,6 +2968,9 @@ The harness fills in \`id\`, \`from\`, \`hops\`, and timestamps.
   can approve it remotely from their phone via \`/remote-control\`). If you genuinely
   need a human decision, raise it with \`god\` (a message \`"to": "human"\` is routed to
   the god/orchestrator, the human's proxy on the floor).
+- \`"to": "gpt"\` hands a message to the operator's ChatGPT (the \`gpt\` principal of
+  \`munder gpt\`): ChatGPT finds it in its inbox, and its replies come back to you
+  from \`gpt\`. When the GPT gateway is not set up, the message bounces back to you.
 - \`board.md\` is the shared plan. Don't edit it directly — \`propose\` changes to \`god\`,
   who is its sole scribe.
 - Re-reading a message you already moved to \`.done/\` is a no-op. Don't reprocess.
