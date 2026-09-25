@@ -1,5 +1,6 @@
 import { app } from 'electron';
-import { existsSync, mkdirSync, readFileSync, writeFileSync } from 'node:fs';
+import { existsSync, mkdirSync, readFileSync, renameSync, rmSync, writeFileSync } from 'node:fs';
+import { randomBytes } from 'node:crypto';
 import { dirname, join } from 'node:path';
 import { homedir } from 'node:os';
 import {
@@ -639,7 +640,19 @@ export function onConfigWritten(listener: ConfigWriteListener): () => void {
 function persistConfig(next: HarnessConfig): HarnessConfig {
   const p = configPath();
   mkdirSync(dirname(p), { recursive: true });
-  writeFileSync(p, JSON.stringify(next, null, 2), 'utf8');
+  // Temp file + rename, like the hive's ledger writes. config.json holds the
+  // settings, webhooks and mission state, and a truncated one silently resets
+  // all of them to defaults on the next boot — with `readConfig`'s catch-all
+  // swallowing the cause. config.ts does not share Hive's private helper, so
+  // the same three steps are spelled out here.
+  const tmp = `${p}.tmp-${randomBytes(3).toString('hex')}`;
+  try {
+    writeFileSync(tmp, JSON.stringify(next, null, 2), 'utf8');
+    renameSync(tmp, p);
+  } catch (error) {
+    rmSync(tmp, { force: true });
+    throw error;
+  }
   // Saving one setting stores only that setting, so fill the rest back in first:
   // subscribers must see the same complete config a read gives them, never a
   // half-filled one. Skip the migration — it saves in its own right, and has
@@ -813,6 +826,30 @@ function ensureClaudeGlobalPermissions(home: string): void {
 type ClaudeProjectConfig = Record<string, unknown> & { hasTrustDialogAccepted?: boolean };
 type ClaudeConfig = Record<string, unknown> & { projects?: Record<string, ClaudeProjectConfig> };
 
+/** A cwd with a drive letter is a Windows path no matter which platform we are
+ *  running on. UNC (`\\server\share`) and POSIX paths are deliberately NOT
+ *  matched: backslash is a legal character in a POSIX filename, so rewriting
+ *  those would pre-accept a DIFFERENT directory that happens to exist. */
+const WINDOWS_DRIVE_PATH = /^[A-Za-z]:[\\/]/;
+
+/** Every key Claude Code might look a folder's trust entry up under.
+ *
+ *  Claude resolves the entry per-platform, not per-input: on Windows it walks
+ *  parents comparing with `o.startsWith(r + "/")` and writes `C:/Users/...`,
+ *  so a flag stored under the raw `C:\Users\...` is never read. The folder then
+ *  stays untrusted, the spawned agent hits the interactive "Accessing
+ *  workspace" dialog it cannot answer, that dialog defaults to "No, exit", and
+ *  `claude` exits 1 with the agent stuck at "waiting". A folder declined once
+ *  (`hasTrustDialogAccepted: false`) is stranded the same way, because only
+ *  the raw spelling was ever repaired.
+ *
+ *  Both spellings are written, so the entry is found whichever one Claude
+ *  reads. Upstream evidence: chaitanyagiri/munder-difflin#607. */
+function trustKeysFor(cwd: string): string[] {
+  if (!WINDOWS_DRIVE_PATH.test(cwd)) return [cwd];
+  return Array.from(new Set([cwd.replace(/\\/g, '/'), cwd]));
+}
+
 function ensureClaudeProjectTrust(home: string, cwd: string): void {
   const p = join(home, '.claude.json');
   try {
@@ -822,11 +859,15 @@ function ensureClaudeProjectTrust(home: string, cwd: string): void {
       if (parsed === null || typeof parsed !== 'object' || Array.isArray(parsed)) return;
       c = parsed as ClaudeConfig;
     }
-    if (c.projects?.[cwd]?.hasTrustDialogAccepted !== true) {
-      c.projects = c.projects ?? {};
-      c.projects[cwd] = { ...(c.projects[cwd] ?? {}), hasTrustDialogAccepted: true };
-      writeFileSync(p, JSON.stringify(c, null, 2), 'utf8');
+    // Every spelling is checked on its own: one may already be trusted while
+    // the other Claude actually reads is still missing or explicitly false.
+    const pending = trustKeysFor(cwd).filter((k) => c.projects?.[k]?.hasTrustDialogAccepted !== true);
+    if (pending.length === 0) return;
+    c.projects = c.projects ?? {};
+    for (const k of pending) {
+      c.projects[k] = { ...(c.projects[k] ?? {}), hasTrustDialogAccepted: true };
     }
+    writeFileSync(p, JSON.stringify(c, null, 2), 'utf8');
   } catch (error) {
     console.warn(
       `[config] Could not safely update Claude config at ${p}:`,
@@ -846,7 +887,8 @@ function ensureClaudeProjectTrust(home: string, cwd: string): void {
  *   1. `~/.claude/settings.json` → `skipDangerousModePermissionPrompt` +
  *      `skipAutoPermissionPrompt` — these gate the bypass-mode warning (global).
  *   2. `~/.claude.json` → `projects[cwd].hasTrustDialogAccepted` — the per-folder
- *      "do you trust the files in this folder?" dialog.
+ *      "do you trust the files in this folder?" dialog, written under every
+ *      spelling of `cwd` that Claude might look up (see `trustKeysFor`).
  *
  *  Each file is an independent best-effort boundary: unsafe existing contents
  *  are preserved without preventing the other file from being handled safely. */

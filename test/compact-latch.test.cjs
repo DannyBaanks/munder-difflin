@@ -75,7 +75,9 @@ const hive = fs.readFileSync(
 );
 
 test('(a) fire() refuses an undeliverable agent BEFORE it enqueues', () => {
-  assert.match(hive, /if \(!canDeliverToAgent\(a\.status, ptyQuietMs\(a\.ptyId, now\), QUIESCE_IDLE_MS\)\) continue;/);
+  // The hold argument is part of the gate since #564, so the shape is matched
+  // with it optional rather than pinned to the older three-argument call.
+  assert.match(hive, /if \(!canDeliverToAgent\(a\.status, ptyQuietMs\(a\.ptyId, now\), QUIESCE_IDLE_MS(?:, a\.onHold)?\)\) continue;/);
   // the gate must sit ahead of the enqueue, not after it
   const gate = hive.indexOf("Gate #109-2");
   const enqueue = hive.indexOf('enqueueMessage', gate);

@@ -1,0 +1,1063 @@
+[
+ {
+  "receipt_id": "40c09041-471a-4c49-81fb-8bc7a79ee838",
+  "run_id": "hr_muhczwla3821d080",
+  "kind": "harness_run",
+  "requested_at": "2026-09-25T19:33:55.774Z",
+  "requested_by": "operator",
+  "adapter": "codex",
+  "task_id": "t-p0",
+  "cwd": "repo-codex",
+  "prompt": {
+   "sha256": "5b15b40d2d6dfaf7e8baacc55c65412588d31c7a1c7733fe62882d02107622e8",
+   "excerpt": "Crea MUNDER_P0.txt con \"harness-boundary-ok\" y cuenta las líneas del README"
+  },
+  "chain": [],
+  "resume": null,
+  "capabilities": {
+   "session_resume": true,
+   "cancel": "process",
+   "steer_mid_turn": false,
+   "approvals": false,
+   "events": "jsonl",
+   "usage": true,
+   "subagents": "native",
+   "mcp": "config",
+   "list_sessions": false
+  },
+  "started_at": "2026-09-25T19:33:55.780Z",
+  "status": "completed",
+  "stop_reason": "end_turn",
+  "error": null,
+  "harness": {
+   "name": "codex",
+   "version": "codex-cli 0.157.0"
+  },
+  "external_session_id": "01a0da0f-607c-72c3-ad41-0a3aee8d514d",
+  "final_text": "Listo: escribí MUNDER_P0.txt y conté las líneas de README.md.",
+  "usage": {
+   "input_tokens": 20,
+   "cached_input_tokens": 0,
+   "cache_write_input_tokens": 0,
+   "output_tokens": 10,
+   "reasoning_output_tokens": 0
+  },
+  "events": {
+   "tools": 1,
+   "tool_failures": 0,
+   "messages": 1,
+   "permissions": []
+  },
+  "artifacts": {
+   "measured": true,
+   "files": [
+    {
+     "path": "MUNDER_P0.txt",
+     "git_status": "??",
+     "sha256": "c278a29ce876c488462a40f60808a8d8f9b967adf33633687e8d74c64a0bbd12",
+     "bytes": 20
+    }
+   ]
+  },
+  "completed_at": "2026-09-25T19:33:56.279Z",
+  "ok": true
+ },
+ {
+  "receipt_id": "914382d3-a054-4f6a-9c8c-e7f6d084108b",
+  "run_id": "hr_muhczx4d2558cc40",
+  "kind": "harness_run",
+  "requested_at": "2026-09-25T19:33:56.462Z",
+  "requested_by": "operator",
+  "adapter": "codex",
+  "task_id": null,
+  "cwd": "repo-codex-resume",
+  "prompt": {
+   "sha256": "5b15b40d2d6dfaf7e8baacc55c65412588d31c7a1c7733fe62882d02107622e8",
+   "excerpt": "Crea MUNDER_P0.txt con \"harness-boundary-ok\" y cuenta las líneas del README"
+  },
+  "chain": [],
+  "resume": null,
+  "capabilities": {
+   "session_resume": true,
+   "cancel": "process",
+   "steer_mid_turn": false,
+   "approvals": false,
+   "events": "jsonl",
+   "usage": true,
+   "subagents": "native",
+   "mcp": "config",
+   "list_sessions": false
+  },
+  "started_at": "2026-09-25T19:33:56.466Z",
+  "status": "completed",
+  "stop_reason": "end_turn",
+  "error": null,
+  "harness": {
+   "name": "codex",
+   "version": "codex-cli 0.157.0"
+  },
+  "external_session_id": "01a0da0f-62fc-7220-b773-7d3fb8818928",
+  "final_text": "Listo: escribí MUNDER_P0.txt y conté las líneas de README.md.",
+  "usage": {
+   "input_tokens": 20,
+   "cached_input_tokens": 0,
+   "cache_write_input_tokens": 0,
+   "output_tokens": 10,
+   "reasoning_output_tokens": 0
+  },
+  "events": {
+   "tools": 1,
+   "tool_failures": 0,
+   "messages": 1,
+   "permissions": []
+  },
+  "artifacts": {
+   "measured": true,
+   "files": [
+    {
+     "path": "MUNDER_P0.txt",
+     "git_status": "??",
+     "sha256": "c278a29ce876c488462a40f60808a8d8f9b967adf33633687e8d74c64a0bbd12",
+     "bytes": 20
+    }
+   ]
+  },
+  "completed_at": "2026-09-25T19:33:56.936Z",
+  "ok": true
+ },
+ {
+  "receipt_id": "4107de72-57fe-4add-9106-e593851cd99f",
+  "run_id": "hr_muhczxhl9c72bb26",
+  "kind": "harness_run",
+  "requested_at": "2026-09-25T19:33:56.937Z",
+  "requested_by": "operator",
+  "adapter": "codex",
+  "task_id": null,
+  "cwd": "repo-codex-resume",
+  "prompt": {
+   "sha256": "f0247353fa246dc11945da1fc97c106c008b57e5485e13fe06d19971d0f06e59",
+   "excerpt": "¿Qué hiciste en el turno anterior?"
+  },
+  "chain": [],
+  "resume": "01a0da0f-62fc-7220-b773-7d3fb8818928",
+  "capabilities": {
+   "session_resume": true,
+   "cancel": "process",
+   "steer_mid_turn": false,
+   "approvals": false,
+   "events": "jsonl",
+   "usage": true,
+   "subagents": "native",
+   "mcp": "config",
+   "list_sessions": false
+  },
+  "started_at": "2026-09-25T19:33:56.941Z",
+  "status": "completed",
+  "stop_reason": "end_turn",
+  "error": null,
+  "harness": {
+   "name": "codex",
+   "version": "codex-cli 0.157.0"
+  },
+  "external_session_id": "01a0da0f-62fc-7220-b773-7d3fb8818928",
+  "final_text": "Listo: escribí MUNDER_P0.txt y conté las líneas de README.md.",
+  "usage": {
+   "input_tokens": 30,
+   "cached_input_tokens": 0,
+   "cache_write_input_tokens": 0,
+   "output_tokens": 15,
+   "reasoning_output_tokens": 0
+  },
+  "events": {
+   "tools": 0,
+   "tool_failures": 0,
+   "messages": 1,
+   "permissions": []
+  },
+  "artifacts": {
+   "measured": true,
+   "files": []
+  },
+  "completed_at": "2026-09-25T19:33:57.192Z",
+  "ok": true
+ },
+ {
+  "receipt_id": "8e460a44-12ac-4f17-82a2-902f1f9e9e9d",
+  "run_id": "hr_muhczxtc1cc118e0",
+  "kind": "harness_run",
+  "requested_at": "2026-09-25T19:33:57.360Z",
+  "requested_by": "operator",
+  "adapter": "deepseek",
+  "task_id": "t-p0",
+  "cwd": "repo-deepseek",
+  "prompt": {
+   "sha256": "5b15b40d2d6dfaf7e8baacc55c65412588d31c7a1c7733fe62882d02107622e8",
+   "excerpt": "Crea MUNDER_P0.txt con \"harness-boundary-ok\" y cuenta las líneas del README"
+  },
+  "chain": [],
+  "resume": null,
+  "capabilities": {
+   "session_resume": true,
+   "cancel": "protocol",
+   "steer_mid_turn": false,
+   "approvals": true,
+   "events": "acp session/update",
+   "usage": true,
+   "subagents": "native",
+   "mcp": "per-session",
+   "list_sessions": true
+  },
+  "started_at": "2026-09-25T19:33:57.365Z",
+  "status": "completed",
+  "stop_reason": "end_turn",
+  "error": null,
+  "harness": {
+   "name": "deepseek-harness-acp",
+   "version": "0.0.1",
+   "protocol": "acp/1"
+  },
+  "external_session_id": "c584ecc0-d7fc-425f-bfbc-9e2b296c022c",
+  "final_text": "Listo: escribí MUNDER_P0.txt y conté las líneas de README.md.",
+  "usage": {
+   "used": 7551,
+   "size": 1000000
+  },
+  "events": {
+   "tools": 1,
+   "tool_failures": 0,
+   "messages": 1,
+   "permissions": []
+  },
+  "artifacts": {
+   "measured": true,
+   "files": [
+    {
+     "path": "MUNDER_P0.txt",
+     "git_status": "??",
+     "sha256": "c278a29ce876c488462a40f60808a8d8f9b967adf33633687e8d74c64a0bbd12",
+     "bytes": 20
+    }
+   ]
+  },
+  "completed_at": "2026-09-25T19:33:58.520Z",
+  "ok": true
+ },
+ {
+  "receipt_id": "fc0aa01a-6603-43f6-b9f5-e126524b9033",
+  "run_id": "hr_muhczyu4b11f8e08",
+  "kind": "harness_run",
+  "requested_at": "2026-09-25T19:33:58.684Z",
+  "requested_by": "operator",
+  "adapter": "deepseek",
+  "task_id": null,
+  "cwd": "repo-deepseek-resume",
+  "prompt": {
+   "sha256": "5b15b40d2d6dfaf7e8baacc55c65412588d31c7a1c7733fe62882d02107622e8",
+   "excerpt": "Crea MUNDER_P0.txt con \"harness-boundary-ok\" y cuenta las líneas del README"
+  },
+  "chain": [],
+  "resume": null,
+  "capabilities": {
+   "session_resume": true,
+   "cancel": "protocol",
+   "steer_mid_turn": false,
+   "approvals": true,
+   "events": "acp session/update",
+   "usage": true,
+   "subagents": "native",
+   "mcp": "per-session",
+   "list_sessions": true
+  },
+  "started_at": "2026-09-25T19:33:58.688Z",
+  "status": "completed",
+  "stop_reason": "end_turn",
+  "error": null,
+  "harness": {
+   "name": "deepseek-harness-acp",
+   "version": "0.0.1",
+   "protocol": "acp/1"
+  },
+  "external_session_id": "f8d28e70-6257-40cf-a01a-164265e54d0e",
+  "final_text": "Listo: escribí MUNDER_P0.txt y conté las líneas de README.md.",
+  "usage": {
+   "used": 7554,
+   "size": 1000000
+  },
+  "events": {
+   "tools": 1,
+   "tool_failures": 0,
+   "messages": 1,
+   "permissions": []
+  },
+  "artifacts": {
+   "measured": true,
+   "files": [
+    {
+     "path": "MUNDER_P0.txt",
+     "git_status": "??",
+     "sha256": "c278a29ce876c488462a40f60808a8d8f9b967adf33633687e8d74c64a0bbd12",
+     "bytes": 20
+    }
+   ]
+  },
+  "completed_at": "2026-09-25T19:33:59.844Z",
+  "ok": true
+ },
+ {
+  "receipt_id": "c5ccb07a-8034-4cab-b42b-fea4bc4d8b4a",
+  "run_id": "hr_muhczzqdb8379eda",
+  "kind": "harness_run",
+  "requested_at": "2026-09-25T19:33:59.845Z",
+  "requested_by": "operator",
+  "adapter": "deepseek",
+  "task_id": null,
+  "cwd": "repo-deepseek-resume",
+  "prompt": {
+   "sha256": "f0247353fa246dc11945da1fc97c106c008b57e5485e13fe06d19971d0f06e59",
+   "excerpt": "¿Qué hiciste en el turno anterior?"
+  },
+  "chain": [],
+  "resume": "f8d28e70-6257-40cf-a01a-164265e54d0e",
+  "capabilities": {
+   "session_resume": true,
+   "cancel": "protocol",
+   "steer_mid_turn": false,
+   "approvals": true,
+   "events": "acp session/update",
+   "usage": true,
+   "subagents": "native",
+   "mcp": "per-session",
+   "list_sessions": true
+  },
+  "started_at": "2026-09-25T19:33:59.850Z",
+  "status": "completed",
+  "stop_reason": "end_turn",
+  "error": null,
+  "harness": {
+   "name": "deepseek-harness-acp",
+   "version": "0.0.1",
+   "protocol": "acp/1"
+  },
+  "external_session_id": "f8d28e70-6257-40cf-a01a-164265e54d0e",
+  "final_text": "Listo: escribí MUNDER_P0.txt y conté las líneas de README.md.",
+  "usage": {
+   "used": 7595,
+   "size": 1000000
+  },
+  "events": {
+   "tools": 0,
+   "tool_failures": 0,
+   "messages": 1,
+   "permissions": []
+  },
+  "artifacts": {
+   "measured": true,
+   "files": []
+  },
+  "completed_at": "2026-09-25T19:34:00.935Z",
+  "ok": true
+ },
+ {
+  "receipt_id": "0d92ae33-510e-4ee9-90bd-05f13cac58df",
+  "run_id": "hr_muhd00ov23238e35",
+  "kind": "harness_run",
+  "requested_at": "2026-09-25T19:34:01.087Z",
+  "requested_by": "operator",
+  "adapter": "codex",
+  "task_id": null,
+  "cwd": "repo-codex-fail",
+  "prompt": {
+   "sha256": "5b15b40d2d6dfaf7e8baacc55c65412588d31c7a1c7733fe62882d02107622e8",
+   "excerpt": "Crea MUNDER_P0.txt con \"harness-boundary-ok\" y cuenta las líneas del README"
+  },
+  "chain": [],
+  "resume": null,
+  "capabilities": {
+   "session_resume": true,
+   "cancel": "process",
+   "steer_mid_turn": false,
+   "approvals": false,
+   "events": "jsonl",
+   "usage": true,
+   "subagents": "native",
+   "mcp": "config",
+   "list_sessions": false
+  },
+  "started_at": "2026-09-25T19:34:01.091Z",
+  "status": "failed",
+  "stop_reason": null,
+  "error": {
+   "code": "turn_failed",
+   "message": "unexpected status 401 Unauthorized: invalid api key (fake: revoked), url: http://127.0.0.1:45271/v1/responses"
+  },
+  "harness": {
+   "name": "codex",
+   "version": "codex-cli 0.157.0"
+  },
+  "external_session_id": "01a0da0f-750d-7101-b8e2-aecb9387163e",
+  "final_text": "",
+  "usage": null,
+  "events": {
+   "tools": 0,
+   "tool_failures": 0,
+   "messages": 0,
+   "permissions": []
+  },
+  "artifacts": {
+   "measured": true,
+   "files": []
+  },
+  "completed_at": "2026-09-25T19:34:07.785Z",
+  "ok": false
+ },
+ {
+  "receipt_id": "5b3e0017-06f0-4e93-b737-217e1a6905a2",
+  "run_id": "hr_muhd05uyb3d7bf17",
+  "kind": "harness_run",
+  "requested_at": "2026-09-25T19:34:07.786Z",
+  "requested_by": "operator",
+  "adapter": "codex",
+  "task_id": null,
+  "cwd": "repo-codex-fail",
+  "prompt": {
+   "sha256": "5b15b40d2d6dfaf7e8baacc55c65412588d31c7a1c7733fe62882d02107622e8",
+   "excerpt": "Crea MUNDER_P0.txt con \"harness-boundary-ok\" y cuenta las líneas del README"
+  },
+  "chain": [],
+  "resume": null,
+  "capabilities": {
+   "session_resume": true,
+   "cancel": "process",
+   "steer_mid_turn": false,
+   "approvals": false,
+   "events": "jsonl",
+   "usage": true,
+   "subagents": "native",
+   "mcp": "config",
+   "list_sessions": false
+  },
+  "started_at": "2026-09-25T19:34:07.790Z",
+  "status": "failed",
+  "stop_reason": null,
+  "error": {
+   "code": "turn_failed",
+   "message": "We’re currently experiencing high demand, which may cause temporary errors."
+  },
+  "harness": {
+   "name": "codex",
+   "version": "codex-cli 0.157.0"
+  },
+  "external_session_id": "01a0da0f-8f2b-7972-9f2b-e51d4d4513f3",
+  "final_text": "",
+  "usage": null,
+  "events": {
+   "tools": 0,
+   "tool_failures": 0,
+   "messages": 0,
+   "permissions": []
+  },
+  "artifacts": {
+   "measured": true,
+   "files": []
+  },
+  "completed_at": "2026-09-25T19:34:31.154Z",
+  "ok": false
+ },
+ {
+  "receipt_id": "1c117ce5-f492-4d31-9abe-e52ed32f6bc1",
+  "run_id": "hr_muhd0nw3b701dd8c",
+  "kind": "harness_run",
+  "requested_at": "2026-09-25T19:34:31.155Z",
+  "requested_by": "operator",
+  "adapter": "codex",
+  "task_id": null,
+  "cwd": "repo-codex-fail",
+  "prompt": {
+   "sha256": "5b15b40d2d6dfaf7e8baacc55c65412588d31c7a1c7733fe62882d02107622e8",
+   "excerpt": "Crea MUNDER_P0.txt con \"harness-boundary-ok\" y cuenta las líneas del README"
+  },
+  "chain": [],
+  "resume": null,
+  "capabilities": {
+   "session_resume": true,
+   "cancel": "process",
+   "steer_mid_turn": false,
+   "approvals": false,
+   "events": "jsonl",
+   "usage": true,
+   "subagents": "native",
+   "mcp": "config",
+   "list_sessions": false
+  },
+  "started_at": "2026-09-25T19:34:31.161Z",
+  "status": "failed",
+  "stop_reason": null,
+  "error": {
+   "code": "turn_failed",
+   "message": "stream disconnected before completion: stream closed before response.completed"
+  },
+  "harness": {
+   "name": "codex",
+   "version": "codex-cli 0.157.0"
+  },
+  "external_session_id": "01a0da0f-ea7c-7e73-9353-1e796dcca91b",
+  "final_text": "",
+  "usage": null,
+  "events": {
+   "tools": 0,
+   "tool_failures": 0,
+   "messages": 0,
+   "permissions": []
+  },
+  "artifacts": {
+   "measured": true,
+   "files": []
+  },
+  "completed_at": "2026-09-25T19:34:37.986Z",
+  "ok": false
+ },
+ {
+  "receipt_id": "2c18900c-be7f-4fd8-9add-26f9087f08e0",
+  "run_id": "hr_muhd0tbke81b4eca",
+  "kind": "harness_run",
+  "requested_at": "2026-09-25T19:34:38.192Z",
+  "requested_by": "operator",
+  "adapter": "codex",
+  "task_id": null,
+  "cwd": "repo-codex-slow",
+  "prompt": {
+   "sha256": "5b15b40d2d6dfaf7e8baacc55c65412588d31c7a1c7733fe62882d02107622e8",
+   "excerpt": "Crea MUNDER_P0.txt con \"harness-boundary-ok\" y cuenta las líneas del README"
+  },
+  "chain": [],
+  "resume": null,
+  "capabilities": {
+   "session_resume": true,
+   "cancel": "process",
+   "steer_mid_turn": false,
+   "approvals": false,
+   "events": "jsonl",
+   "usage": true,
+   "subagents": "native",
+   "mcp": "config",
+   "list_sessions": false
+  },
+  "started_at": "2026-09-25T19:34:38.196Z",
+  "status": "timed_out",
+  "stop_reason": null,
+  "error": {
+   "code": "timeout",
+   "message": "sin terminar en 6 s"
+  },
+  "harness": {
+   "name": "codex",
+   "version": "codex-cli 0.157.0"
+  },
+  "external_session_id": "01a0da10-05f0-7cc3-9a8b-afb103f8342a",
+  "final_text": "",
+  "usage": null,
+  "events": {
+   "tools": 0,
+   "tool_failures": 0,
+   "messages": 0,
+   "permissions": []
+  },
+  "artifacts": {
+   "measured": true,
+   "files": []
+  },
+  "completed_at": "2026-09-25T19:34:44.267Z",
+  "ok": false
+ },
+ {
+  "receipt_id": "92ae03b5-1d68-4514-879a-f6f882909674",
+  "run_id": "hr_muhd0y0c443c8fe1",
+  "kind": "harness_run",
+  "requested_at": "2026-09-25T19:34:44.268Z",
+  "requested_by": "operator",
+  "adapter": "codex",
+  "task_id": null,
+  "cwd": "repo-codex-slow",
+  "prompt": {
+   "sha256": "5b15b40d2d6dfaf7e8baacc55c65412588d31c7a1c7733fe62882d02107622e8",
+   "excerpt": "Crea MUNDER_P0.txt con \"harness-boundary-ok\" y cuenta las líneas del README"
+  },
+  "chain": [],
+  "resume": null,
+  "capabilities": {
+   "session_resume": true,
+   "cancel": "process",
+   "steer_mid_turn": false,
+   "approvals": false,
+   "events": "jsonl",
+   "usage": true,
+   "subagents": "native",
+   "mcp": "config",
+   "list_sessions": false
+  },
+  "started_at": "2026-09-25T19:34:44.272Z",
+  "status": "cancelled",
+  "stop_reason": "cancelled",
+  "error": {
+   "code": "cancelled",
+   "message": "cancelado por Munder"
+  },
+  "harness": {
+   "name": "codex",
+   "version": "codex-cli 0.157.0"
+  },
+  "external_session_id": "01a0da10-1dc0-7393-ac61-f7661b5cae06",
+  "final_text": "",
+  "usage": null,
+  "events": {
+   "tools": 0,
+   "tool_failures": 0,
+   "messages": 0,
+   "permissions": []
+  },
+  "artifacts": {
+   "measured": true,
+   "files": []
+  },
+  "completed_at": "2026-09-25T19:34:48.276Z",
+  "ok": false
+ },
+ {
+  "receipt_id": "c7560629-291b-4802-b8e7-39989a8207fe",
+  "run_id": "hr_muhd118gc3ca066e",
+  "kind": "harness_run",
+  "requested_at": "2026-09-25T19:34:48.448Z",
+  "requested_by": "operator",
+  "adapter": "deepseek",
+  "task_id": null,
+  "cwd": "repo-deepseek-fail",
+  "prompt": {
+   "sha256": "5b15b40d2d6dfaf7e8baacc55c65412588d31c7a1c7733fe62882d02107622e8",
+   "excerpt": "Crea MUNDER_P0.txt con \"harness-boundary-ok\" y cuenta las líneas del README"
+  },
+  "chain": [],
+  "resume": null,
+  "capabilities": {
+   "session_resume": true,
+   "cancel": "protocol",
+   "steer_mid_turn": false,
+   "approvals": true,
+   "events": "acp session/update",
+   "usage": true,
+   "subagents": "native",
+   "mcp": "per-session",
+   "list_sessions": true
+  },
+  "started_at": "2026-09-25T19:34:48.453Z",
+  "status": "failed",
+  "stop_reason": null,
+  "error": {
+   "code": "harness_error",
+   "message": "Internal error: turn failed: invalid api key (fake: revoked)"
+  },
+  "harness": {
+   "name": "deepseek-harness-acp",
+   "version": "0.0.1",
+   "protocol": "acp/1"
+  },
+  "external_session_id": "1e4cf204-7c9e-49e4-893a-d958b9ca3a71",
+  "final_text": "",
+  "usage": null,
+  "events": {
+   "tools": 0,
+   "tool_failures": 0,
+   "messages": 0,
+   "permissions": []
+  },
+  "artifacts": {
+   "measured": true,
+   "files": []
+  },
+  "completed_at": "2026-09-25T19:34:49.570Z",
+  "ok": false
+ },
+ {
+  "receipt_id": "efc5fffd-d1d8-4925-bde3-982829b649e6",
+  "run_id": "hr_muhd123n88d70b07",
+  "kind": "harness_run",
+  "requested_at": "2026-09-25T19:34:49.571Z",
+  "requested_by": "operator",
+  "adapter": "deepseek",
+  "task_id": null,
+  "cwd": "repo-deepseek-fail",
+  "prompt": {
+   "sha256": "5b15b40d2d6dfaf7e8baacc55c65412588d31c7a1c7733fe62882d02107622e8",
+   "excerpt": "Crea MUNDER_P0.txt con \"harness-boundary-ok\" y cuenta las líneas del README"
+  },
+  "chain": [],
+  "resume": null,
+  "capabilities": {
+   "session_resume": true,
+   "cancel": "protocol",
+   "steer_mid_turn": false,
+   "approvals": true,
+   "events": "acp session/update",
+   "usage": true,
+   "subagents": "native",
+   "mcp": "per-session",
+   "list_sessions": true
+  },
+  "started_at": "2026-09-25T19:34:49.574Z",
+  "status": "failed",
+  "stop_reason": null,
+  "error": {
+   "code": "harness_error",
+   "message": "Internal error: turn failed: fake upstream failure"
+  },
+  "harness": {
+   "name": "deepseek-harness-acp",
+   "version": "0.0.1",
+   "protocol": "acp/1"
+  },
+  "external_session_id": "f44731d0-b679-489d-a8be-a225a2ff41f5",
+  "final_text": "",
+  "usage": null,
+  "events": {
+   "tools": 0,
+   "tool_failures": 0,
+   "messages": 0,
+   "permissions": []
+  },
+  "artifacts": {
+   "measured": true,
+   "files": []
+  },
+  "completed_at": "2026-09-25T19:35:06.692Z",
+  "ok": false
+ },
+ {
+  "receipt_id": "765ce952-f2db-4324-b906-931c813e0b6f",
+  "run_id": "hr_muhd1fb8212ad739",
+  "kind": "harness_run",
+  "requested_at": "2026-09-25T19:35:06.692Z",
+  "requested_by": "operator",
+  "adapter": "deepseek",
+  "task_id": null,
+  "cwd": "repo-deepseek-fail",
+  "prompt": {
+   "sha256": "5b15b40d2d6dfaf7e8baacc55c65412588d31c7a1c7733fe62882d02107622e8",
+   "excerpt": "Crea MUNDER_P0.txt con \"harness-boundary-ok\" y cuenta las líneas del README"
+  },
+  "chain": [],
+  "resume": null,
+  "capabilities": {
+   "session_resume": true,
+   "cancel": "protocol",
+   "steer_mid_turn": false,
+   "approvals": true,
+   "events": "acp session/update",
+   "usage": true,
+   "subagents": "native",
+   "mcp": "per-session",
+   "list_sessions": true
+  },
+  "started_at": "2026-09-25T19:35:06.696Z",
+  "status": "failed",
+  "stop_reason": null,
+  "error": {
+   "code": "harness_error",
+   "message": "Internal error: turn failed: malformed SSE payload: {not json"
+  },
+  "harness": {
+   "name": "deepseek-harness-acp",
+   "version": "0.0.1",
+   "protocol": "acp/1"
+  },
+  "external_session_id": "5d2be38e-d717-44b6-aa38-785fa9b37594",
+  "final_text": "",
+  "usage": null,
+  "events": {
+   "tools": 0,
+   "tool_failures": 0,
+   "messages": 0,
+   "permissions": []
+  },
+  "artifacts": {
+   "measured": true,
+   "files": []
+  },
+  "completed_at": "2026-09-25T19:35:07.856Z",
+  "ok": false
+ },
+ {
+  "receipt_id": "38b78012-1dad-45b7-8719-fd21df363603",
+  "run_id": "hr_muhd1gci6edaa072",
+  "kind": "harness_run",
+  "requested_at": "2026-09-25T19:35:08.035Z",
+  "requested_by": "operator",
+  "adapter": "deepseek",
+  "task_id": null,
+  "cwd": "repo-deepseek-slow",
+  "prompt": {
+   "sha256": "5b15b40d2d6dfaf7e8baacc55c65412588d31c7a1c7733fe62882d02107622e8",
+   "excerpt": "Crea MUNDER_P0.txt con \"harness-boundary-ok\" y cuenta las líneas del README"
+  },
+  "chain": [],
+  "resume": null,
+  "capabilities": {
+   "session_resume": true,
+   "cancel": "protocol",
+   "steer_mid_turn": false,
+   "approvals": true,
+   "events": "acp session/update",
+   "usage": true,
+   "subagents": "native",
+   "mcp": "per-session",
+   "list_sessions": true
+  },
+  "started_at": "2026-09-25T19:35:08.040Z",
+  "status": "timed_out",
+  "stop_reason": "cancelled",
+  "error": {
+   "code": "timeout",
+   "message": "sin terminar en 6 s"
+  },
+  "harness": {
+   "name": "deepseek-harness-acp",
+   "version": "0.0.1",
+   "protocol": "acp/1"
+  },
+  "external_session_id": "c6893b14-1cd2-4c5b-9d47-f1d89549d29c",
+  "final_text": "",
+  "usage": null,
+  "events": {
+   "tools": 0,
+   "tool_failures": 0,
+   "messages": 0,
+   "permissions": []
+  },
+  "artifacts": {
+   "measured": true,
+   "files": []
+  },
+  "completed_at": "2026-09-25T19:35:14.057Z",
+  "ok": false
+ },
+ {
+  "receipt_id": "4c5ee820-d741-4719-82e8-d16ba1b114e3",
+  "run_id": "hr_muhd1kzu12d36089",
+  "kind": "harness_run",
+  "requested_at": "2026-09-25T19:35:14.058Z",
+  "requested_by": "operator",
+  "adapter": "deepseek",
+  "task_id": null,
+  "cwd": "repo-deepseek-slow",
+  "prompt": {
+   "sha256": "5b15b40d2d6dfaf7e8baacc55c65412588d31c7a1c7733fe62882d02107622e8",
+   "excerpt": "Crea MUNDER_P0.txt con \"harness-boundary-ok\" y cuenta las líneas del README"
+  },
+  "chain": [],
+  "resume": null,
+  "capabilities": {
+   "session_resume": true,
+   "cancel": "protocol",
+   "steer_mid_turn": false,
+   "approvals": true,
+   "events": "acp session/update",
+   "usage": true,
+   "subagents": "native",
+   "mcp": "per-session",
+   "list_sessions": true
+  },
+  "started_at": "2026-09-25T19:35:14.062Z",
+  "status": "cancelled",
+  "stop_reason": "cancelled",
+  "error": {
+   "code": "cancelled",
+   "message": "cancelado por Munder"
+  },
+  "harness": {
+   "name": "deepseek-harness-acp",
+   "version": "0.0.1",
+   "protocol": "acp/1"
+  },
+  "external_session_id": "cb3fd8bc-228b-48a7-afbc-bfb7d420360c",
+  "final_text": "",
+  "usage": null,
+  "events": {
+   "tools": 0,
+   "tool_failures": 0,
+   "messages": 0,
+   "permissions": []
+  },
+  "artifacts": {
+   "measured": true,
+   "files": []
+  },
+  "completed_at": "2026-09-25T19:35:18.074Z",
+  "ok": false
+ },
+ {
+  "receipt_id": "73e74320-07eb-4a83-8d4d-dabde7b3d6e7",
+  "run_id": "hr_muhd1o7wab1bb45f",
+  "kind": "harness_run",
+  "requested_at": "2026-09-25T19:35:18.236Z",
+  "requested_by": "operator",
+  "adapter": "codex",
+  "task_id": null,
+  "cwd": "repo-caps",
+  "prompt": {
+   "sha256": "5b15b40d2d6dfaf7e8baacc55c65412588d31c7a1c7733fe62882d02107622e8",
+   "excerpt": "Crea MUNDER_P0.txt con \"harness-boundary-ok\" y cuenta las líneas del README"
+  },
+  "chain": [],
+  "resume": null,
+  "capabilities": {
+   "session_resume": true,
+   "cancel": "process",
+   "steer_mid_turn": false,
+   "approvals": false,
+   "events": "jsonl",
+   "usage": true,
+   "subagents": "native",
+   "mcp": "config",
+   "list_sessions": false
+  },
+  "status": "rejected",
+  "error": {
+   "code": "unsupported_capability",
+   "message": "codex no tiene: approvals"
+  },
+  "completed_at": "2026-09-25T19:35:18.236Z",
+  "ok": false
+ },
+ {
+  "receipt_id": "5bf7154f-3636-490d-96f2-8338fc210151",
+  "run_id": "hr_muhd1o7xd3f0b7a7",
+  "kind": "harness_run",
+  "requested_at": "2026-09-25T19:35:18.237Z",
+  "requested_by": "operator",
+  "adapter": "deepseek",
+  "task_id": null,
+  "cwd": "no-such-dir",
+  "prompt": {
+   "sha256": "2d711642b726b04401627ca9fbac32f5c8530fb1903cc4db02258717921a4881",
+   "excerpt": "x"
+  },
+  "chain": [],
+  "resume": null,
+  "capabilities": {
+   "session_resume": true,
+   "cancel": "protocol",
+   "steer_mid_turn": false,
+   "approvals": true,
+   "events": "acp session/update",
+   "usage": true,
+   "subagents": "native",
+   "mcp": "per-session",
+   "list_sessions": true
+  },
+  "status": "rejected",
+  "error": {
+   "code": "bad_cwd",
+   "message": "no existe la carpeta <p0-root>/no-such-dir"
+  },
+  "completed_at": "2026-09-25T19:35:18.237Z",
+  "ok": false
+ },
+ {
+  "receipt_id": "6a1fd23f-86a5-426d-82aa-e5171f362792",
+  "run_id": "hr_muhd1paja1d6ae76",
+  "kind": "harness_run",
+  "requested_at": "2026-09-25T19:35:19.627Z",
+  "requested_by": "harness:deepseek",
+  "adapter": "codex",
+  "task_id": null,
+  "cwd": "repo-recursion",
+  "prompt": {
+   "sha256": "c027ba19198b839613df97ce2d28db5d92643e313850a7c9f70ad19e3a9ed105",
+   "excerpt": "otra vez"
+  },
+  "chain": [
+   {
+    "adapter": "deepseek",
+    "run_id": "hr_muhd1ocb44da6882"
+   }
+  ],
+  "resume": null,
+  "capabilities": {
+   "session_resume": true,
+   "cancel": "process",
+   "steer_mid_turn": false,
+   "approvals": false,
+   "events": "jsonl",
+   "usage": true,
+   "subagents": "native",
+   "mcp": "config",
+   "list_sessions": false
+  },
+  "status": "rejected",
+  "error": {
+   "code": "recursion",
+   "message": "esta ejecución viene de dentro de otra (deepseek:hr_muhd1ocb44da6882); para anidar hay que pedirlo con --anidado"
+  },
+  "completed_at": "2026-09-25T19:35:19.629Z",
+  "ok": false
+ },
+ {
+  "receipt_id": "db8a41ce-6d2b-42eb-8682-c3fb705e4f4d",
+  "run_id": "hr_muhd1ocb44da6882",
+  "kind": "harness_run",
+  "requested_at": "2026-09-25T19:35:18.395Z",
+  "requested_by": "operator",
+  "adapter": "deepseek",
+  "task_id": null,
+  "cwd": "repo-recursion",
+  "prompt": {
+   "sha256": "16d08fb3e90ab11153c0420c1dc5ad1616b92d0fafa08d50770f6f9b6ec3ab8b",
+   "excerpt": "delega esto de vuelta a Munder"
+  },
+  "chain": [],
+  "resume": null,
+  "capabilities": {
+   "session_resume": true,
+   "cancel": "protocol",
+   "steer_mid_turn": false,
+   "approvals": true,
+   "events": "acp session/update",
+   "usage": true,
+   "subagents": "native",
+   "mcp": "per-session",
+   "list_sessions": true
+  },
+  "started_at": "2026-09-25T19:35:18.399Z",
+  "status": "completed",
+  "stop_reason": "end_turn",
+  "error": null,
+  "harness": {
+   "name": "deepseek-harness-acp",
+   "version": "0.0.1",
+   "protocol": "acp/1"
+  },
+  "external_session_id": "e21cd77e-f47b-4fd1-bfd5-ca25168bdd43",
+  "final_text": "Listo: escribí MUNDER_P0.txt y conté las líneas de README.md.",
+  "usage": {
+   "used": 7608,
+   "size": 1000000
+  },
+  "events": {
+   "tools": 1,
+   "tool_failures": 0,
+   "messages": 1,
+   "permissions": []
+  },
+  "artifacts": {
+   "measured": true,
+   "files": [
+    {
+     "path": "INNER.json",
+     "git_status": "??",
+     "sha256": "5c109ca39d89b7b9a1585edfea5059f8c70f05c05d8b6f4f1eb1a98591638078",
+     "bytes": 1043
+    }
+   ]
+  },
+  "completed_at": "2026-09-25T19:35:19.681Z",
+  "ok": true
+ }
+]

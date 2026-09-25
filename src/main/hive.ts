@@ -189,6 +189,8 @@ export interface SpawnInjection {
   degraded?: string;
 }
 
+/** The operator's ChatGPT principal (tools/munder/lib-gpt.cjs): a mailbox, not an agent. */
+export const GPT_PRINCIPAL = 'gpt';
 const HOP_CAP = 12;
 
 function sleepSync(ms: number): void {
@@ -584,19 +586,39 @@ export class HiveManager {
 
   // — bootstrap —
 
-  /** Create the hive skeleton + git repo if missing. Idempotent. */
+  /** Write the two GENERATED docs the agents are pointed at as the authority:
+   *  the protocol and the bundled Claude Code command reference. Separate from
+   *  `ensureHive` so that refreshing them is an explicit act of bootstrap
+   *  instead of a side effect of ordinary runtime work.
+   *
+   *  Both are generated, never user-authored, and a stale copy is worse than a
+   *  rewrite — which is why this runs on every app start, the one moment a
+   *  protocol change can reach an existing hive. It used to run inside
+   *  `ensureHive`, and `ensureHive` is also called by `ensureAgent` and
+   *  `writeTasks`: a single card mutation silently rewrote both files, so a
+   *  local edit an agent had made to them was reverted with no way to tell. */
+  refreshGeneratedDocs(): void {
+    const root = this.root();
+    if (!root) return;
+    writeFileSync(join(root, 'PROTOCOL.md'), PROTOCOL_MD, 'utf8');
+    // The Claude Code command reference Michael consults (tracks the bundled list).
+    writeFileSync(join(root, 'COMMANDS.md'), COMMANDS_MD, 'utf8');
+  }
+
+  /** Create the hive skeleton + git repo if missing. Idempotent.
+   *
+   *  The generated docs are created here only when ABSENT, so a fresh hive has
+   *  them and an existing one keeps its copy until the next explicit
+   *  `refreshGeneratedDocs()`. This method is on the runtime path (every spawned
+   *  agent, every ledger write), and it must not take a file an agent reads as
+   *  the authority out from under it. */
   ensureHive(): void {
     const root = this.root();
     if (!root) return;
     mkdirSync(join(root, 'agents'), { recursive: true });
 
-    // Refreshed each bootstrap, like COMMANDS.md just below. It used to be
-    // written only when absent, which meant a hive created once never saw a
-    // protocol change again: this repo's own hive still carried the file from
-    // the day it was initialised, so every protocol addition since had reached
-    // new hives only. The file is generated, not user-authored, and agents are
-    // pointed at it as the authority, so a stale copy is worse than a rewrite.
-    writeFileSync(join(root, 'PROTOCOL.md'), PROTOCOL_MD, 'utf8');
+    const protocol = join(root, 'PROTOCOL.md');
+    if (!existsSync(protocol)) writeFileSync(protocol, PROTOCOL_MD, 'utf8');
 
     const registry = join(root, 'registry.json');
     if (!existsSync(registry)) {
@@ -618,9 +640,8 @@ export class HiveManager {
     const log = join(root, 'log.jsonl');
     if (!existsSync(log)) writeFileSync(log, '', 'utf8');
 
-    // The Claude Code command reference Michael consults (refreshed each bootstrap
-    // so it tracks the bundled list).
-    writeFileSync(join(root, 'COMMANDS.md'), COMMANDS_MD, 'utf8');
+    const commands = join(root, 'COMMANDS.md');
+    if (!existsSync(commands)) writeFileSync(commands, COMMANDS_MD, 'utf8');
 
     // Keep the churny/ephemeral live files out of the hive git repo.
     const gitignore = join(root, '.gitignore');
@@ -1536,11 +1557,25 @@ export class HiveManager {
 
   // — messaging —
 
-  /** Normalize a partial message into a full HiveMessage. */
+  /** Normalize a partial message into a full HiveMessage.
+   *
+   *  The id is minted HERE, always, and never taken from the caller — because
+   *  the id is also the inbox FILENAME (`<id>.json`). An agent-authored id could
+   *  write outside its recipient's inbox (`../`) or land on top of another
+   *  agent's message and overwrite it. PROTOCOL.md already tells agents "the
+   *  harness fills in `id`", so this enforces the documented contract instead of
+   *  trusting an out-of-contract field.
+   *
+   *  The fork already paid for this once: `useHive.ts` had to abandon its
+   *  largest-id high-water mark because one agent's `dev15-progress-canvas-v4`
+   *  sorted above every timestamp and froze the wake loop for the whole floor.
+   *
+   *  `<timestamp>-<rand>` is kept rather than a bare randomUUID: ids are
+   *  compared as strings wherever they stand in for creation order. */
   private normalize(partial: Partial<HiveMessage>, from: string): HiveMessage {
     const act = (partial.act ?? 'inform') as MessageAct;
     return {
-      id: partial.id ?? `${stamp()}-${shortRand()}`,
+      id: `${stamp()}-${shortRand()}`,
       conversation: partial.conversation ?? `conv-${shortRand()}`,
       in_reply_to: partial.in_reply_to ?? null,
       from: partial.from ?? from,
@@ -1559,7 +1594,10 @@ export class HiveManager {
    *  Returns false when the recipient has no inbox, so the caller can bounce and
    *  log the drop rather than let the message vanish. */
   private deliver(msg: HiveMessage, toId: string): boolean {
-    const inbox = join(this.agentDir(toId), 'inbox');
+    // `gpt` is not an agent: it is the operator's ChatGPT principal. Its mailbox
+    // (<hive>/gpt/inbox) exists only while `munder gpt` has it configured;
+    // otherwise this returns false and the message bounces like any unknown id.
+    const inbox = toId === GPT_PRINCIPAL ? join(this.root()!, 'gpt', 'inbox') : join(this.agentDir(toId), 'inbox');
     if (!existsSync(inbox)) return false; // unknown recipient — the caller reports it
     this.atomicWriteJson(join(inbox, `${msg.id}.json`), msg);
     return true;
@@ -1604,6 +1642,14 @@ export class HiveManager {
       // task brief plus the follow-up reprimand about the unread inbox, both
       // unread for hours). Bounce such mail to god instead, so the sender's intent
       // surfaces immediately and nothing is silently lost.
+      // The GPT principal has a mailbox, no terminal: straight to it, or (gateway
+      // not configured) the same drop log + bounce as any unknown recipient.
+      if (t === GPT_PRINCIPAL) {
+        if (this.deliver(msg, t)) { delivered.push(t); continue; }
+        this.appendLog({ kind: 'drop', reason: 'no-inbox', from: msg.from, to: t, id: msg.id });
+        this.deliver({ ...msg, to: godId, subject: `[undeliverable — the GPT gateway is not set up (munder gpt); nobody reads "gpt"] ${msg.subject}` }, godId);
+        continue;
+      }
       if (reg.agents[t]?.isAssistant) {
         this.deliver({
           ...msg,
@@ -2762,13 +2808,31 @@ export class HiveManager {
   private readJson<T>(p: string, fallback: T): T {
     try { return JSON.parse(readFileSync(p, 'utf8')) as T; } catch { return fallback; }
   }
+  /** Durable JSON write: temp file in the same directory, then rename. rename
+   *  is atomic within a volume, so a reader sees either the whole previous file
+   *  or the whole new one — never the truncated middle of a write that a
+   *  force-quit, a Windows-update reboot or a full disk interrupted.
+   *
+   *  Every state file this class owns routes through here (registry, tasks,
+   *  fleet, cursor, hook settings), which is why the guarantee lives in ONE
+   *  place instead of depending on each call site remembering to ask for it.
+   *  This app is force-killed in ordinary use and the webhook/settings/mission
+   *  handlers write on nearly every IPC call, so the window is exercised a lot. */
   private writeJson(p: string, data: unknown): void {
-    writeFileSync(p, JSON.stringify(data, null, 2), 'utf8');
+    this.atomicWriteJson(p, data);
   }
   private atomicWriteJson(p: string, data: unknown): void {
     const tmp = `${p}.tmp-${shortRand()}`;
-    writeFileSync(tmp, JSON.stringify(data, null, 2), 'utf8');
-    renameSync(tmp, p);
+    try {
+      writeFileSync(tmp, JSON.stringify(data, null, 2), 'utf8');
+      renameSync(tmp, p);
+    } catch (error) {
+      // A half-written temp file is litter in a directory the inbox/outbox
+      // scanners and the ledger guard walk. The real file was never opened, so
+      // whatever it held before is still intact.
+      rmSync(tmp, { force: true });
+      throw error;
+    }
   }
 
   // — git (single committer, retry + stale-lock recovery) —
@@ -2957,6 +3021,9 @@ The harness fills in \`id\`, \`from\`, \`hops\`, and timestamps.
   can approve it remotely from their phone via \`/remote-control\`). If you genuinely
   need a human decision, raise it with \`god\` (a message \`"to": "human"\` is routed to
   the god/orchestrator, the human's proxy on the floor).
+- \`"to": "gpt"\` hands a message to the operator's ChatGPT (the \`gpt\` principal of
+  \`munder gpt\`): ChatGPT finds it in its inbox, and its replies come back to you
+  from \`gpt\`. When the GPT gateway is not set up, the message bounces back to you.
 - \`board.md\` is the shared plan. Don't edit it directly — \`propose\` changes to \`god\`,
   who is its sole scribe.
 - Re-reading a message you already moved to \`.done/\` is a no-op. Don't reprocess.

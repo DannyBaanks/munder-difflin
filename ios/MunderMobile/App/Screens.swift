@@ -102,6 +102,7 @@ struct MainView: View {
         .tint(Px.ink900)
         .task {
             await store.refreshAddresses()
+            await store.refreshPeers()
             while !Task.isCancelled {
                 await store.refresh()
                 try? await Task.sleep(nanoseconds: 5_000_000_000)
@@ -118,6 +119,8 @@ struct Screen<Content: View>: View {
     @EnvironmentObject private var store: OfficeStore
     let title: String
     var subtitle: String?
+    /// The title becomes a menu of offices: this one first, then every paired one.
+    var switcher = false
     @ViewBuilder let content: () -> Content
 
     var body: some View {
@@ -125,7 +128,28 @@ struct Screen<Content: View>: View {
             VStack(alignment: .leading, spacing: 14) {
                 HStack(spacing: 10) {
                     StatusDot(color: store.online ? Px.mint : Px.coral)
-                    PixelLabel(title, size: 12, color: Px.ink900)
+                    if switcher, let peers = store.peers, !peers.isEmpty {
+                        Menu {
+                            Button { Task { await store.view(office: nil) } } label: {
+                                MenuRow(text: "\(store.office?.name ?? "Esta oficina") · esta", on: store.viewing == nil)
+                            }
+                            ForEach(peers) { p in
+                                Button { Task { await store.view(office: p.officeId) } } label: {
+                                    MenuRow(text: p.online ? p.name : "\(p.name) · sin conexión", on: store.viewing == p.officeId)
+                                }
+                            }
+                        } label: {
+                            HStack(spacing: 6) {
+                                PixelLabel(title, size: 12, color: Px.ink900).lineLimit(1)
+                                Image(systemName: "chevron.down").font(.system(size: 12, weight: .bold)).foregroundColor(Px.ink900)
+                            }
+                            .padding(.vertical, 6).padding(.horizontal, 8)
+                            .overlay(Rectangle().strokeBorder(Px.ink100, lineWidth: 1))
+                        }
+                        .accessibilityLabel("Cambiar de oficina")
+                    } else {
+                        PixelLabel(title, size: 12, color: Px.ink900)
+                    }
                 }
                 .padding(.top, 8)
                 if let subtitle { Text(subtitle).font(.system(size: 12, design: .monospaced)).foregroundColor(Px.ink500) }
@@ -144,6 +168,15 @@ struct Screen<Content: View>: View {
     }
 }
 
+/// A menu entry with a check on the office being shown.
+struct MenuRow: View {
+    let text: String
+    let on: Bool
+    var body: some View {
+        if on { Label(text, systemImage: "checkmark") } else { Text(text) }
+    }
+}
+
 struct SectionTitle: View {
     let text: String
     var body: some View { PixelLabel(text).padding(.top, 8) }
@@ -159,8 +192,12 @@ struct OfficeTab: View {
         let o = store.overview
         let c = o?.capacity
         let q = o?.questions.count ?? 0
+        let remote = o?.remote == true
+        let agents = o?.agents ?? []
+        let target = agents.first { $0.id == store.recipient && $0.god != true }
+        let to = remote ? "su Michael" : (target?.name ?? "Michael")
         Screen(title: o?.office.name ?? store.office?.name ?? "Oficina",
-               subtitle: o.map { "\($0.office.host ?? "") · \($0.office.fingerprint ?? "")" }) {
+               subtitle: o.map { "\($0.office.host ?? "") · \($0.office.fingerprint ?? "")" }, switcher: true) {
             if o == nil {
                 Text(store.online ? "Cargando…" : "Sin datos todavía").foregroundColor(Px.ink500).frame(maxWidth: .infinity).padding(.vertical, 24)
             } else {
@@ -175,11 +212,25 @@ struct OfficeTab: View {
                 if o?.hive == false {
                     Text("No encuentro el hive de esta oficina. Abre Munder en la computadora.").font(.footnote).foregroundColor(Px.coral)
                 }
-                SectionTitle(text: "Pídele algo a Michael")
+                if o?.limited == true {
+                    Text("Esa oficina tiene un Munder más viejo: solo manda sus números. Actualízala para ver su equipo y su tablero.")
+                        .font(.footnote).foregroundColor(Px.coral)
+                }
+                SectionTitle(text: "Pídele algo a \(to)")
                 PixelCard {
-                    VStack(spacing: 10) {
-                        PixelEditor(placeholder: "Escribe lo que necesitas…", text: $draft)
-                        Button("Enviar a Michael") {
+                    VStack(alignment: .leading, spacing: 10) {
+                        if remote {
+                            Text("En \(o?.office.name ?? "esa oficina") todo entra por su Michael: él reparte el trabajo a su equipo.")
+                                .font(.footnote).foregroundColor(Px.ink500)
+                        } else {
+                            Picker("Para", selection: $store.recipient) {
+                                Text("Michael (jefe)").tag("god")
+                                ForEach(agents.filter { $0.god != true }) { Text($0.name).tag($0.id) }
+                            }
+                            .pickerStyle(.menu).pixelField()
+                        }
+                        PixelEditor(placeholder: remote ? "Qué debe hacer su Michael…" : "Escribe lo que necesitas…", text: $draft)
+                        Button("Enviar a \(to)") {
                             let text = draft.trimmingCharacters(in: .whitespacesAndNewlines)
                             Task { if await store.ask(text) { draft = "" } }
                         }
@@ -187,10 +238,20 @@ struct OfficeTab: View {
                         .disabled(store.busy || draft.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty)
                     }
                 }
-                let agents = o?.agents ?? []
                 SectionTitle(text: "Equipo · \(agents.count)")
                 LazyVGrid(columns: [GridItem(.flexible(), spacing: 8), GridItem(.flexible(), spacing: 8)], spacing: 8) {
-                    ForEach(agents.sorted { ($0.god == true ? 0 : 1) < ($1.god == true ? 0 : 1) }) { AgentCard(agent: $0) }
+                    ForEach(agents.sorted { ($0.god == true ? 0 : 1) < ($1.god == true ? 0 : 1) }) { a in
+                        if remote {
+                            AgentCard(agent: a)
+                        } else {
+                            // Tap a card to write to that agent.
+                            Button { store.recipient = a.god == true ? "god" : a.id } label: {
+                                AgentCard(agent: a, chosen: store.recipient == (a.god == true ? "god" : a.id))
+                            }
+                            .buttonStyle(.plain)
+                            .accessibilityLabel("Escribirle a \(a.name)")
+                        }
+                    }
                 }
             }
         }
@@ -220,6 +281,7 @@ struct Tile: View {
 
 struct AgentCard: View {
     let agent: Agent
+    var chosen = false
     var body: some View {
         let boss = agent.god == true
         HStack(alignment: .top, spacing: 8) {
@@ -236,7 +298,7 @@ struct AgentCard: View {
         .padding(8)
         .frame(maxWidth: .infinity, alignment: .leading)
         .background(boss ? Px.lemonLight : Px.paper100)
-        .overlay(Rectangle().strokeBorder(boss ? Px.lemon : Px.ink100, lineWidth: boss ? 2 : 1))
+        .overlay(Rectangle().strokeBorder(chosen ? Px.ink900 : boss ? Px.lemon : Px.ink100, lineWidth: chosen || boss ? 2 : 1))
     }
 }
 
@@ -246,7 +308,7 @@ struct QuestionsTab: View {
     @EnvironmentObject private var store: OfficeStore
     var body: some View {
         let questions = store.overview?.questions ?? []
-        Screen(title: "Preguntas") {
+        Screen(title: "Preguntas", subtitle: store.viewing != nil ? store.overview.map { "de \($0.office.name)" } : nil) {
             if questions.isEmpty {
                 Text("Nada pendiente. Michael no te está esperando 🎉").foregroundColor(Px.ink500).frame(maxWidth: .infinity).padding(.vertical, 24)
             }
@@ -274,13 +336,18 @@ struct QuestionCard: View {
                     Portrait(name: Cast.forAssignee(task.assignee, in: store.overview?.agents), scale: 2)
                     Bubble { Text(markdown(task.question?.q ?? "")) }
                 }
-                PixelEditor(placeholder: "Tu respuesta…", text: $draft)
-                Button("Responder") {
-                    let text = draft.trimmingCharacters(in: .whitespacesAndNewlines)
-                    Task { if await store.answer(task, text: text) { draft = "" } }
+                if store.overview?.remote == true {
+                    Text("Contéstala desde el celular emparejado con esa oficina, o pásale la respuesta a su Michael desde Oficina.")
+                        .font(.footnote).foregroundColor(Px.ink500)
+                } else {
+                    PixelEditor(placeholder: "Tu respuesta…", text: $draft)
+                    Button("Responder") {
+                        let text = draft.trimmingCharacters(in: .whitespacesAndNewlines)
+                        Task { if await store.answer(task, text: text) { draft = "" } }
+                    }
+                    .buttonStyle(PixelButtonStyle())
+                    .disabled(store.busy || draft.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty)
                 }
-                .buttonStyle(PixelButtonStyle())
-                .disabled(store.busy || draft.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty)
             }
         }
     }
@@ -296,7 +363,7 @@ struct BoardTab: View {
 
     var body: some View {
         let tasks = store.overview?.tasks ?? []
-        Screen(title: "Tablero") {
+        Screen(title: "Tablero", subtitle: store.viewing != nil ? store.overview.map { "de \($0.office.name)" } : nil) {
             HStack(spacing: 6) {
                 ForEach(order, id: \.0) { item in
                     let key = item.0

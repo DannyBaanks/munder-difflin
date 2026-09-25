@@ -21,6 +21,7 @@
  *  - never inside the boot sequence (BOOT_GRACE_MS from spawn, mirroring the
  *    renderer's bootGraceUntil),
  *  - delivery paused / agent paused / halted → no nudge (ControlRegistry),
+ *  - agent on hold (operator 1:1) → no nudge,
  *  - a recent permission/HITL notification re-arms a block (HITL_REARM_MS) so a
  *    prompt the human is deciding on is never typed into,
  *  - a per-worker cooldown (NUDGE_COOLDOWN_MS) so the watchdog and the renderer
@@ -83,6 +84,9 @@ export interface WorkerWakeFacts {
   autoDeliveryPaused: boolean;
   paused: boolean;
   halted: boolean;
+  /** The operator has this agent in a 1:1 (hive.setAgentHold). A held agent is
+   *  never nudged: the wake text would land in the middle of that conversation. */
+  onHold?: boolean;
 }
 
 export class WorkerWakeWatchdog {
@@ -129,6 +133,7 @@ export class WorkerWakeWatchdog {
       }
       if (f.isGod || !f.ptyId) continue;
       if (f.autoDeliveryPaused || f.paused || f.halted) continue;
+      if (f.onHold) continue; // the operator has this agent 1:1 — never nudge into it
       if (f.lastOutputAt <= 0) continue; // never produced output → still booting
       if (now - f.lastOutputAt < WORKER_WAKE_IDLE_MS) continue; // mid-turn
       const spawned = this.spawnedAt.get(f.ptyId) ?? 0;

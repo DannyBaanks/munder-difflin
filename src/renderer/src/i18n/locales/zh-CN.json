@@ -1626,5 +1626,34 @@
     "viaLan": "家庭网络（{{ifname}}）",
     "noAppUrls": "这台机器目前没有局域网或 Tailscale 地址。",
     "noPhones": "还没有配对任何手机。"
+  },
+  "shell": {
+    "nav": {
+      "label": "全局导航",
+      "office": "办公室",
+      "settings": "设置",
+      "settingsShort": "设置",
+      "marketplace": "市场"
+    },
+    "marketplace": {
+      "title": "市场",
+      "tagline": "发现并构建 Munder 扩展。",
+      "searchPlaceholder": "搜索插件、MCP、提供方…",
+      "categories": "分类",
+      "category": {
+        "mcp": "MCP",
+        "harness": "Harness",
+        "provider": "提供方",
+        "skill": "技能",
+        "pack": "办公室包",
+        "theme": "主题"
+      },
+      "createTitle": "为 Munder 创建",
+      "createBlurb": "描述你想为 Munder 添加什么。",
+      "intentPlaceholder": "我希望 Munder 能够…",
+      "prepare": "准备贡献",
+      "pipelineSoon": "即将推出：贡献流程尚未接入。",
+      "noCatalog": "尚未接入任何目录。这里不会安装或运行任何东西。"
+    }
   }
 }

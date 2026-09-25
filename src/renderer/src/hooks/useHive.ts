@@ -807,7 +807,7 @@ export function useHive(config: HarnessConfig | null): void {
       // Idle, or breaker-pinned with a terminal that has genuinely gone quiet.
       // This gate is a don't-type-mid-stream safety check, so `manual` does NOT
       // bypass it — "send now" releases the auto-delivery PAUSE below, not this.
-      if (!canDeliverToAgent(target.status, ptyQuietMs(target.ptyId, now), QUIESCE_IDLE_MS)) {
+      if (!canDeliverToAgent(target.status, ptyQuietMs(target.ptyId, now), QUIESCE_IDLE_MS, target.onHold)) {
         return { sent: false };
       }
       const control = await window.cth.controlSnapshot(target.id);
@@ -928,7 +928,7 @@ export function useHive(config: HarnessConfig | null): void {
       for (const a of agents) {
         // Same gate as dispatch() — this pre-filter runs first, so relaxing only
         // the one inside dispatch would have changed nothing.
-        if (!a.ptyId || !canDeliverToAgent(a.status, ptyQuietMs(a.ptyId, now), QUIESCE_IDLE_MS)) continue;
+        if (!a.ptyId || !canDeliverToAgent(a.status, ptyQuietMs(a.ptyId, now), QUIESCE_IDLE_MS, a.onHold)) continue;
         if (!messageQueues[a.id]?.length) continue;
                 void dispatch(a.id, a).then(({ sent, message }) => {
           if (sent && message?.slack) void ensureSlackCard(message);
@@ -1102,7 +1102,7 @@ export function useHive(config: HarnessConfig | null): void {
         // collapsed every subsequent hourly attempt against, forever — the exact
         // same check the drain itself uses immediately before typing, so a
         // command is never queued in a state the drain would refuse to deliver.
-        if (!canDeliverToAgent(a.status, ptyQuietMs(a.ptyId, now), QUIESCE_IDLE_MS)) continue;
+        if (!canDeliverToAgent(a.status, ptyQuietMs(a.ptyId, now), QUIESCE_IDLE_MS, a.onHold)) continue;
         const provider = inferAgentProvider(a.command, a.provider);
         const command = action === 'clear'
           ? clearCommandForProvider(provider, rule.message)

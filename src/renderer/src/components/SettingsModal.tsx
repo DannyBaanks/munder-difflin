@@ -33,6 +33,7 @@ import {
 import { notifyArabicTerminalChangeAll } from '@/components/terminalPool';
 import { isComposingKey } from '@shared/imeGuard';
 import { LANGUAGES, setLanguage } from '@/i18n';
+import { SETTINGS_SECTIONS, SETTINGS_SECTION_KEYS, type SettingsSection } from '@/components/globalNavModel';
 
 export interface SettingsModalProps {
   config: HarnessConfig;
@@ -180,20 +181,11 @@ const sectionHeadFlush = { ...sectionHead, marginBottom: 0 } as const;
 /** The 2px rule between Settings sections. */
 const sectionRule = { height: 2, background: 'var(--cth-ink-300)' } as const;
 
-export type Section = 'General' | 'Prerequisites' | 'Agents & Models' | 'Autonomy & Budgets' | 'Connections' | 'Munder Link' | 'Voice' | 'Memory & Knowledge';
-const NAV_SECTIONS: Section[] = ['General', 'Prerequisites', 'Agents & Models', 'Autonomy & Budgets', 'Connections', 'Munder Link', 'Voice', 'Memory & Knowledge'];
-/** i18n key for each nav section's label — the Section values themselves stay
- *  as stable identifiers (tab state, deep links). */
-const NAV_SECTION_KEYS: Record<Section, string> = {
-  'General': 'settings.nav.general',
-  'Prerequisites': 'settings.nav.prerequisites',
-  'Agents & Models': 'settings.nav.agentsModels',
-  'Autonomy & Budgets': 'settings.nav.autonomyBudgets',
-  'Connections': 'settings.nav.connections',
-  'Munder Link': 'settings.nav.link',
-  'Voice': 'settings.nav.voice',
-  'Memory & Knowledge': 'settings.nav.memoryKnowledge'
-};
+/** The section list and its labels live in globalNavModel.ts: the title bar's
+ *  Settings menu renders the same list, so the two never drift apart. */
+export type Section = SettingsSection;
+const NAV_SECTIONS = SETTINGS_SECTIONS;
+const NAV_SECTION_KEYS = SETTINGS_SECTION_KEYS;
 
 export function SettingsModal({ config, onClose, initialSection }: SettingsModalProps) {
   const { t, i18n } = useTranslation();

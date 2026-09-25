@@ -194,3 +194,19 @@ test('the nudge text matches the renderer guardrail exactly', () => {
   assert.equal(WORKER_WAKE_NUDGE.length > 100, true);
   assert.match(WORKER_WAKE_NUDGE, /read your inbox/i);
 });
+
+test('never nudges an agent the operator has on hold', () => {
+  const now = 200_000;
+  const idle = now - WORKER_WAKE_IDLE_MS - 1;
+  // A fresh watchdog per case: a successful nudge arms the cooldown, so reusing
+  // one instance would make the later assertions pass for the wrong reason.
+  const decide = (over) => {
+    const w = new WorkerWakeWatchdog();
+    w.noteSpawn('pty-alice', 0);
+    return w.decide([fact({ lastOutputAt: idle, ...over })], now);
+  };
+  assert.deepEqual(decide({ onHold: true }), [],
+    'a held agent is in a 1:1 — the wake text would land in that conversation');
+  assert.deepEqual(decide({}), ['alice'], 'an absent hold flag is the ordinary path');
+  assert.deepEqual(decide({ onHold: false }), ['alice'], 'only a TRUE hold excludes');
+});

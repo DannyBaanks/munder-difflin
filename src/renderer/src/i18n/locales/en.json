@@ -1626,5 +1626,34 @@
     "viaLan": "home network ({{ifname}})",
     "noAppUrls": "This machine has no LAN or Tailscale address right now.",
     "noPhones": "No phone paired yet."
+  },
+  "shell": {
+    "nav": {
+      "label": "Global navigation",
+      "office": "Office",
+      "settings": "Settings",
+      "settingsShort": "Config",
+      "marketplace": "Marketplace"
+    },
+    "marketplace": {
+      "title": "MARKETPLACE",
+      "tagline": "Discover and build extensions for Munder.",
+      "searchPlaceholder": "Search plugins, MCPs, providers…",
+      "categories": "Categories",
+      "category": {
+        "mcp": "MCP",
+        "harness": "Harness",
+        "provider": "Provider",
+        "skill": "Skill",
+        "pack": "Office Pack",
+        "theme": "Theme"
+      },
+      "createTitle": "Build for Munder",
+      "createBlurb": "Describe what you want to add to Munder.",
+      "intentPlaceholder": "I want Munder to be able to…",
+      "prepare": "Prepare contribution",
+      "pipelineSoon": "Coming soon: the contribution pipeline is not connected yet.",
+      "noCatalog": "No catalog is connected yet. Nothing here installs or runs anything."
+    }
   }
 }

@@ -22,6 +22,9 @@ import { UpdateToast } from '@/components/UpdateToast';
 import { UpdateBadge } from '@/components/UpdateBadge';
 import { useAppTheme, toggleAppTheme } from '@/design/theme';
 import { SettingsModal, type Section as SettingsSection } from '@/components/SettingsModal';
+import { GlobalNav } from '@/components/GlobalNav';
+import { MarketplaceView } from '@/components/MarketplaceView';
+import { navDensity, type GlobalView } from '@/components/globalNavModel';
 import { PixelPanel } from '@/components/PixelPanel';
 import { PixelButton } from '@/components/PixelButton';
 import { Icon } from '@/components/Icon';
@@ -76,9 +79,13 @@ export function App() {
   /** Which tab Settings opens on. Set by a `cth:open-settings` deep link, reset
    *  to undefined (→ General) whenever the modal is opened the normal way. */
   const [settingsSection, setSettingsSection] = useState<SettingsSection | undefined>(undefined);
+  /** Which global surface fills the main area (title-bar tabs). Visual only:
+   *  the floor, terminals and agents stay mounted while Marketplace is up. */
+  const [globalView, setGlobalView] = useState<GlobalView>('office');
   const [quitWarn, setQuitWarn] = useState<{ ptyCount: number } | null>(null);
   const [closing, setClosing] = useState<ClosingTimeState | null>(null);
   const [vpWidth, setVpWidth] = useState<number>(window.innerWidth);
+  const density = navDensity(vpWidth);
 
   // Deep link into Settings from anywhere in the tree. Settings' open state is
   // local to App, so a nested control (e.g. "set it now" beside a disabled Talk
@@ -303,13 +310,43 @@ export function App() {
         {/* v0.3.7: the version is no longer inert text — it doubles as the
             update control (check / download / restart to update). */}
         <UpdateBadge />
-        <span style={{
-          fontFamily: 'var(--cth-font-ui)',
-          fontSize: 13,
-          color: 'var(--cth-ink-500)'
-        }}>
-          {config.autoMode ? 'auto mode on' : 'auto mode off'}
-        </span>
+        {density === 'full' ? (
+          <span style={{
+            fontFamily: 'var(--cth-font-ui)',
+            fontSize: 13,
+            color: 'var(--cth-ink-500)',
+            whiteSpace: 'nowrap'
+          }}>
+            {config.autoMode ? 'auto mode on' : 'auto mode off'}
+          </span>
+        ) : (
+          // Narrower windows keep the same fact as a badge, never drop it.
+          <span
+            className="cth-tip"
+            data-tip={config.autoMode ? 'auto mode on' : 'auto mode off'}
+            aria-label={config.autoMode ? 'auto mode on' : 'auto mode off'}
+            style={{
+              fontFamily: 'var(--cth-font-display)', fontSize: 7, lineHeight: '10px',
+              padding: '3px 5px 2px', whiteSpace: 'nowrap',
+              color: config.autoMode ? 'var(--cth-on-accent)' : 'var(--cth-ink-500)',
+              background: config.autoMode ? 'var(--cth-lemon)' : 'transparent',
+              boxShadow: 'inset 0 0 0 1px var(--cth-ink-300)'
+            }}
+          >
+            {config.autoMode ? 'AUTO ON' : 'AUTO OFF'}
+          </span>
+        )}
+        {/* Global navigation: the product's surfaces as tabs (Office,
+            Settings menu, Marketplace). The Settings menu deep-links into the
+            one SettingsModal below; it replaces the old gear here. */}
+        <div style={{ width: 1, alignSelf: 'stretch', margin: '6px 2px', background: 'var(--cth-ink-300)' }} />
+        <GlobalNav
+          view={globalView}
+          onView={setGlobalView}
+          onOpenSettings={(section) => { setSettingsSection(section); setSettingsOpen(true); }}
+          settingsOpen={settingsOpen}
+          density={density}
+        />
         {/* v0.3.4: theme + fullscreen live HERE (top right), not buried in the
             terminal header — and the theme darkens the whole app, terminals
             included (design/theme.ts + tokens.css dark block). */}
@@ -343,24 +380,6 @@ export function App() {
           }}
         >
           {appThemeNow === 'dark' ? '☀' : '☾'}
-        </button>
-        {/* v0.3.4: the IDE button moved to agent level — every agent's header
-            (sidebar detail, god Command Center, fullscreen) carries it. */}
-        <button
-          className="cth-titlebar-nodrag cth-settings-btn cth-tip"
-          onClick={() => { setSettingsSection(undefined); setSettingsOpen(true); }}
-          data-tip="Settings"
-          aria-label="Settings"
-          style={{
-            display: 'inline-flex', alignItems: 'center', justifyContent: 'center',
-            width: 28, height: 28, padding: 0,
-            background: 'var(--cth-paper-100)',
-            boxShadow: 'inset 0 0 0 1px var(--cth-ink-300)',
-            border: 'none', borderRadius: 2, cursor: 'pointer',
-            color: 'var(--cth-ink-900)'
-          }}
-        >
-          <GearGlyph />
         </button>
         {/* Fullscreen. The title bar is chrome, not canvas, so these two use
             clean stroke icons rather than the 16x16 pixel set the rest of the UI
@@ -396,8 +415,10 @@ export function App() {
         flex: 1, minHeight: 0,
         display: 'flex',
         padding: 16,
-        gap: 0
+        gap: 0,
+        position: 'relative'
       }}>
+        {globalView === 'marketplace' && <MarketplaceView />}
         <div style={{ flex: 1, minHeight: 0, minWidth: 0, position: 'relative' }}>
           <OfficeFloor />
           <MemoryPanel />
@@ -549,23 +570,5 @@ function CollapseGlyph() {
     <Glyph>
       <path d="M3 6.2h3.2V3M13 6.2H9.8V3M3 9.8h3.2V13M13 9.8H9.8V13" />
     </Glyph>
-  );
-}
-
-/** A wrench. The previous glyph was a hub with eight radiating spokes, which at
- *  18px is indistinguishable from a sun — sitting immediately beside a theme
- *  toggle whose light-mode icon IS a sun. A tool shape carries "settings"
- *  without competing with its neighbour. Drawn on a 24 box for curve headroom
- *  and rendered at 16. */
-function GearGlyph() {
-  return (
-    <svg
-      width="16" height="16" viewBox="0 0 24 24" fill="none"
-      stroke="currentColor" strokeWidth={2}
-      strokeLinecap="round" strokeLinejoin="round"
-      aria-hidden="true" focusable="false"
-    >
-      <path d="M15.5 3.5a5 5 0 0 0-6.1 6.1l-5.6 5.6a2.3 2.3 0 1 0 3.2 3.2l5.6-5.6a5 5 0 0 0 6.1-6.1l-3 3-2.2-.6-.6-2.2z" />
-    </svg>
   );
 }

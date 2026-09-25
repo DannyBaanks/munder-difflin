@@ -324,3 +324,61 @@ test('the app draws the cast with the same engine as the app: avatar-engine.js i
   assert.equal(font.headers.get('content-type'), 'font/woff2');
   for (const p of ['/app/constructor', '/app/__proto__', '/app/avatar-engine.cjs']) assert.equal((await fetch(o.base + p)).status, 404, p);
 });
+
+const inboxOf = (o, id) => {
+  const d = path.join(o.hive, 'agents', id, 'inbox');
+  return fs.existsSync(d) ? fs.readdirSync(d).map((f) => JSON.parse(fs.readFileSync(path.join(d, f), 'utf8'))) : [];
+};
+
+test('ask: the human can write to one agent by id; unknown, archived or path-like ids are refused', async (t) => {
+  const o = await serve(office('askone'));
+  t.after(() => o.server.close());
+  const phone = await pairedPhone(o, 'iPhone');
+  const r = await phone.call('ask', { text: 'Jim, revisa el CSS', agent: 'w1' });
+  assert.equal(r.ok, true);
+  assert.equal(r.result.to, 'w1');
+  assert.equal(r.result.name, 'Jim');
+  const [msg] = inboxOf(o, 'w1');
+  assert.equal(msg.to, 'w1');
+  assert.equal(msg.from, 'human');
+  assert.equal(inbox(o).length, 0, 'Michael\'s inbox is untouched');
+  for (const bad of ['old', 'nobody', '../god', 'w1/../../x', 42]) {
+    assert.equal((await phone.call('ask', { text: 'hola', agent: bad })).code, 'no_agent', String(bad));
+  }
+  assert.equal((await phone.call('ask', { text: 'jefe', agent: 'god' })).result.to, 'god');
+});
+
+test('overview of a paired office through this one; an older office still shows its numbers', async (t) => {
+  const a = await serve(office('ova'));
+  const b = await serve(office('ovb'));
+  t.after(() => { a.server.close(); b.server.close(); });
+  const { peer, code } = await L.requestPair(b.base.replace('http://', ''), { dir: a.dir, port: 1 });
+  L.trustPeer(peer, a.dir);
+  L.acceptPending(code, b.dir);
+
+  const phone = await pairedPhone(a);
+  const self = await phone.call('overview', { office: 'self' });
+  assert.equal(self.result.office.name, 'michael-ova');
+  assert.equal(self.result.remote, undefined);
+
+  const r = await phone.call('overview', { office: 'michael-ovb' });
+  assert.equal(r.ok, true);
+  assert.equal(r.result.remote, true);
+  assert.equal(r.result.office.name, 'michael-ovb');
+  assert.deepEqual(r.result.agents.map((x) => x.name).sort(), ['Jim', 'Michael', 'Pam']);
+  assert.equal(r.result.questions[0].id, 't-new');
+
+  // An office that predates the op answers bad_op to `overview`; the phone still gets its status.
+  const realCall = L.call;
+  t.after(() => { L.call = realCall; });
+  L.call = async (q, op, args, opts) => {
+    if (op === 'overview') throw new L.LinkError('bad_op', 'operación desconocida: overview', 400);
+    return realCall(q, op, args, opts);
+  };
+  const lim = await phone.call('overview', { office: 'michael-ovb' });
+  assert.equal(lim.ok, true);
+  assert.equal(lim.result.limited, true);
+  assert.equal(lim.result.office.name, 'michael-ovb');
+  assert.ok(lim.result.capacity);
+  assert.deepEqual(lim.result.agents, []);
+});

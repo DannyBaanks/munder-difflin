@@ -1,0 +1,7 @@
+{"type":"thread.started","thread_id":"01a0da0f-607c-72c3-ad41-0a3aee8d514d"}
+{"type":"item.completed","item":{"id":"item_0","type":"error","message":"Model metadata for `fake-model` not found. Defaulting to fallback metadata; this can degrade performance and cause issues."}}
+{"type":"turn.started"}
+{"type":"item.started","item":{"id":"item_1","type":"command_execution","command":"/bin/bash -lc 'echo \"harness-boundary-ok\" > MUNDER_P0.txt && wc -l README.md'","aggregated_output":"","exit_code":null,"status":"in_progress"}}
+{"type":"item.completed","item":{"id":"item_1","type":"command_execution","command":"/bin/bash -lc 'echo \"harness-boundary-ok\" > MUNDER_P0.txt && wc -l README.md'","aggregated_output":"3 README.md\n","exit_code":0,"status":"completed"}}
+{"type":"item.completed","item":{"id":"item_2","type":"agent_message","text":"Listo: escribí MUNDER_P0.txt y conté las líneas de README.md."}}
+{"type":"turn.completed","usage":{"input_tokens":20,"cached_input_tokens":0,"cache_write_input_tokens":0,"output_tokens":10,"reasoning_output_tokens":0}}

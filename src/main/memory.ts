@@ -18,6 +18,7 @@ import { join } from 'node:path';
 import { spawn, spawnSync } from 'node:child_process';
 import { ensureKilled } from './procKill';
 import { quarantineDirsToReap, quarantineStampMs, nextMineDelayMs } from './palaceReap';
+import { healSplitOnnxPairs } from './hfCacheHeal';
 
 /** Non-memory files `mempalace mine` must not ingest: the Claude Code hooks
  *  config (a large JSON blob that swamps the wake-up digest), the cursor, raw
@@ -296,6 +297,12 @@ export class MemoryManager {
     let ids: string[];
     try { ids = readdirSync(agentsDir); } catch { return; }
     this.mining = true;
+    // Before any model load: a Hugging Face cache that split EmbeddingGemma's
+    // .onnx and its weights across blob directories fails every mine
+    // (see hfCacheHeal.ts). Cheap to re-check, so every pass does.
+    const heal = healSplitOnnxPairs();
+    if (heal.healed.length) console.log(`[memory] healed ${heal.healed.length} split ONNX file(s) in the Hugging Face cache`);
+    for (const e of heal.errors) console.error(`[memory] could not heal the Hugging Face cache: ${e}`);
     try {
       for (const id of ids) {
         const agentDir = join(agentsDir, id);
