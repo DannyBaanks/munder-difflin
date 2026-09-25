@@ -33,7 +33,15 @@ export type UpdateStatus =
 
 export type UpdateAction = 'none' | 'check' | 'download' | 'restart' | 'open-release' | 'manual';
 
-export const REPO = 'chaitanyagiri/munder-difflin';
+/**
+ * Where THIS build's releases live. It must match `publish` in
+ * electron-builder.yml (test/update-repo.test.cjs pins the two together): the
+ * native updater reads that block, and everything else here (the notify-only
+ * poll, release notes, the manual download links, the openRelease guard) used
+ * to point at the upstream repo, so a fork build compared itself against
+ * someone else's releases and refused to open its own.
+ */
+export const REPO = 'DannyBaanks/munder-difflin';
 
 /** The installer for THIS machine in the release tagged v{version}, by the
  *  names electron-builder.yml produces. Used when a status carries no
@@ -52,7 +60,7 @@ export function installerUrl(version: string, platform: string, arch: string): s
 export function pendingVersion(status: UpdateStatus | null, current: string): string | null {
   if (!status || !('version' in status)) return null;
   if (status.state === 'just-updated') return null;
-  return isNewer(status.version, current) ? status.version : null;
+  return isNewerBuild(status.version, current) ? status.version : null;
 }
 
 /** Where a manual download of `status`'s release goes: the asset the release
@@ -72,6 +80,29 @@ export interface UpdateBadgeView {
   /** Tooltip — the only place the underlying error is ever surfaced verbatim. */
   title: string;
   busy: boolean;
+}
+
+/** This fork's build suffix: v0.5.2-ISyCo.1, -ISyCo.2 … on top of an upstream version. */
+const FORK_BUILD = /-ISyCo\.(\d+)$/i;
+
+/**
+ * `isNewer`, plus the fork's build counter.
+ *
+ * `isNewer` compares major.minor.patch only (deliberately: see
+ * shouldShowReleaseDrop), so the fork's second build of the same upstream
+ * version, 0.5.2-ISyCo.2, read as NOT newer than 0.5.2-ISyCo.1 and the app said
+ * "you're on the latest" forever. Only the ISyCo counter is compared here; an
+ * -rc.N keeps the old behaviour.
+ */
+export function isNewerBuild(candidate: string, current: string): boolean {
+  if (isNewer(candidate, current)) return true;
+  const a = parseVersion(candidate);
+  const b = parseVersion(current);
+  if (!a || !b || a.join('.') !== b.join('.')) return false;
+  const ca = FORK_BUILD.exec(String(candidate).trim());
+  const cb = FORK_BUILD.exec(String(current).trim());
+  if (!ca) return false;
+  return Number(ca[1]) > (cb ? Number(cb[1]) : Number.POSITIVE_INFINITY);
 }
 
 /** `1.2.3` / `v1.2.3` -> [1,2,3]; null for anything that isn't semver-ish. */
@@ -161,7 +192,7 @@ export function reduceStatus(prev: UpdateStatus | null, next: UpdateStatus): Upd
   if (!prev) return next;
   const pv = versionOf(prev);
   const nv = versionOf(next);
-  if (pv && nv && isNewer(nv, pv)) return next;   // a newer release supersedes
+  if (pv && nv && isNewerBuild(nv, pv)) return next;   // a newer release supersedes
   if (pv && nv && pv !== nv) return next;         // different (e.g. rolled back) release
   return rank(next) >= rank(prev) ? next : prev;
 }

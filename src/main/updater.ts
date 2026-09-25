@@ -5,7 +5,7 @@ import { appendFileSync, mkdirSync, readFileSync, writeFileSync } from 'node:fs'
 import { join } from 'node:path';
 import { readConfig } from './config';
 import { DEFAULT_DROP_HTML } from '../shared/releaseDrop';
-import { reduceStatus, clampPercent, isNewer, installerUrl, shouldShowReleaseDrop, type UpdateStatus } from '../shared/updateState';
+import { reduceStatus, clampPercent, isNewerBuild, installerUrl, shouldShowReleaseDrop, REPO, type UpdateStatus } from '../shared/updateState';
 
 /**
  * Auto-update from GitHub releases.
@@ -44,7 +44,6 @@ import { reduceStatus, clampPercent, isNewer, installerUrl, shouldShowReleaseDro
  *      downgrade is per-check, not a permanent latch.
  */
 
-const REPO = 'chaitanyagiri/munder-difflin';
 const CHECK_INTERVAL_MS = 6 * 60 * 60 * 1000; // 6h
 const FALLBACK_CACHE_MS = 60 * 60 * 1000;     // 1h between releases/latest polls
 
@@ -215,33 +214,78 @@ function fetchReleaseBody(version: string, done: (notes: string | undefined) => 
   } catch { done(undefined); }
 }
 
-/** Notify-only check against releases/latest (no download). Never throws. */
-function fallbackCheck(reason: string | undefined, force = false): void {
+interface GhRelease {
+  tag_name?: string;
+  html_url?: string;
+  body?: string;
+  draft?: boolean;
+  prerelease?: boolean;
+  assets?: Array<{ name?: string; browser_download_url?: string }>;
+}
+
+/**
+ * The newest release a user should be offered, from `/releases` (newest first).
+ *
+ * Not `/releases/latest`: GitHub leaves pre-releases out of it, and every tag
+ * this fork has shipped (v0.5.2-ISyCo.1) carries a suffix, so the release
+ * workflow published it as a pre-release and `/latest` answered 404. The poll
+ * found nothing, ever. A test build (-rc / -beta / -alpha) is still never
+ * offered; the fork's own -ISyCo.N builds are.
+ */
+export function pickLatestRelease(releases: ReadonlyArray<GhRelease> | unknown): GhRelease | null {
+  if (!Array.isArray(releases)) return null;
+  let best: GhRelease | null = null;
+  for (const r of releases as GhRelease[]) {
+    const tag = typeof r?.tag_name === 'string' ? r.tag_name : '';
+    if (!tag || r.draft) continue;
+    if (/-(rc|beta|alpha)\b/i.test(tag)) continue;
+    if (!best || isNewerBuild(tag, best.tag_name as string)) best = r;
+  }
+  return best;
+}
+
+/** Why the button can only point at the release page: this copy runs from a git checkout. */
+const SOURCE_REASON = 'git pull && npm install && npm run build';
+
+/**
+ * Notify-only check against the repo's releases (no download). Never throws.
+ *
+ * `report` is for a check the human asked for: it always ends in a state the
+ * UI can show (available / not-available / error). The background poll stays
+ * quiet unless there is something new.
+ */
+function fallbackCheck(reason: string | undefined, force = false, report = false): Promise<{ ok: boolean; error?: string }> {
   const now = Date.now();
-  if (!force && now - lastFallbackCheck < FALLBACK_CACHE_MS) return;
+  if (!force && now - lastFallbackCheck < FALLBACK_CACHE_MS) return Promise.resolve({ ok: true });
   lastFallbackCheck = now;
-  try {
-    const req = httpsRequest(
-      {
-        hostname: 'api.github.com',
-        path: `/repos/${REPO}/releases/latest`,
-        method: 'GET',
-        headers: { 'User-Agent': 'munder-difflin-updater', Accept: 'application/vnd.github+json' },
-        timeout: 10_000
-      },
-      (res) => {
-        let body = '';
-        res.setEncoding('utf8');
-        res.on('data', (d) => { body += d; if (body.length > 262_144) req.destroy(); });
-        res.on('end', () => {
-          try {
-            const rel = JSON.parse(body) as { tag_name?: string; html_url?: string; body?: string; assets?: Array<{ name?: string; browser_download_url?: string }> };
-            const tag = rel.tag_name ?? '';
-            if (tag && isNewer(tag, app.getVersion())) {
+  return new Promise((resolve) => {
+    const fail = (message: string): void => {
+      if (report) { logLine(`release poll failed: ${message}`); emit({ state: 'error', message }); }
+      resolve({ ok: false, error: message });
+    };
+    try {
+      const req = httpsRequest(
+        {
+          hostname: 'api.github.com',
+          path: `/repos/${REPO}/releases?per_page=20`,
+          method: 'GET',
+          headers: { 'User-Agent': 'munder-difflin-updater', Accept: 'application/vnd.github+json' },
+          timeout: 10_000
+        },
+        (res) => {
+          let body = '';
+          res.setEncoding('utf8');
+          res.on('data', (d) => { body += d; if (body.length > 1_048_576) req.destroy(); });
+          res.on('end', () => {
+            if (res.statusCode !== 200) return fail(`GitHub answered HTTP ${res.statusCode} for ${REPO} releases`);
+            let rel: GhRelease | null;
+            try { rel = pickLatestRelease(JSON.parse(body)); } catch { return fail('GitHub sent a release list that is not JSON'); }
+            const tag = rel?.tag_name ?? '';
+            if (rel && tag && isNewerBuild(tag, app.getVersion())) {
               emit({
                 state: 'available-manual',
                 version: tag.replace(/^v/, ''),
-                url: rel.html_url ?? `https://github.com/${REPO}/releases/latest`,
+                url: rel.html_url ?? `https://github.com/${REPO}/releases`,
                 reason,
                 downloadUrl: pickDownloadAsset(rel.assets) ?? undefined,
                 // Already in the response we just parsed — carrying it costs
@@ -249,15 +293,18 @@ function fallbackCheck(reason: string | undefined, force = false): void {
                 // NOT a new request: see TELEMETRY.md, this app never adds one.
                 notes: typeof rel.body === 'string' ? rel.body : undefined
               });
+            } else if (report) {
+              emit({ state: 'not-available' });
             }
-          } catch { /* malformed body — try again next interval */ }
-        });
-      }
-    );
-    req.on('timeout', () => req.destroy());
-    req.on('error', () => { /* offline — try again next interval */ });
-    req.end();
-  } catch { /* never let the fallback take the app down */ }
+            resolve({ ok: true });
+          });
+        }
+      );
+      req.on('timeout', () => { req.destroy(); fail('the release check timed out'); });
+      req.on('error', (e) => fail(errText(e)));
+      req.end();
+    } catch (e) { fail(errText(e)); }
+  });
 }
 
 /** electron-updater's checkForUpdates has no timeout of its own. If the feed
@@ -300,7 +347,7 @@ async function runCheck(): Promise<{ ok: boolean; error?: string }> {
       CHECK_TIMEOUT_MS,
       'update check'
     );
-    if (!result || !isNewer(result.updateInfo.version, app.getVersion())) {
+    if (!result || !isNewerBuild(result.updateInfo.version, app.getVersion())) {
       emit({ state: 'not-available' });
     }
     // `update-available` / `download-progress` / `update-downloaded` handlers
@@ -310,7 +357,7 @@ async function runCheck(): Promise<{ ok: boolean; error?: string }> {
     const message = errText(e);
     logLine(`native check failed: ${message}`);
     emit({ state: 'error', message });
-    fallbackCheck(message);
+    void fallbackCheck(message);
     return { ok: false, error: message };
   }
 }
@@ -325,7 +372,7 @@ async function runDownload(): Promise<{ ok: boolean; error?: string }> {
     const message = errText(e);
     logLine(`download failed: ${message}`);
     emit({ state: 'error', message });
-    fallbackCheck(message);
+    void fallbackCheck(message);
     return { ok: false, error: message };
   }
 }
@@ -393,7 +440,14 @@ export function initAutoUpdater(getWebContents: () => WebContents | null): void 
     }
   });
   ipcMain.handle('update:checkNow', async () => {
-    if (!app.isPackaged) return { ok: false, error: 'dev build — updates are only checked in packaged apps' };
+    // A copy started from a git checkout (./start.sh, munder start) has no
+    // installer to swap, so the native updater stays off. It still ASKS: the
+    // button used to answer this with an error nobody rendered, so clicking it
+    // did nothing at all. Now it polls the releases and always shows a result.
+    if (!app.isPackaged) {
+      emit({ state: 'checking' });
+      return fallbackCheck(SOURCE_REASON, true, true);
+    }
     return runCheck();
   });
   ipcMain.handle('update:download', async () => {
@@ -535,7 +589,7 @@ export function initAutoUpdater(getWebContents: () => WebContents | null): void 
         // click again, which is the repeated quitAndInstall that wedges Squirrel.
         failPendingRestart(message);
         // Notify-only for THIS failure; the next tick still tries native.
-        fallbackCheck(message);
+        void fallbackCheck(message);
       });
       logLine(`native updater ready (current v${app.getVersion()})`);
     } catch (e) {
