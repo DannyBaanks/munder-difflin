@@ -1,14 +1,14 @@
 <div align="center">
 
-<img src="./docs/logo.png" alt="Munder Difflin — agent harness to run an office of your clones" width="180">
+<img src="./docs/logo.png" alt="Munder Difflin, the agent harness to run an office of your clones" width="180">
 
 # Munder Difflin
 
 ### Agent harness to run an office of your clones
 
 <p>
-  <a href="https://trendshift.io/repositories/46562" target="_blank" rel="noopener noreferrer"><img alt="GitHub Trending — #1 Repository of the Day" src="./docs/badge-github-trending.png" width="250" height="54"></a>
-  <a href="https://www.producthunt.com/products/munder-difflin?embed=true&utm_source=badge-top-post-badge&utm_medium=badge&utm_campaign=badge-munder-difflin" target="_blank" rel="noopener noreferrer"><img alt="Munder Difflin — #5 Product of the Day on Product Hunt" src="https://api.producthunt.com/widgets/embed-image/v1/top-post-badge.svg?post_id=1221363&theme=light&period=daily" width="250" height="54"></a>
+  <a href="https://trendshift.io/repositories/46562" target="_blank" rel="noopener noreferrer"><img alt="GitHub Trending: #1 Repository of the Day" src="./docs/badge-github-trending.png" width="250" height="54"></a>
+  <a href="https://www.producthunt.com/products/munder-difflin?embed=true&utm_source=badge-top-post-badge&utm_medium=badge&utm_campaign=badge-munder-difflin" target="_blank" rel="noopener noreferrer"><img alt="Munder Difflin, #5 Product of the Day on Product Hunt" src="https://api.producthunt.com/widgets/embed-image/v1/top-post-badge.svg?post_id=1221363&theme=light&period=daily" width="250" height="54"></a>
 </p>
 
 <img src="./docs/media/floor.png" alt="The Munder Difflin office floor: agents at desks working in parallel, with the Command Center and a live agent terminal on the right" width="1240">
@@ -46,7 +46,7 @@ visualized as avatars at work on a shared office floor.
 
 <!-- Inline player renders on github.com (raw URL required; relative paths only link). -->
 <video src="https://github.com/chaitanyagiri/munder-difflin/raw/main/docs/media/hero.mp4" controls muted loop playsinline width="820">
-  <a href="https://github.com/chaitanyagiri/munder-difflin/raw/main/docs/media/hero.mp4">▶ Watch the floor — Munder Difflin running a hive of Claude Code agents</a>
+  <a href="https://github.com/chaitanyagiri/munder-difflin/raw/main/docs/media/hero.mp4">▶ Watch the floor: Munder Difflin running a hive of Claude Code agents</a>
 </video>
 
 <br><br>
@@ -54,9 +54,9 @@ visualized as avatars at work on a shared office floor.
 **[⬇ Download 0.5.3 for macOS, Windows or Linux](https://harnessmd.com/download)**
 
 <sub>macOS builds are signed and notarized. You do not need to build from source to use it.
-The open source build is on the <a href="https://github.com/chaitanyagiri/munder-difflin/releases/latest">GitHub releases page</a>.</sub>
+The open source build is on the <a href="https://github.com/chaitanyagiri/munder-difflin/releases/tag/v0.5.3">GitHub releases page</a>.</sub>
 
-**Cancel your Granola and Whispr subscriptions.** 0.5.3 dictates into any app and transcribes your
+**Cancel your Granola and Wispr Flow subscriptions.** 0.5.3 dictates into any app and transcribes your
 meetings, all running locally.
 
 <sub><b>Launch offer:</b> the Pro annual plan for $150 USD, adjusted for purchasing power in different
@@ -167,7 +167,7 @@ terminal/event plane, and [`DESIGN.md`](./DESIGN.md) for the visual system.
 <tr>
 <td width="50%" valign="middle">
 
-### Cancel your Granola and Whispr subscriptions
+### Cancel your Granola and Wispr Flow subscriptions
 
 **Dictate into any app.** Hold Option on the Mac, or Control+Alt+Space on Windows and Linux (X11),
 talk, and let go. The words land in whatever field is in front of you, and in every text box inside
@@ -196,7 +196,8 @@ terminal, and a right click menu for the common jobs.
 Pro gets the new sidebar: Tasks, Inbox, Automations, Memory, Capabilities and the Stapler at the
 top, agents grouped under their projects, a live line per agent, **Asked you** on the row when an
 agent has a question, notes you can search, and **Keep my agent order** to drag agents and projects
-where you want them.
+where you want them. Drag the sidebar's edge to make it wider, hover a ticket for its details, or
+switch to agents and notes only.
 
 </td>
 </tr>
@@ -286,6 +287,7 @@ than sending you to a docs page.
 - **Every agent is an avatar.** A Pixi.js office floor where agents walk to stations, envelopes fly desk to desk, and avatar state reflects real work.
 - **A GOD orchestrator you talk to.** It routes tasks, adjudicates traffic, and escalates only what needs a human. Or press **Talk** and run the floor by voice.
 - **Per-agent git worktrees.** Optional isolation so parallel agents never collide on branches.
+- **More than one floor** (0.5.3). File, New Floor opens another office on its own folder, in its own window, with its own agents, board and memory. A folder only ever opens in one floor, and one licence covers them all.
 
 **Memory & coordination**
 - **The hive**: per-agent memory, atomic-file mailboxes, a shared blackboard, an append-only event log, single-committer git.
@@ -298,6 +300,7 @@ than sending you to a docs page.
 - **Budgets & telemetry**: per-agent token budgets, real cost from transcripts, a durable ledger, OTel spans, and a tool waterfall.
 
 **Command Center**
+- **Tickets with keys** (0.5.3): every card gets a key like V53-299, each agent has a Tasks tab with what it did and when, and the Tasks screen filters by date.
 - Kanban tasks with dependencies, scheduled missions + heartbeat, live fleet monitoring, memory search, activity log, and a CI watcher.
 - **Skills**: what every agent can already do across Claude Code, OpenCode and Codex, plus a browsable catalog of 227 more with search, filters, install and uninstall.
 - **Built-in Monaco IDE**: file tree, editor tabs, save, plus CHANGES · HISTORY · COMPARE git rails with commit graph, diffs, branch compare, and guarded checkout. All fs/git access brokered through main.
@@ -318,7 +321,7 @@ than sending you to a docs page.
 - **Prerequisites**: one Settings page showing which supporting tools (uv, git, Node, MemPalace, each agent CLI) you have, what each is for, and a button that asks Michael to install what is missing.
 
 > [!NOTE]
-> **Status: v0.5.3. Cancel your Granola and Whispr subscriptions.**
+> **Status: v0.5.3. Cancel your Granola and Wispr Flow subscriptions.**
 > The Stapler does both, all running locally, and every agent gets easier to start, restart and steer.
 > **Dictate into any app**: hold Option on the Mac (Microphone and Accessibility permissions), or
 > Control+Alt+Space on Windows and Linux X11, talk, and let go. Wayland says why it cannot.
@@ -329,17 +332,24 @@ than sending you to a docs page.
 > 0.5.3 transcribes English. The bundled model is English only; on macOS 26 dictation runs on Apple's engine, which follows the Mac's language and we have tested it in English. Other languages arrive as a model download in a later release.
 > **A missing CLI is a card, not an error**: install and sign in from inside the app for every
 > engine, with Set up manually when either fails. **Ask me** on every agent's Inbox, answered from
-> one box over the composer. **Two floors on one machine**: New Floor runs a second office on its
-> own hive, one Pro licence for the machine. **Send now** goes straight in, **Restart & Continue**
+> one box over the composer. **More than one floor**: File, New Floor (Shift+Command+N, or Control+Shift+N) runs another
+> office on its own folder, with its own agents, board and memory, and one licence covers every floor. **Send now** goes straight in, **Restart & Continue**
 > keeps the conversation for every engine, and **Opus 5.5** is the default Claude model.
 > **Settings, redesigned**: one Save for everything, inbound webhooks for GitHub, Linear, Telegram
 > and your own, each with the agent that answers it, and custom secrets stored encrypted beside
-> your provider keys. **Crashes keep your work**: a crashed agent keeps its uncommitted work and
-> restarts in that folder. The IDE opens on Command+I with find and replace, and Arabic reads right
-> to left across the app and the terminal.
+> your provider keys. **Crashes keep your work**: a crashed agent keeps its uncommitted work. The IDE opens on Command+I with find and replace, the sidebar's reorder handle
+> sits on the right in Arabic, and code in the IDE reads left to right in every language.
 > Automatic compaction runs every 40 minutes at 30 percent of the context window, the same bar on
-> every model size, where the previous default was every two hours at 60 percent. A rule you have
-> edited yourself keeps your own numbers.
+> every model size, where the previous default was every two hours at 60 percent.
+> **Tasks you can follow**: every ticket gets a three letter key like V53-299, taken from the hive
+> folder's name or set in Settings, Autonomy. Each agent has a **Tasks** tab beside Inbox and
+> Terminal with what it did and when, the Tasks screen filters by Today, This week, This month or
+> All time, and a card drops anywhere in a column. Hover a ticket in the sidebar for its details.
+> **The Pro sidebar** is as wide as you drag it, and one setting shows only agents and notes. With
+> more than one floor open, each window and Dock icon carries the office's number.
+> **Stapler fixes**: the mic stops at the click, no words are lost at a pause, Record message never
+> gets stuck, the drag follows your pointer, Reset puts it in the middle of the screen, and it never
+> ends up off screen.
 > Fixes: a restarted agent's terminal takes the mouse again, the hive repository no longer swallows
 > agent git folders into its object database and the disk space comes back, and one hook event now
 > renders one sidebar row with the task ledger read once.
@@ -354,7 +364,7 @@ than sending you to a docs page.
 > and it has been removed entirely.
 > macOS (signed & notarized), Windows, and Linux builds are on the
 > [download page](https://harnessmd.com/download). The open source build is on the
-> [releases page](https://github.com/chaitanyagiri/munder-difflin/releases/latest).
+> [releases page](https://github.com/chaitanyagiri/munder-difflin/releases/tag/v0.5.3).
 
 <div align="right">(<a href="#munder-difflin">↑ back to top</a>)</div>
 
@@ -364,7 +374,7 @@ than sending you to a docs page.
 
 **Most people want this one.** Munder Difflin is free and open source. Signed and notarized macOS
 builds of 0.5.3, plus Windows and Linux, are on the [download page](https://harnessmd.com/download).
-The open source build is on the [latest GitHub release](https://github.com/chaitanyagiri/munder-difflin/releases/latest). Install it,
+The open source build is on the [latest GitHub release](https://github.com/chaitanyagiri/munder-difflin/releases/tag/v0.5.3). Install it,
 open it, and the wizard takes you the rest of the way. You do not need Node, a toolchain, or this
 repository.
 
@@ -372,7 +382,7 @@ You do still need at least one agent CLI on your machine. From 0.5.3 a missing C
 in the agent's terminal: Install runs the command, you sign in inside the app, and the agent starts.
 **Settings → Prerequisites** lists the rest.
 
-**Pro** adds Stapler, the new sidebar and two floors on one machine. Launch offer: the annual plan
+**Pro** adds Stapler and the new sidebar. Launch offer: the annual plan
 for $150 USD, adjusted for purchasing power, as low as $100 a year.
 [Get Pro](https://app.harnessmd.com/console/license)
 
@@ -438,8 +448,8 @@ visual system.
 
 Shipped through **v0.5.3**: local dictation into any app and meetings with both sides of the call,
 with the model in the installer, the new agent cards in the free build and a new Pro sidebar, a
-missing CLI you install and sign in to from inside the app, Ask me on every Inbox, two floors on one
-machine, redesigned Settings with inbound webhooks and custom secrets, Opus 5.5 as the default Claude
+missing CLI you install and sign in to from inside the app, Ask me on every Inbox, more than one
+floor on one machine, ticket keys and a Tasks tab on every agent, redesigned Settings with inbound webhooks and custom secrets, Opus 5.5 as the default Claude
 model, one compaction bar for every model size, a Simplified Chinese and Arabic interface with right to left
 support
 and self-hosted fonts, twelve agent engines with BYOK keys and local LLMs, voice orchestration,
