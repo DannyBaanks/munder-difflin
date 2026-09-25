@@ -175,7 +175,9 @@ test('restart: old target verified → old process and helpers gone → new one 
   await until(() => !alive(first.start.pid) && !alive(oldHelper), 5000, 'old process and helper to be gone');
   assert.ok(alive(link), 'the detached Link daemon outlives Munder, as designed');
   if (r.stop.graceful) await until(() => !alive(oldAgent), 5000, 'the app closed its own agent');
-  else assert.ok(r.stop.left_running.some((p) => p.pid === oldAgent), 'a forced stop lists the agent it left, never guesses');
+  // Forced: the agent is either listed as left running, or already gone with its
+  // parent (Windows puts a node child in the parent's kill-on-close job). Never guessed at.
+  else assert.ok(r.stop.left_running.some((p) => p.pid === oldAgent) || !alive(oldAgent), 'a forced stop lists what it left');
 });
 
 test('restart never touches an unrelated opencode, nor another Munder with another userData', async (t) => {

@@ -574,6 +574,9 @@ class Reviver {
     this.state.desired = 'running';
     this.saveState();
     const after = await this.waitHealthy(config, child.pid, rec);
+    // The pid can be gone before its exit event arrives (Windows reports it
+    // late): give the event a moment, so the receipt carries the exit code.
+    for (let i = 0; i < 40 && !rec.exit && !this.deps.alive(child.pid); i++) await sleep(50);
     r.after = publicObs(after);
     if (after.state === 'healthy') {
       this.watchdog.state = 'armed';
