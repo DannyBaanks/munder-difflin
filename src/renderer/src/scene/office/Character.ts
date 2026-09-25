@@ -3,6 +3,7 @@ import { CharacterSprite, type Direction, type AnimState } from './CharacterSpri
 import { findPath } from './pathfinding';
 import type { TiledMapRenderer } from './TiledMapRenderer';
 import { ThoughtBubble } from './ThoughtBubble';
+import { INK } from './boardArt';
 
 // Adapted from shahar061/the-office (office/characters/Character.ts).
 // Differences: keyed by our dynamic agentId (not a fixed role); seat tile +
@@ -23,9 +24,11 @@ function lerp(a: number, b: number, t: number): number {
  *  every desk — now it only exists where an agent actually put one down.
  *  Shared with the scene (the clean-cup sideboard renders its stock with it). */
 export function paintCup(g: Graphics, x: number, y: number): void {
+  g.rect(x - 1, y - 5, 7, 6).fill(INK);       // outline, same ink as the furniture
+  g.rect(x + 6, y - 4, 1, 3).fill(INK);       // handle outline
   g.rect(x, y - 4, 5, 4).fill(0xf2ede2);
   g.rect(x, y - 2, 5, 1).fill(0xe8c14d);
-  g.rect(x + 5, y - 3, 1, 2).fill(0xd9d2c4);
+  g.rect(x + 5, y - 3, 1, 1).fill(0xd9d2c4);  // handle
   g.rect(x, y - 4, 5, 1).fill(0xffffff);
 }
 
