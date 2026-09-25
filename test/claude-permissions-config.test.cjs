@@ -141,14 +141,15 @@ test('a malformed settings file does not prevent safe project trust updates', ()
   assert.equal(fs.readFileSync(settingsPath, 'utf8'), malformedSettings);
   assert.deepEqual(JSON.parse(fs.readFileSync(projectConfigPath, 'utf8')), {
     custom: 'keep',
-    projects: { [cwd]: { hasTrustDialogAccepted: true } }
+    projects: withForwardTrust({ [cwd]: { hasTrustDialogAccepted: true } })
   });
 });
 
 test('does not rewrite configs that already contain every required field', () => {
   const settings = '{"skipDangerousModePermissionPrompt":true,"skipAutoPermissionPrompt":true}\n';
+  // "Every required field" includes the forward-slash key on Windows.
   const projectConfig = JSON.stringify({
-    projects: { [cwd]: { hasTrustDialogAccepted: true } }
+    projects: withForwardTrust({ [cwd]: { hasTrustDialogAccepted: true } })
   }) + '\n';
   writeSettings(settings);
   fs.writeFileSync(projectConfigPath, projectConfig, 'utf8');
@@ -208,7 +209,9 @@ test('does not rewrite configs already trusted under both Windows spellings', ()
   assert.equal(fs.readFileSync(projectConfigPath, 'utf8'), projectConfig);
 });
 
-test('keeps a POSIX path containing a backslash as a single key', () => {
+// Only meaningful on POSIX: on Windows path.join turns 'a\\b' into an ordinary
+// drive path, where the backslash IS the separator and both keys are correct.
+test('keeps a POSIX path containing a backslash as a single key', { skip: process.platform === 'win32' && 'backslash is the separator on Windows' }, () => {
   ensureClaudePermissionsAccepted(posixBackslashCwd);
 
   const { projects } = JSON.parse(fs.readFileSync(projectConfigPath, 'utf8'));
