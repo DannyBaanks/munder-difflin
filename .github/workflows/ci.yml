@@ -30,10 +30,17 @@ jobs:
         run: npm run test:focused
 
   build:
-    name: Build
-    runs-on: macos-latest
-    # Build exercises the native node-pty rebuild; allowed to fail without blocking.
-    continue-on-error: true
+    # One build per OS we ship (Windows .exe, Linux .AppImage, mac .dmg): the
+    # native node-pty/better-sqlite3 rebuild is where platforms diverge.
+    name: Build (${{ matrix.os }})
+    runs-on: ${{ matrix.os }}
+    strategy:
+      fail-fast: false
+      matrix:
+        # windows-2022, not -latest: the same image release.yml builds the .exe on
+        # (and the VS 2022 Build Tools install.ps1 installs). windows-latest ships
+        # Visual Studio 18, which @electron/rebuild's node-gyp can't detect yet.
+        os: [ubuntu-latest, windows-2022, macos-latest]
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-node@v4
@@ -44,8 +51,18 @@ jobs:
       - run: npm run build
 
   test:
-    name: Tests
-    runs-on: macos-latest
+    # "Download it and it works" on both Linux and Windows is only true if the
+    # suite runs on both. fail-fast off: a Windows-only failure must not hide
+    # whether Linux is green, and vice versa.
+    name: Tests (${{ matrix.os }})
+    runs-on: ${{ matrix.os }}
+    strategy:
+      fail-fast: false
+      matrix:
+        # windows-2022, not -latest: the same image release.yml builds the .exe on
+        # (and the VS 2022 Build Tools install.ps1 installs). windows-latest ships
+        # Visual Studio 18, which @electron/rebuild's node-gyp can't detect yet.
+        os: [ubuntu-latest, windows-2022, macos-latest]
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-node@v4
