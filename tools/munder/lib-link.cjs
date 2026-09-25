@@ -374,14 +374,15 @@ class Office {
     fs.appendFileSync(this.p('log.jsonl'), JSON.stringify({ ...entry, timestamp: new Date().toISOString() }) + '\n');
   }
 
-  message(subject, body, act = 'request') {
+  /** Drop a message in one agent's inbox (Michael's unless `to` says otherwise). */
+  message(subject, body, act = 'request', to = 'god') {
     const now = new Date().toISOString();
     const msg = {
       id: `${now.replace(/[:.]/g, '-').slice(0, 19)}Z-${crypto.randomUUID().slice(0, 8)}`,
       conversation: `link-${crypto.randomUUID().slice(0, 8)}`,
       in_reply_to: null,
       from: this.agentId,
-      to: 'god',
+      to,
       act,
       subject,
       body,
@@ -390,7 +391,7 @@ class Office {
       needs_human: false,
       created_at: now,
     };
-    this.writeJson(this.p('agents', 'god', 'inbox', `${msg.id}.json`), msg);
+    this.writeJson(this.p('agents', to, 'inbox', `${msg.id}.json`), msg);
     return msg.id;
   }
 
@@ -686,6 +687,14 @@ function createLinkServer({ dir = stateDir(), hiveRoot = localHiveRoot(), versio
         const r = office().submit({ ...args, origin: { office_id: peer.office_id, name: peer.name, task_ref: args.origin_ref } });
         appendReceipt(dir, { event: 'received', from: peer.office_id, from_name: peer.name, task_id: r.task_id, origin_ref: args.origin_ref || null, duplicate: !!r.duplicate });
         return r;
+      }
+      // Read-only operator view (agents, board, open questions) so a phone paired
+      // with the other office can look at this one. Answering and messaging
+      // agents here stays local: a peer still only reaches our Michael.
+      case 'overview': {
+        let o = null;
+        try { o = office(); } catch { /* no hive: Michael reads as offline */ }
+        return require('./lib-remote.cjs').overview(o, identity, version);
       }
       case 'get': return office().get(args, peer.office_id);
       case 'message': return office().note(args, peer.office_id, peer.name);

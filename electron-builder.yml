@@ -89,6 +89,13 @@ extraResources:
     to: munder/lib-reviver.cjs
   - from: tools/munder/reviver.cjs
     to: munder/reviver.cjs
+  # Munder GPT: ChatGPT as the `gpt` principal (OAuth + scopes; see GPT.md).
+  - from: tools/munder/lib-gpt.cjs
+    to: munder/lib-gpt.cjs
+  - from: tools/munder/gpt.cjs
+    to: munder/gpt.cjs
+  - from: tools/munder/gpt-serve.cjs
+    to: munder/gpt-serve.cjs
   # Office Packs (JSON, no secrets). loadBundledPacks() reads them from
   # <process.resourcesPath>/packs packaged, repo resources/packs in dev.
   - from: resources/packs
