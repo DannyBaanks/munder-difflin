@@ -111,6 +111,15 @@ tu receta con cachés invalidadas. Comportamiento y hitbox intactos (la clase
 Y persiste: `munder avatar inyectar "tu desc" --slot auto` guarda la receta
 en `avatar-overrides.json` y la app la aplica al arrancar.
 
+### 10. Munder Link — dos oficinas, un trabajo
+Un Michael le delega trabajo al otro por LAN o Tailscale, sin compartir
+autoridad interna: el peer nunca toca tu hive ni tus PTYs, deja la tarea en
+el inbox de tu Michael (formato Office Bridge) y él decide. Cada llamada va
+firmada (Ed25519) y cifrada (X25519 + AES-256-GCM), con anti-replay; el
+emparejamiento se confirma con un código de 6 dígitos en ambas pantallas.
+En las dos máquinas: `munder link conectar`. Guía con salida real en
+[`tools/munder/LINK.md`](./tools/munder/LINK.md).
+
 ## Garantías de este fork
 
 * Nada subido al upstream: remoto `fork=DannyBaanks/munder-difflin`.
