@@ -109,6 +109,28 @@ commit it is a **Swift package** ("Swift complete rewrite by @mahee96"):
 
   Both are real device-matrix risks.
 
+### 3.4 iOS compatibility matrix (target: iOS 16.0 → 26.6.2)
+
+Floors read from source. Every component already covers the whole range:
+- Munder Mobile: `deploymentTarget iOS 16.0`, from `project.yml`.
+- SideStore: `IPHONEOS_DEPLOYMENT_TARGET = 15.0`.
+- SideSign: `.iOS(.v15)`.
+- minimuxer: `.iOS(.v14)`.
+
+What changes with the version is the **device-pairing path** minimuxer uses (`Common/PairingProtocol.swift`, `MinimuxerImpl.swift`, `Services/Mounter.swift`):
+
+| iOS | Default pairing | Developer Disk Image | Extra constraint | Status |
+|---|---|---|---|---|
+| 16.x | lockdown (`lockdowndPort`) | classic DDI | Developer Mode must be on (iOS 16+) | INFERRED |
+| 17.0 – 26.3.x | RPPairing (`remotePairingPort`); lockdown still possible | personalized DDI ("Post-17: both RP and lockdown use mountPersonalizedDdi") | — | INFERRED; **iPhone 12 @ 18.7.8 is here** |
+| 26.4 – 26.6.2 | RPPairing | personalized DDI | **lockdown needs an IPsec/IKEv2 interface** as well as utun. With RPPairing the check is skipped | INFERRED |
+
+Design consequences for `munder-sidestore`:
+- **On iOS 17+, prefer RPPairing.** iloader already places the RPPairing file (`pairing.rs`), and RPPairing is the one path that works unchanged from 17 to 26.6.2. Lockdown stays the path for iOS 16 only.
+- **Record the iOS version and pairing type in every receipt** (`ios_version`, `pairing_type`), so a failure can be attributed to its row.
+- **Surface each row's errors in plain language.** Developer Mode off (16+), missing IKEv2 (26.4+ with lockdown), DDI download or mount failure.
+- **The device matrix for M3/M4 needs one real device per row.** The first run is the iPhone 12 on 18.7.8 (middle row). iOS 16 and 26.4+ stay NOT_DEMONSTRATED until someone runs them on hardware.
+
 ## 4. AppleBridge (for completeness)
 
 AppleBridge (`DannyBaanks/AppleBridge`) gives agents on Windows/Linux real iOS
@@ -206,7 +228,7 @@ DannyBaanks/munder-difflin (MIT)               DannyBaanks/munder-sidestore (AGP
 1. **Approved: L1.** The signer lives in a separate **AGPL-3.0** repository (`munder-sidestore`). Munder Mobile stays MIT and client-only.
 2. **Approved, with a precondition.** SideSign's dependencies get pinned by commit. **Before depending on them we ask upstream to add a `LICENSE` file** to SideSign; the request text is in §9.1. Until they answer, M2 does not link SideSign.
 3. **iBridge gets synced with upstream iloader.** Danny re-verified it: `productName: iloader`, `me.nabdev.iloader`, 2.3.3, 10 commits behind v2.3.4. He builds the `.deb` locally.
-4. **Test device: iPhone 12**, with Danny's Apple Account already verified in iloader. The iOS version is not confirmed yet, and it decides whether the iOS 26.4+ IKEv2 constraint (§3.3) applies.
+4. **Test device: iPhone 12 on iOS 18.7.8**, with Danny's Apple Account already verified in iloader. **Supported range: iOS 16.0 through 26.6.2** (Danny, 2026-09-25). The per-version matrix is in §3.4.
 
 ### 9.1 Upstream request (draft, for SideStore/SideSign)
 
@@ -244,6 +266,8 @@ communication path" and "Renovación de Munder Mobile". Do not repeat upstream's
 | SideSign effective license is AGPL via deps | **DEMONSTRATED** (dep LICENSE files) |
 | minimuxer is Swift, with `.remoteServer` mode | **DEMONSTRATED** (source) |
 | iOS 26.4+ lockdown needs IKEv2 | **INFERRED** (minimuxer checks; no device) |
+| Stack floors cover iOS 16.0 → 26.6.2 | **DEMONSTRATED** (deployment targets in source) |
+| Sign, install and refresh on the iPhone 12 @ iOS 18.7.8 | **NOT_DEMONSTRATED** (M2–M4) |
 | Pairing key survives a same-team, same-bundle re-sign | **INFERRED** |
 | `.remoteServer` through a Tailscale relay refreshes | **NOT_DEMONSTRATED** |
 | Any on-device sign, install or refresh by Munder | **NOT_DEMONSTRATED** (M2–M4) |
