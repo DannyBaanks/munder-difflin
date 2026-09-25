@@ -31,9 +31,6 @@ visualized as avatars at work on a shared office floor.
 <p>
   <a href="./LICENSE"><img alt="License: MIT" src="https://img.shields.io/badge/license-MIT-F4D35E.svg?style=flat-square&labelColor=6E1423"></a>
   <a href="./CHANGELOG.md"><img alt="Version: 0.5.3" src="https://img.shields.io/badge/version-0.5.3-F4D35E.svg?style=flat-square&labelColor=6E1423"></a>
-  <!-- The badge is correct at merge time: Phase 3 merges this README in step 5, after the founder
-       tags the public v0.5.3 release in step 4. The line below guards the case where that slips. -->
-  <code>Do not merge before the public v0.5.3 tag exists.</code>
   <a href="https://github.com/chaitanyagiri/munder-difflin/releases"><img alt="Downloads across all releases" src="https://img.shields.io/github/downloads/chaitanyagiri/munder-difflin/total?style=flat-square&label=downloads&color=F4D35E&labelColor=6E1423"></a>
   <img alt="Status: pre-release" src="https://img.shields.io/badge/status-pre--release-F4F1EA.svg?style=flat-square&labelColor=6E1423">
   <img alt="Platform: macOS | Windows | Linux" src="https://img.shields.io/badge/platform-macOS%20%7C%20Windows%20%7C%20Linux-F4F1EA.svg?style=flat-square&labelColor=6E1423">
