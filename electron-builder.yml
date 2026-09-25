@@ -69,6 +69,10 @@ extraResources:
     to: kg.cjs
   - from: src/main/kg-core.cjs
     to: kg-core.cjs
+  # Office Packs (JSON, no secrets). loadBundledPacks() reads them from
+  # <process.resourcesPath>/packs packaged, repo resources/packs in dev.
+  - from: resources/packs
+    to: packs
   # Bundled default skills (read-only/no-secret). copyBundledSkills() reads these
   # from skillsResourceDir() = <process.resourcesPath>/skills in the packaged app
   # and refreshes each agent's .claude/skills/ per spawn (dev resolves to
