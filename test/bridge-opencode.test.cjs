@@ -106,5 +106,19 @@ test('--unlink removes bridge links and keeps foreign files', () => {
   assert.strictEqual(fs.readFileSync(foreign, 'utf8'), 'no es del puente', 'foreign file kept');
 });
 
+test('--unlink also works when the store sits under a symlinked dir (macOS /var -> /private/var)', () => {
+  const { base, home } = sandbox();
+  const alias = path.join(base, 'alias');
+  fs.symlinkSync(base, alias);
+  const env = { ...process.env, OPENCODE_PRIVATE_STORE: path.join(alias, 'store'), OPENCODE_TARGET_HOME: home };
+  assert.strictEqual(run([], env).status, 0, 'link pass');
+  const linked = path.join(home, '.config', 'opencode', 'agent', 'mi-revisor.md');
+  assert.ok(fs.lstatSync(linked).isSymbolicLink(), 'linked through the alias');
+  assert.strictEqual(run(['--unlink'], env).status, 0, 'unlink exit 0');
+  assert.ok(!fs.existsSync(linked) && !isLink(linked), 'bridge link gone');
+});
+
+function isLink(p) { try { return fs.lstatSync(p).isSymbolicLink(); } catch { return false; } }
+
 if (failures > 0) { console.error(`\n${failures} FAILURE(S)`); process.exit(1); }
 console.log('\nbridge-opencode: all green');
