@@ -688,6 +688,8 @@ export class HiveManager {
        *  instructions were unusable on Windows. Optional: undefined degrades to the
        *  old env-var spelling. */
       kgCliPath?: string;
+      /** Absolute path to the bundled doc-text CLI (Word/Excel/PowerPoint/PDF → text). */
+      docTextCliPath?: string;
       theme?: 'light' | 'dark';
       /** Consent state for the default-MCP bundle (W3). Threaded from the live
        *  HarnessConfig by the caller; undefined → catalog defaults apply. */
@@ -814,7 +816,7 @@ export class HiveManager {
     if (!isHiveAwareProvider(meta.provider)) {
       const preset = providerPreset(meta.provider ?? 'claude');
       const flag = preset.initialPromptFlag;
-      const prompt = this.injectedPrompt(meta, dir, root, opts.semanticMemory ?? false, opts.knowledgeGraph ?? false, opts.kgCliPath);
+      const prompt = this.injectedPrompt(meta, dir, root, opts.semanticMemory ?? false, opts.knowledgeGraph ?? false, opts.kgCliPath, opts.docTextCliPath);
       // agy, codex, and grok expose a Claude-style lifecycle-hook surface, so each
       // gets the SAME live status + Stop→inbox-drain Claude does — selected by the
       // preset's `hookBridge`. agy needs a translating shim (its hook stdin/stdout
@@ -958,7 +960,7 @@ export class HiveManager {
     const args: string[] = [];
     if (!claudeProvider) return { args, env };
 
-    args.push('--append-system-prompt', this.injectedPrompt(meta, dir, root, opts.semanticMemory ?? false, opts.knowledgeGraph ?? false, opts.kgCliPath));
+    args.push('--append-system-prompt', this.injectedPrompt(meta, dir, root, opts.semanticMemory ?? false, opts.knowledgeGraph ?? false, opts.kgCliPath, opts.docTextCliPath));
 
     // Phase 1 — autonomy: attach lifecycle hooks via --settings (no edits to the
     // user's repo) so the agent reports activity and drains its inbox on Stop.
@@ -1445,7 +1447,8 @@ export class HiveManager {
     root: string,
     semanticMemory: boolean,
     knowledgeGraph: boolean,
-    kgCliPath?: string
+    kgCliPath?: string,
+    docTextCliPath?: string
   ): string {
     // Native-separator path helpers — see the 🪟 note above.
     const inDir = (...parts: string[]): string => join(dir, ...parts);
@@ -1472,6 +1475,11 @@ export class HiveManager {
     // cmd.exe/PowerShell as well as a POSIX shell.
     const hiveNode = this.nodeCommand();
     const kgCli = kgCliPath || (process.platform === 'win32' ? '%KG_CLI%' : '$KG_CLI');
+    // Word/Excel/PowerPoint are zip archives to an agent's Read tool; the bundled
+    // doc-text CLI prints their text (or a plain reason it can't).
+    const docTextLine = docTextCliPath
+      ? `Documents: you can open PDFs and images directly. To read a Word, Excel or PowerPoint file, run \`"${hiveNode}" "${docTextCliPath}" "<file>"\` — it prints the text (a reason instead, if the file can't be read).`
+      : '';
     const knowledgeLine = knowledgeGraph
       ? `Enterprise knowledge: this organisation has a private Knowledge Graph of its own documents, policies, and business context. When a task needs that context — company-specific facts, house style, internal processes — query it instead of guessing: run \`"${hiveNode}" "${kgCli}" search "<query>"\` for ranked passages, \`"${hiveNode}" "${kgCli}" list\` to see what is available, and \`"${hiveNode}" "${kgCli}" get <id>\` for a full document. (That first path is the harness's bundled Node — use it instead of bare \`node\`, which may not be on your PATH.)`
       : '';
@@ -1516,6 +1524,7 @@ export class HiveManager {
       guardrailsLine,
       memoryLine,
       knowledgeLine,
+      docTextLine,
       godLine,
       spawnQueueLine,
       runtimeLine,

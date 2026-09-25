@@ -13,6 +13,12 @@ import { app } from 'electron';
 import { existsSync } from 'node:fs';
 import { join } from 'node:path';
 import { readConfig } from './config';
+import { extractDocumentText, type DocExtraction } from './docText';
+
+/** Turns a file into indexable text. In the app this runs the doc-text CLI in a
+ *  child process (index.ts) so PDF/zip parsing of untrusted files never runs in
+ *  main; the in-process default keeps tests and the headless path working. */
+export type DocExtractor = (srcPath: string) => Promise<DocExtraction>;
 
 // Pure-JS core, copied to out/main at build (like slack-trigger.cjs) and shipped
 // to process.resourcesPath for the agent CLI (electron-builder extraResources).
@@ -31,6 +37,8 @@ interface KgHit {
 interface KgIngestInput {
   srcPath?: string; text?: string; title?: string; tags?: string[];
   caption?: string; modality?: string; source?: string;
+  /** How the text was produced, when it was converted before ingest. */
+  extractor?: string; mime?: string;
 }
 interface KgCore {
   ingest(root: string, input: KgIngestInput): { docId: string; chunkCount: number; meta: KgMeta };
@@ -92,8 +100,27 @@ export class KnowledgeManager {
     return { enabled, root, docCount: s.docCount, chunkCount: s.chunkCount, byModality: s.byModality };
   }
 
-  /** Ingest a file from disk. No-op-safe when off (callers gate on status). */
-  ingestFile(srcPath: string, opts: { title?: string; tags?: string[]; caption?: string } = {}) {
+  private extract: DocExtractor = extractDocumentText;
+
+  /** Swap the converter (index.ts points it at the out-of-process CLI). */
+  setExtractor(fn: DocExtractor): void {
+    this.extract = fn;
+  }
+
+  /** Ingest a file from disk. No-op-safe when off (callers gate on status).
+   *
+   *  Word, Excel, PowerPoint and PDF are converted to text first (docText.ts);
+   *  kg-core keeps the original file either way. A file that can't be read
+   *  THROWS with a plain reason rather than being stored: storing it anyway is
+   *  what used to index a .docx as zip bytes and report success. */
+  async ingestFile(srcPath: string, opts: { title?: string; tags?: string[]; caption?: string } = {}) {
+    const ex = await this.extract(srcPath);
+    if (ex.kind === 'unreadable') throw new Error(ex.reason);
+    if (ex.kind === 'text') {
+      return core.ingest(this.root(), {
+        srcPath, ...opts, text: ex.text, modality: ex.modality, extractor: ex.extractor, mime: ex.mime
+      });
+    }
     return core.ingest(this.root(), { srcPath, ...opts });
   }
 
