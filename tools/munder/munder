@@ -1797,6 +1797,8 @@ Comandos:
   link conectar     Enlaza esta oficina con otra (misma red o Tailscale): busca,
                     muestra un código de 6 dígitos y empareja. Luego:
                     link enviar <oficina> "tarea" · link estado · link ayuda
+  reviver …         El Reviver: arranca y revive Munder aunque Munder esté muerto
+                    (init · instalar · status · start · restart · stop). Ver REVIVER.md
   ps              Lista PIDs del dev (sin matar nada)
   check           Verifica checkout: package.json + node_modules
   help            Esta ayuda
@@ -1845,6 +1847,12 @@ async function main() {
     case 'repaint': await cmdRepaint(); break;
     case 'ctl': await cmdCtl(rest); break;
     case 'link': await cmdLink(rest); break;
+    // Its own process on purpose: the reviver must never load this CLI's app code.
+    case 'reviver': {
+      const r = spawnSync(process.execPath, [path.join(__dirname, 'reviver.cjs'), ...rest], { stdio: 'inherit' });
+      process.exitCode = r.status ?? 1;
+      break;
+    }
     case 'ps': cmdPs(); break;
     case 'check': cmdCheck(); break;
     case '--stop': await cmdStop(); break;

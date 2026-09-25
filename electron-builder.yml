@@ -83,6 +83,12 @@ extraResources:
   # The phone app draws the cast with the same generated portrait engine.
   - from: tools/munder/avatar-engine.cjs
     to: munder/avatar-engine.cjs
+  # Munder Reviver (the maintenance plane; builtins only). Packaged installs run
+  # it with the app's own Electron as node: see tools/munder/REVIVER.md.
+  - from: tools/munder/lib-reviver.cjs
+    to: munder/lib-reviver.cjs
+  - from: tools/munder/reviver.cjs
+    to: munder/reviver.cjs
   # Office Packs (JSON, no secrets). loadBundledPacks() reads them from
   # <process.resourcesPath>/packs packaged, repo resources/packs in dev.
   - from: resources/packs

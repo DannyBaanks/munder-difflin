@@ -44,6 +44,29 @@ test('health round-trip with the boot token', async () => {
   }
 });
 
+test('health names the instance when `about` is wired (the Reviver checks pid + office)', async () => {
+  const about = { pid: 4242, version: '1.2.3', office_id: 'a1b2c3d4e5f60718', started_at: '2026-09-25T00:00:00.000Z' };
+  const ch = new ControlChannel({ token: 'tok', about: () => about });
+  const r = await ch.start(0);
+  try {
+    const ok = await get(r.port, '/salud', 'tok');
+    assert.deepEqual(ok.body, { ok: true, service: 'munder-control', instance: about });
+    assert.equal((await get(r.port, '/salud', 'nope')).status, 401, 'identity is behind the token too');
+  } finally {
+    ch.stop();
+  }
+});
+
+test('a throwing `about` never breaks health', async () => {
+  const ch = new ControlChannel({ token: 'tok', about: () => { throw new Error('no link lib'); } });
+  const r = await ch.start(0);
+  try {
+    assert.deepEqual((await get(r.port, '/salud', 'tok')).body, { ok: true, service: 'munder-control' });
+  } finally {
+    ch.stop();
+  }
+});
+
 test('missing or wrong token is 401 (never 200, never a crash)', async () => {
   const { ch, port } = await start();
   try {
