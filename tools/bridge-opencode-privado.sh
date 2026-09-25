@@ -38,9 +38,32 @@ TARGET="$TARGET_HOME/.config/opencode"
 # Git Bash / MSYS / Cygwin: sin esto `ln -s` COPIA el archivo en silencio, y la
 # siguiente corrida lo ve como "archivo real ajeno" (--check y --unlink también
 # fallan). nativestrict crea un symlink real de Windows o falla en voz alta.
+ON_WINDOWS=
 case "$(uname -s 2>/dev/null)" in
-  MINGW*|MSYS*|CYGWIN*) export MSYS=winsymlinks:nativestrict CYGWIN=winsymlinks:nativestrict ;;
+  MINGW*|MSYS*|CYGWIN*)
+    ON_WINDOWS=1
+    export MSYS=winsymlinks:nativestrict CYGWIN=winsymlinks:nativestrict
+    # Rutas que llegan como C:\… (env, tests) → forma MSYS para que las
+    # herramientas POSIX las entiendan.
+    STORE="$(cygpath -u "$STORE")"; TARGET="$(cygpath -u "$TARGET")"
+    ;;
 esac
+
+# La MISMA ruta tiene varias escrituras en Git Bash: /tmp/x, /c/Users/…/Temp/x,
+# C:\Users\RUNNER~1\… (8.3). readlink -f solo resuelve symlinks; para comparar
+# hay que llevar ambos lados a una forma: la ruta Windows larga, sin distinguir
+# mayúsculas (NTFS no las distingue). En Linux/mac es readlink -f tal cual.
+canon() {
+  local p
+  # Si no resuelve, la ruta tal cual: nunca "" (dos vacíos serían "iguales").
+  p="$(readlink -f "$1" 2>/dev/null)" || p="$1"
+  if [[ -n "$ON_WINDOWS" ]]; then
+    p="$(cygpath -w -l "$p" 2>/dev/null || printf '%s' "$p")"
+    printf '%s\n' "$p" | tr '[:upper:]' '[:lower:]'
+  else
+    printf '%s\n' "$p"
+  fi
+}
 
 # store-subdir -> target-subdir (nombres que OpenISy realmente escanea:
 # {agent,agents} / {command,commands} / {mode,modes} / plugins).
@@ -54,7 +77,7 @@ linked=0; skipped=0; conflicts=0
 link_one() { # $1=categoría-store $2=categoría-destino $3=archivo
   local src="$STORE/$1/$3" dest="$TARGET/$2/$3"
   if [[ -L "$dest" ]]; then
-    if [[ "$(readlink -f "$dest")" == "$(readlink -f "$src")" ]]; then
+    if [[ "$(canon "$dest")" == "$(canon "$src")" ]]; then
       linked=$((linked + 1)); return 0
     fi
     warn "salto $dest (symlink a otro lado: $(readlink "$dest"))"
@@ -90,17 +113,16 @@ do_link() {
 }
 
 do_unlink() {
-  local pair ssub tsub dest removed=0 kept=0 store_real
-  # Compare canonical paths on BOTH sides: readlink -f resolves the link fully,
-  # so a store under a symlinked dir (macOS /var -> /private/var, a symlinked
-  # home) never matched the raw $STORE and --unlink removed nothing, exit 0.
-  store_real="$(cd "$STORE" 2>/dev/null && pwd -P)" || store_real="$STORE"
+  local pair ssub tsub dest removed=0 kept=0
+  # canon() on BOTH sides: readlink -f resolves the link fully, so a store under
+  # a symlinked dir (macOS /var -> /private/var, a symlinked home) or spelled
+  # another way (Git Bash: /tmp vs C:\…) still matches its own links.
   for pair in $MAP; do
     ssub="${pair%%:*}"; tsub="${pair##*:}"
     [[ -d "$TARGET/$tsub" ]] || continue
     for dest in "$TARGET/$tsub"/*; do
       [[ -L "$dest" ]] || continue
-      if [[ "$(readlink -f "$dest" 2>/dev/null)" == "$store_real/$ssub/$(basename "$dest")" ]]; then
+      if [[ "$(canon "$dest")" == "$(canon "$STORE/$ssub/$(basename "$dest")")" ]]; then
         rm "$dest"; removed=$((removed + 1))
       else
         kept=$((kept + 1))
@@ -130,7 +152,7 @@ do_check() {
     for f in "$STORE/$ssub"/*; do
       [[ -e "$f" ]] || continue
       dest="$TARGET/$tsub/$(basename "$f")"
-      if [[ -L "$dest" ]] && [[ "$(readlink -f "$dest")" == "$(readlink -f "$f")" ]]; then
+      if [[ -L "$dest" ]] && [[ "$(canon "$dest")" == "$(canon "$f")" ]]; then
         say "OK $(basename "$f") -> $tsub/"
       else
         say "PENDIENTE $(basename "$f") (corre sin --check para enlazar)"
