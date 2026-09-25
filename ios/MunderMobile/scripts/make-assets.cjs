@@ -189,7 +189,7 @@ function demoData() {
   ] };
   return {
     'Resources/Demo/overview.json': Buffer.from(JSON.stringify(overview, null, 2) + '\n'),
-    'Resources/Demo/peers.json': Buffer.from(JSON.stringify(peers, null, 2) + '\n'),
+    'Resources/Demo/demo-peers.json': Buffer.from(JSON.stringify(peers, null, 2) + '\n'),
   };
 }
 
