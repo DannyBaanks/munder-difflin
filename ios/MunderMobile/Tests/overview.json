@@ -1,0 +1,104 @@
+{
+  "office": {
+    "office_id": "0123456789abcdef",
+    "name": "michael-victus",
+    "fingerprint": "0123 4567 89ab cdef",
+    "host": "victus",
+    "version": "fixture"
+  },
+  "capacity": {
+    "ram_total_gb": 15.7,
+    "ram_free_gb": 9.2,
+    "cpus": 12,
+    "load1": 0.64,
+    "platform": "linux",
+    "workers_total": 2,
+    "workers_idle": 1,
+    "michael_state": "working",
+    "tasks_open": 2
+  },
+  "agents": [
+    {
+      "id": "god",
+      "name": "Michael",
+      "role": "Orquestador",
+      "status": "working",
+      "god": true,
+      "on_hold": false
+    },
+    {
+      "id": "worker-pam",
+      "name": "Pam",
+      "role": "Diseño y docs",
+      "status": "blocked",
+      "god": false,
+      "on_hold": false
+    },
+    {
+      "id": "dwight",
+      "name": "Dwight",
+      "role": null,
+      "status": "idle",
+      "god": false,
+      "on_hold": true
+    }
+  ],
+  "tasks": [
+    {
+      "id": "task-1",
+      "title": "Publicar la landing",
+      "status": "blocked",
+      "assignee": "worker-pam",
+      "priority": 3,
+      "created_at": "2026-09-25T10:00:00.000Z",
+      "description": null,
+      "result": null,
+      "question": {
+        "q": "**¿Qué dominio uso?**\n\n- `isyco.mx`",
+        "asked_at": "2026-09-25T10:05:00.000Z"
+      },
+      "from_office": null
+    },
+    {
+      "id": "task-2",
+      "title": "Migrar tests",
+      "status": "doing",
+      "assignee": "dwight",
+      "priority": "alta",
+      "created_at": "2026-09-25T09:00:00Z",
+      "description": "node --test",
+      "result": null,
+      "question": null,
+      "from_office": "michael-xeon"
+    },
+    {
+      "id": "task-3",
+      "title": null,
+      "status": "done",
+      "assignee": null,
+      "created_at": null,
+      "description": null,
+      "result": "listo",
+      "question": null,
+      "from_office": null
+    }
+  ],
+  "questions": [
+    {
+      "id": "task-1",
+      "title": "Publicar la landing",
+      "status": "blocked",
+      "assignee": "worker-pam",
+      "priority": 3,
+      "created_at": "2026-09-25T10:00:00.000Z",
+      "description": null,
+      "result": null,
+      "question": {
+        "q": "**¿Qué dominio uso?**\n\n- `isyco.mx`",
+        "asked_at": "2026-09-25T10:05:00.000Z"
+      },
+      "from_office": null
+    }
+  ],
+  "hive": true
+}

@@ -1,0 +1,90 @@
+name: MunderMobile
+options:
+  bundleIdPrefix: mx.isyco
+  deploymentTarget:
+    iOS: "16.0"
+  createIntermediateGroups: true
+
+settings:
+  base:
+    SWIFT_VERSION: "5.0"
+    TARGETED_DEVICE_FAMILY: "1,2"
+    IPHONEOS_DEPLOYMENT_TARGET: "16.0"
+    GENERATE_INFOPLIST_FILE: NO
+    CURRENT_PROJECT_VERSION: "1"
+    MARKETING_VERSION: "0.1.0"
+
+targets:
+  # munder-remote@1, the Keychain and the office state: no UI, so the tests
+  # exercise it on the simulator without launching the app.
+  MunderMobileCore:
+    type: framework.static
+    platform: iOS
+    sources:
+      - path: Sources
+        type: group
+    settings:
+      base:
+        PRODUCT_NAME: MunderMobileCore
+        PRODUCT_BUNDLE_IDENTIFIER: mx.isyco.munder.mobile.core
+        DEFINES_MODULE: YES
+        GENERATE_INFOPLIST_FILE: YES
+        CODE_SIGNING_ALLOWED: NO
+        CODE_SIGNING_REQUIRED: NO
+        SKIP_INSTALL: YES
+
+  MunderMobile:
+    type: application
+    platform: iOS
+    sources:
+      - path: App
+        type: group
+      - path: Assets.xcassets
+      # Copied as a folder: Media/Fonts/…, Media/Cast/<name>.png, Media/Demo/….
+      # NOT "Resources": a top-level Resources/ in an iOS .app makes codesign
+      # read it as a macOS-style bundle and refuse to sign it ("code object is
+      # not signed at all"), which also breaks re-signing when sideloading.
+      - path: Media
+        type: folder
+    dependencies:
+      - target: MunderMobileCore
+    settings:
+      base:
+        PRODUCT_BUNDLE_IDENTIFIER: mx.isyco.munder.mobile
+        PRODUCT_NAME: MunderMobile
+        CODE_SIGNING_ALLOWED: YES
+        CODE_SIGNING_REQUIRED: NO
+        ASSETCATALOG_COMPILER_APPICON_NAME: AppIcon
+        # Use the repo's Info.plist as-is (XcodeGen would regenerate it otherwise).
+        INFOPLIST_FILE: Info.plist
+
+  MunderMobileTests:
+    type: bundle.unit-test
+    platform: iOS
+    sources:
+      - path: Tests
+        type: group
+    dependencies:
+      - target: MunderMobileCore
+    settings:
+      base:
+        PRODUCT_BUNDLE_IDENTIFIER: mx.isyco.munder.mobile.tests
+        PRODUCT_NAME: MunderMobileTests
+        GENERATE_INFOPLIST_FILE: YES
+        CODE_SIGNING_ALLOWED: NO
+        CODE_SIGNING_REQUIRED: NO
+
+schemes:
+  MunderMobile:
+    build:
+      targets:
+        MunderMobileCore: all
+        MunderMobile: all
+    run:
+      config: Debug
+    test:
+      config: Debug
+      targets:
+        - MunderMobileTests
+    archive:
+      config: Release
