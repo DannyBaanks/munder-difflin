@@ -1142,6 +1142,17 @@ function buildHeartbeatDigest(quietMs: number, actionable = 0): string {
   const boardHead = hive.board().split('\n').slice(0, 10).join('\n').trim();
   const log = hive.logTail(8).map((e) => { try { return JSON.stringify(e); } catch { return ''; } }).filter(Boolean).join('\n');
   const withInbox = active.filter(([id]) => hive.inbox(id).length > 0).map(([, a]) => a.name);
+  // Delivery observability (decision B/D): outbox mail god can't see otherwise.
+  // A nonzero backlog with a growing age is the silent-stall signature — direct-
+  // inject traffic (this very heartbeat) keeps flowing while routed mail rots.
+  let backlogLine = '';
+  try {
+    const rh = hive.routerHealth();
+    if (rh.backlog > 0) {
+      const ageS = rh.oldestBacklogMs != null ? Math.round(rh.oldestBacklogMs / 1000) : '?';
+      backlogLine = `Outbox backlog: ${rh.backlog} message(s), oldest ~${ageS}s${rh.running ? '' : ' — ROUTER LOOP DOWN'}.\n`;
+    }
+  } catch { /* digest must never fail on telemetry */ }
   // When real agent/human mail is waiting, lead with an explicit call-to-action
   // instead of the "quiet" line — this beat fired BECAUSE of unread actionable
   // inbox, not because the floor went quiet, and god must read it now.
@@ -1152,7 +1163,7 @@ function buildHeartbeatDigest(quietMs: number, actionable = 0): string {
     header,
     `Active agents (${active.length}): ${names}.`,
     withInbox.length ? `Undrained inbox: ${withInbox.join(', ')}.` : 'No undrained inboxes.',
-    '',
+    ...(backlogLine ? [backlogLine.trimEnd(), ''] : ['']),
     'Board (head):',
     boardHead || '(empty)',
     '',
@@ -3926,6 +3937,14 @@ const closingTime = new ClosingTimeController(
   control
 );
 hive.setRoutedObserver((msg, targets) => closingTime.onRouted(msg, targets));
+// Nudge-on-route (delivery-reliability decision C): a routed message triggers
+// one edge-triggered wake check immediately instead of waiting for the next
+// 15s watchdog beat. WorkerWakeWatchdog.decide dedupes by message id + 60s
+// cooldown, so this can't storm or double-nudge; heartbeats to god are never
+// wake candidates (god is skipped by the watchdog).
+hive.addRoutedObserver(() => {
+  try { runWorkerWakeBeat(); } catch (e) { console.error('[wake-on-route]', e); }
+});
 ipcMain.handle('app:startClosingTime', () => closingTime.start());
 ipcMain.handle('app:cancelClosingTime', () => closingTime.cancel());
 
@@ -5262,6 +5281,14 @@ function nudgeWorker(ptyId: string, ids: string[] = []): void {
  *  path already re-engages it). */
 function runWorkerWakeBeat(): void {
   if (!hive.enabled()) return;
+  // Router supervision FIRST (delivery-reliability decision S): bound any
+  // outbox stall to this 15s beat. Re-arms a dead/wedged loop and drains the
+  // backlog immediately, so the wake decision below sees freshly routed mail
+  // in the same pass instead of rotting silently for hours.
+  try {
+    const s = hive.superviseRouter();
+    if (s.rearmed) console.warn(`[router-supervise] re-armed loop, backlog=${s.backlog} drained=${s.drained}`);
+  } catch (e) { console.error('[router-supervise beat]', e); }
   const reg = hive.registry();
   if (!reg?.agents || !reg.godId) return;
   const now = Date.now();
@@ -5367,19 +5394,14 @@ function onSystemResume(reason: string): void {
   try { syncContextTriggers(); } catch (e) { console.error('[power] syncContextTriggers on resume', e); }
   try { armAlwaysOnBeats(); } catch (e) { console.error('[power] armAlwaysOnBeats on resume', e); }
   // The hive message router (outbox→inbox drain) is a setInterval that freezes
-  // during true system sleep exactly like the beats above — but it was the one
-  // always-on timer never re-armed on wake. Symptom: after a long sleep the
-  // scheduler→god path recovered (it injects straight into god's inbox), while
-  // every agent's outbox silently stopped draining, so god→worker and
-  // worker↔worker mail piled up undelivered. Re-arm the poll loop (clear-then-set,
-  // idempotent) and immediately drain the backlog that accrued while we were out
-  // instead of waiting for the first post-wake tick. The renderer's idle inbox-wake
-  // nudge (useHive.ts) then wakes each parked recipient once its mail lands.
+  // during true system sleep exactly like the beats above. superviseRouter()
+  // is the single recovery path (re-arm if dead/stale + immediate drain +
+  // degraded-state log) — the same path the 15s wake beat runs, so resume and
+  // steady-state can't diverge. The renderer's idle inbox-wake nudge
+  // (useHive.ts) then wakes each parked recipient once its mail lands.
   try {
-    hive.stopRouter();
-    hive.startRouter();
-    const drained = hive.routeOnce();
-    if (drained > 0) console.log(`[power] ${reason} — flushed ${drained} queued hive message(s)`);
+    const s = hive.superviseRouter();
+    if (s.drained > 0 || s.backlog > 0) console.log(`[power] ${reason} — router backlog=${s.backlog} flushed=${s.drained} rearmed=${s.rearmed}`);
   } catch (e) { console.error('[power] router re-arm on resume', e); }
   try { syncKeepAwake(); } catch (e) { console.error('[power] syncKeepAwake on resume', e); }
   const awayMs = lastSuspendAt != null ? Date.now() - lastSuspendAt : null;

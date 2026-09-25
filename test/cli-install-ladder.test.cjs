@@ -27,6 +27,13 @@ test('with npm present the ladder is unchanged — npm install, for every provid
   }
 });
 
+test('OpenISy has no bundled installer because it is an external local CLI', () => {
+  const info = installInfoForProvider('openisy');
+  assert.equal(info.command, undefined);
+  assert.equal(info.nativeCommand, undefined);
+  assert.equal(chooseInstallRung(info, true).kind, 'manual');
+});
+
 test('with npm absent, a provider shipping a native installer uses it', () => {
   const rung = chooseInstallRung(installInfoForProvider('claude'), false);
   assert.equal(rung.kind, 'native');

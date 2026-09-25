@@ -65,6 +65,16 @@ const SHIPPED = {
     ["google/gemini-2.5-pro", "Gemini 2.5 Pro (Google)"],
     ["local/llama3", "Local · OpenAI-compatible (set base-URL)"]
   ],
+  openisy: [
+    [undefined, "CLI default"],
+    ["anthropic/claude-sonnet-4-5", "Claude Sonnet 4.5 (Anthropic)"],
+    ["anthropic/claude-haiku-4-5", "Claude Haiku 4.5 (Anthropic)"],
+    ["openai/gpt-5", "GPT-5 (OpenAI)"],
+    ["openai/gpt-5-mini", "GPT-5 mini (OpenAI)"],
+    ["openrouter/anthropic/claude-sonnet-4.5", "Claude Sonnet 4.5 (OpenRouter)"],
+    ["google/gemini-2.5-pro", "Gemini 2.5 Pro (Google)"],
+    ["local/llama3", "Local · OpenAI-compatible (set base-URL)"]
+  ],
   crush: [
     [undefined, "Crush default (config)"],
     ["anthropic/claude-sonnet-4-5", "Claude Sonnet 4.5 (Anthropic)"],
@@ -149,7 +159,7 @@ test('the catalog is the schema config.ts expects', () => {
   assert.deepEqual(
     Object.keys(catalog.providers).sort(),
     ['antigravity', 'claude', 'copilot', 'codex', 'crush', 'cursor', 'custom',
-      'gemini', 'grok', 'kimi', 'opencode', 'pi', 'qwen'].sort()
+      'gemini', 'grok', 'kimi', 'opencode', 'openisy', 'pi', 'qwen'].sort()
   );
 });
 

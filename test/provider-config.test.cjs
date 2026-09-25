@@ -79,6 +79,10 @@ test('provider commands use matching models and equivalent bypass modes', () => 
     buildSpawnCommand(autoConfig, 'pro', 'gemini'),
     'gemini --model pro --approval-mode=yolo'
   );
+  assert.equal(
+    buildSpawnCommand(autoConfig, 'local/llama3', 'openisy'),
+    'openisy --model local/llama3'
+  );
 });
 
 test('model picker options stay provider-specific', () => {
@@ -106,6 +110,11 @@ test('model picker options stay provider-specific', () => {
   assert.deepEqual(
     modelsForProvider('gemini').map((model) => model.id),
     [undefined, 'auto', 'pro', 'flash', 'flash-lite']
+  );
+  assert.deepEqual(
+    modelsForProvider('openisy').map((model) => model.id),
+    [undefined, 'anthropic/claude-sonnet-4-5', 'anthropic/claude-haiku-4-5', 'openai/gpt-5',
+      'openai/gpt-5-mini', 'openrouter/anthropic/claude-sonnet-4.5', 'google/gemini-2.5-pro', 'local/llama3']
   );
   assert.deepEqual(modelsForProvider('custom'), []);
 });
@@ -145,10 +154,10 @@ test('God only sees providers that can drain hive inbox messages', () => {
   // Cursor is interactive (no -p) so it IS god-eligible.
   assert.deepEqual(
     modelProvidersForAgent(true).map((preset) => preset.id),
-    ['claude', 'codex', 'grok', 'gemini', 'antigravity', 'qwen', 'opencode', 'crush', 'pi', 'cursor']
+    ['claude', 'codex', 'grok', 'gemini', 'antigravity', 'qwen', 'opencode', 'openisy', 'crush', 'pi', 'cursor']
   );
   assert.deepEqual(
     modelProvidersForAgent(false).map((preset) => preset.id),
-    ['claude', 'codex', 'grok', 'kimi', 'gemini', 'antigravity', 'qwen', 'opencode', 'crush', 'pi', 'copilot', 'cursor']
+    ['claude', 'codex', 'grok', 'kimi', 'gemini', 'antigravity', 'qwen', 'opencode', 'openisy', 'crush', 'pi', 'copilot', 'cursor']
   );
 });

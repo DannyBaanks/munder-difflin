@@ -163,7 +163,7 @@ const PENDING_TTL_MS = 120_000;
 
 const PROVIDER_COMMAND: Record<string, string> = {
   claude: 'claude', codex: 'codex', antigravity: 'antigravity', gemini: 'gemini',
-  opencode: 'opencode', crush: 'crush', pi: 'pi', qwen: 'qwen', copilot: 'copilot',
+  opencode: 'opencode', openisy: 'openisy', crush: 'crush', pi: 'pi', qwen: 'qwen', copilot: 'copilot',
   cursor: 'cursor-agent'
 };
 

@@ -79,6 +79,7 @@ test('an explicit stance wins for non-claude providers too (no doubled flag)', (
 
 test('a provider whose preset declares no auto flag gets nothing appended', () => {
   assert.deepEqual(launch({ requestCommand: 'opencode', autoMode: true }).args, []);
+  assert.deepEqual(launch({ requestCommand: 'openisy', autoMode: true }).args, []);
   assert.deepEqual(launch({ requestCommand: 'my-own-tool', autoMode: true }).args, []);
 });
 

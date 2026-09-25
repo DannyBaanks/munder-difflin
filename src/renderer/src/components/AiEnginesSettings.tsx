@@ -8,7 +8,7 @@ import { useStore } from '@/store/store';
 
 /**
  * AiEnginesSettings — the v0.3.1 per-provider config surface for the BYOK CLI
- * engines (OpenCode · Crush · pi.dev · Qwen). Two stores by what the datum is:
+ * engines (OpenCode · OpenISy · Crush · pi.dev · Qwen). Two stores by what the datum is:
  *  - API keys → WRITE-ONLY in the secret broker (`providerKey:*` IPC). Keyed by the
  *    BACKEND model-provider (anthropic/openai/…). The field shows only set/not-set;
  *    the plaintext is never read back to the renderer (materialized MAIN-only at spawn).
@@ -31,6 +31,7 @@ const BACKENDS: Array<{ id: string; label: string; envVar: string }> = [
  *  values are technical endpoint descriptions — kept English (technical data). */
 const CLIS: Array<{ id: AgentProvider; label: string; hint: string }> = [
   { id: 'opencode', label: 'OpenCode', hint: 'http://localhost:11434/v1 (Ollama) — injected as a local provider' },
+  { id: 'openisy', label: 'OpenISy', hint: 'http://localhost:11434/v1 (Ollama) — injected as a local provider' },
   { id: 'crush', label: 'Crush', hint: 'OpenAI-compatible endpoint — used as the proxy upstream' },
   { id: 'pi', label: 'Pi', hint: 'local models are file-based (models.json); base-URL reserved' },
   { id: 'qwen', label: 'Qwen', hint: 'OpenAI-compatible endpoint — used as the proxy upstream' }

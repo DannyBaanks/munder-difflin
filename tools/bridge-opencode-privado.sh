@@ -31,7 +31,7 @@ set -euo pipefail
 #
 # Env (para tests): OPENCODE_PRIVATE_STORE, OPENCODE_TARGET_HOME.
 
-STORE="${OPENCODE_PRIVATE_STORE:-/home/danny/Development/.opencode-privado}"
+STORE="${OPENCODE_PRIVATE_STORE:-$HOME/.local/share/opencode-privado}"
 TARGET_HOME="${OPENCODE_TARGET_HOME:-$HOME}"
 TARGET="$TARGET_HOME/.config/opencode"
 

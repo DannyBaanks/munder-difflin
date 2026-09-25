@@ -57,16 +57,16 @@ export const OSS_PROVIDER_PICKS: OssProviderPick[] = [
   { label: 'gpt-oss 120B · OpenRouter', slug: 'openrouter/openai/gpt-oss-120b', keyEnv: 'OPENROUTER_API_KEY' }
 ];
 
-/** Engine-correct slug for a local Ollama tag (§6): OpenCode → `local/<tag>`;
+/** Engine-correct slug for a local Ollama tag (§6): OpenCode/OpenISy → `local/<tag>`;
  *  Crush and pi → `ollama/<tag>`. The tag keeps its colon. */
 export function localSlugFor(provider: AgentProvider, tag: string): string {
-  return provider === 'opencode' ? `local/${tag}` : `ollama/${tag}`;
+  return provider === 'opencode' || provider === 'openisy' ? `local/${tag}` : `ollama/${tag}`;
 }
 
 /** Whether to surface the OSS quick-picks for this engine — the local-capable CLI
  *  engines integrated in v0.3.1. (Claude/Codex/Antigravity use their own logins.) */
 export function hasOssQuickPicks(provider: AgentProvider): boolean {
-  return provider === 'opencode' || provider === 'crush' || provider === 'pi';
+  return provider === 'opencode' || provider === 'openisy' || provider === 'crush' || provider === 'pi';
 }
 
 /** Canonical blog URLs the local-setup UI hyperlinks to (ondev-c part-3). */

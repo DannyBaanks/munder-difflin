@@ -361,6 +361,11 @@ export class HiveManager {
   ) {}
 
   private routerTimer: NodeJS.Timeout | null = null;
+  /** Wall-clock ms of the last completed routeOnce() scan (0 = never). The
+   *  router supervisor reads this to distinguish a live loop from a timer that
+   *  was stopped without re-arm — the silent-stall class behind the ~2h Pam
+   *  dispatch delay (outbox sat while direct-inject heartbeats kept flowing). */
+  private lastRouteAt = 0;
 
   /** The embedded OTLP collector's loopback URL, set by the main process once the
    *  collector is bound (telemetry.ts). null = telemetry off → no OTel env is
@@ -1221,6 +1226,7 @@ export class HiveManager {
     cfg: McpDefaultsMap
   ): Record<string, { command: string; args: string[]; env?: Record<string, string> }> {
     const out: Record<string, { command: string; args: string[]; env?: Record<string, string> }> = {};
+    const hiveRoot = this.root();
     for (const e of MCP_CATALOG) {
       const consented = cfg?.[e.id]?.enabled;
       const enabled = consented ?? e.defaultEnabled;
@@ -1232,10 +1238,15 @@ export class HiveManager {
       // Replace the `<cwd>` placeholder (filesystem/git) with the agent cwd at merge
       // time so these stay strictly workspace-scoped.
       const args = e.spec.args.map((a) => (a === '<cwd>' ? cwd : a));
+      // For office-bridge, inject HIVE_ROOT from the resolved hive root.
+      const env: Record<string, string> = e.spec.env ? { ...e.spec.env } : {};
+      if (e.id === 'office-bridge' && hiveRoot) {
+        env.HIVE_ROOT = hiveRoot;
+      }
       out[`munder-${e.id}`] = {
         command: e.spec.command,
         args,
-        ...(e.spec.env ? { env: e.spec.env } : {})
+        ...(Object.keys(env).length ? { env } : {})
       };
     }
     return out;
@@ -1640,16 +1651,30 @@ export class HiveManager {
     }
     this.appendLog({ kind: 'message', from: msg.from, to: msg.to, act: msg.act, subject: msg.subject, id: msg.id, delivered });
     this.emitMessage(msg, targets);
-    // Main-process observer (e.g. the closing-time controller watching for the
-    // team's ACKs and the god's COMPLETE). Best-effort, never breaks routing.
-    try { this.routedObserver?.(msg, targets); } catch { /* observer error */ }
+    // Main-process observers (e.g. the closing-time controller watching for the
+    // team's ACKs and the god's COMPLETE, the inbox-wake trigger). Best-effort,
+    // never breaks routing.
+    for (const cb of [...this.routedObservers]) {
+      try { cb(msg, targets); } catch { /* observer error */ }
+    }
   }
 
-  /** Observer invoked for EVERY routed message with its resolved targets.
-   *  Used by main-process features that react to hive traffic (closing time). */
-  private routedObserver: ((msg: HiveMessage, targets: string[]) => void) | null = null;
+  /** Observers invoked for EVERY routed message with its resolved targets.
+   *  Used by main-process features that react to hive traffic (closing time,
+   *  inbox-wake trigger). Each runs best-effort and never breaks routing. */
+  private routedObservers: Array<(msg: HiveMessage, targets: string[]) => void> = [];
   setRoutedObserver(cb: ((msg: HiveMessage, targets: string[]) => void) | null): void {
-    this.routedObserver = cb;
+    // Legacy single slot (closing time). Kept for compatibility; prefer
+    // addRoutedObserver so features compose instead of overwriting each other.
+    if (cb) this.addRoutedObserver(cb);
+  }
+  /** Register an additional routed-message observer. Returns an unsubscribe. */
+  addRoutedObserver(cb: (msg: HiveMessage, targets: string[]) => void): () => void {
+    this.routedObservers.push(cb);
+    return () => {
+      const i = this.routedObservers.indexOf(cb);
+      if (i >= 0) this.routedObservers.splice(i, 1);
+    };
   }
 
   /** Tell the renderer a message was routed, with its resolved recipients, so
@@ -1695,7 +1720,11 @@ export class HiveManager {
 
   // — router: drain outboxes → inboxes —
 
-  /** Poll-based router. Cheap and robust vs fs.watch quirks on macOS. */
+  /** Poll-based router. Cheap and robust vs fs.watch quirks on macOS.
+   *  The poll is now SUPERVISED (superviseRouter, called from the always-on
+   *  beats + power resume): a stopped-without-re-arm timer used to stall
+   *  outbox delivery silently for hours while direct-inject traffic
+   *  (heartbeats, scheduler) kept flowing. See docs/delivery-reliability-decision.md. */
   startRouter(intervalMs = 1500): void {
     if (this.routerTimer || !this.enabled()) return;
     this.routerTimer = setInterval(() => {
@@ -1756,7 +1785,78 @@ export class HiveManager {
       }
     }
     if (routed > 0) this.commit(`hive: routed ${routed} message(s)`);
+    this.lastRouteAt = Date.now(); // the loop is alive — the supervisor reads this
     return routed;
+  }
+
+  /** Delivery health snapshot: is the router loop armed, when did it last
+   *  complete a scan, and how much outbox mail is still queued (with the age of
+   *  the oldest file). The minimum state needed to detect the silent-stall
+   *  class — no silent multi-hour backlog. */
+  routerHealth(now = Date.now()): {
+    running: boolean; lastRouteAt: number; backlog: number; oldestBacklogMs: number | null;
+  } {
+    let backlog = 0;
+    let oldest: number | null = null;
+    try {
+      const root = this.root();
+      const agentsDir = root ? join(root, 'agents') : null;
+      if (agentsDir && existsSync(agentsDir)) {
+        for (const id of readdirSync(agentsDir)) {
+          const outbox = join(agentsDir, id, 'outbox');
+          let files: string[] = [];
+          try {
+            if (!existsSync(outbox)) continue;
+            files = readdirSync(outbox).filter((f) => f.endsWith('.json'));
+          } catch { continue; }
+          for (const f of files) {
+            backlog++;
+            try {
+              const age = now - statSync(join(outbox, f)).mtimeMs;
+              if (oldest === null || age > oldest) oldest = age;
+            } catch { /* unreadable file still counts as backlog */ }
+          }
+        }
+      }
+    } catch { /* health must never throw */ }
+    return { running: this.routerTimer !== null, lastRouteAt: this.lastRouteAt, backlog, oldestBacklogMs: oldest };
+  }
+
+  /** Router supervisor — the root fix for silent delivery stalls. If outbox
+   *  mail is queued and the poll loop is dead or hasn't completed a scan
+   *  within `staleAfterMs`, re-arm the loop and drain immediately, logging a
+   *  `router-supervise` degraded-state event. Also re-arms a dead loop with an
+   *  empty backlog (quietly). Idempotent and safe to call from any beat.
+   *  Returns what it did so beats/tests can assert the invariant. */
+  superviseRouter(now = Date.now(), staleAfterMs = 30_000): {
+    rearmed: boolean; drained: number; backlog: number;
+  } {
+    if (!this.enabled()) return { rearmed: false, drained: 0, backlog: 0 };
+    const h = this.routerHealth(now);
+    let rearmed = false;
+    if (!h.running) {
+      this.stopRouter();
+      this.startRouter();
+      rearmed = true;
+    } else if (h.backlog > 0 && now - h.lastRouteAt > staleAfterMs) {
+      // Timer handle exists but no scan completed recently (throttled /
+      // wedged loop): rebuild it rather than trusting the stale handle.
+      this.stopRouter();
+      this.startRouter();
+      rearmed = true;
+    }
+    let drained = 0;
+    if (rearmed && h.backlog > 0) {
+      try { drained = this.routeOnce(); } catch { /* keep the loop alive */ }
+    }
+    if (rearmed) {
+      this.appendLog({
+        kind: 'router-supervise',
+        rearmed, drained, backlog: h.backlog,
+        oldestBacklogMs: h.oldestBacklogMs, lastRouteAt: h.lastRouteAt
+      });
+    }
+    return { rearmed, drained, backlog: h.backlog };
   }
 
   // — read helpers (for IPC / UI) —

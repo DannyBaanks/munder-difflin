@@ -115,6 +115,9 @@ const CONTEXT_COMMANDS: Record<AgentProvider, ProviderContextCommands> = {
   // `/clear` does NOT exist in the binary (zero literals); the fresh-session
   // verb is `/new` — matched exactly (`t.trim().toLowerCase()==="/new"`).
   opencode: { compact: '/compact', clear: '/new', compactTakesFocus: false },
+  // OpenISy currently follows the OpenCode TUI command surface. Keep this
+  // entry separate so a future OpenISy divergence is explicit.
+  openisy: { compact: '/compact', clear: '/new', compactTakesFocus: false },
 
   // Crush has NO typed slash commands at all. Its own binary strings show
   // "Summarize Session" / "New Session" as ctrl+p COMMAND-PALETTE rows, and the

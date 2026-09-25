@@ -149,6 +149,29 @@ export const MCP_CATALOG: McpCatalogEntry[] = [
     spec: { command: 'npx', args: ['-y', '@modelcontextprotocol/server-brave-search'], env: { BRAVE_API_KEY: '' } },
     tier: 'secret',
     defaultEnabled: false
+  },
+
+  // ─── Office Bridge — local MCP boundary for ChatGPT/Codex ──────────────
+  {
+    id: 'office-bridge',
+    label: 'Office Bridge',
+    description:
+      'Submit work to Michael, observe task lifecycle, add context, request cancellation, ' +
+      'and inspect office state. Protocol: office-bridge@1. Local stdio only.',
+    spec: {
+      command: 'node',
+      args: [
+        // Path relative to the munder-difflin project root.
+        // The Hive location is injected via HIVE_ROOT at merge time.
+        'src/mcp/office-bridge/server.js'
+      ],
+      env: {
+        // HIVE_ROOT is injected at merge time by buildDefaultMcpServers
+        HIVE_ROOT: ''
+      }
+    },
+    tier: 'write',
+    defaultEnabled: false
   }
 ];
 

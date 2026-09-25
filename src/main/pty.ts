@@ -468,6 +468,9 @@ export class PtyManager {
       const winCandidates = [
         `${appData}\\npm\\${command}.cmd`,
         `${appData}\\npm\\${command}`,
+        `${home}\\.opencode\\bin\\${command}.cmd`,
+        `${home}\\.opencode\\bin\\${command}.exe`,
+        `${home}\\.opencode\\bin\\${command}`,
         `${localAppData}\\Programs\\claude\\${command}.exe`,
         `${home}\\.claude\\local\\${command}.cmd`,
         `${home}\\.claude\\local\\${command}`
@@ -488,6 +491,7 @@ export class PtyManager {
       `/opt/homebrew/bin/${command}`,
       `/usr/local/bin/${command}`,
       `${process.env.HOME ?? ''}/.local/bin/${command}`,
+      `${process.env.HOME ?? ''}/.opencode/bin/${command}`,
       `${process.env.HOME ?? ''}/.claude/local/${command}`,
       `${process.env.HOME ?? ''}/.volta/bin/${command}`
     ];

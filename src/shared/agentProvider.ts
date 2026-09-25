@@ -1,8 +1,8 @@
 /**
  * Agent providers — the CLI a worker runs on. The app is no longer Claude-only:
  * a worker can run Claude Code, the OpenAI Codex CLI (`codex`), Kimi Code
- * (`kimi`), xAI Grok (`grok`), the Antigravity CLI (`agy`, Gemini models), or
- * any custom command.
+ * (`kimi`), xAI Grok (`grok`), the Antigravity CLI (`agy`, Gemini models), the
+ * local OpenISy CLI (`openisy`), or any custom command.
  * Each provider declares how to build its spawn command (model/auto-mode flags) and
  * whether it accepts the hive's Claude-specific identity injection
  * (`--append-system-prompt` + `--settings`).
@@ -30,6 +30,7 @@ export type AgentProvider =
   | 'antigravity'
   | 'qwen'
   | 'opencode'
+  | 'openisy'
   | 'crush'
   | 'pi'
   | 'copilot'
@@ -415,6 +416,41 @@ export const AGENT_PROVIDER_PRESETS: AgentProviderPreset[] = [
     docsUrl: 'https://opencode.ai/docs'
   },
   {
+    // OpenISy — the locally maintained OpenCode-compatible CLI. It is deliberately
+    // a separate provider so Munder can launch the external binary without
+    // importing or vendorizing the OpenISy repository.
+    //
+    // God-eligible via the 'opencode' hook bridge: OpenISy shares OpenCode's
+    // plugin API (verified: `task-compose-guard.ts` loads from
+    // `.opencode/plugins/`), so `installOpenCodePlugin` installs the same
+    // `hive-bridge.js` plugin that fires on `session.idle` + tool events and
+    // posts HIVE_SOCK payloads — the same Stop→drain semantics as Codex/Claude.
+    // LIVE-UNVERIFIED: plugin auto-load from the per-agent OPENCODE_CONFIG_DIR
+    // and `session.idle` firing need BYOK keys to confirm end-to-end; the
+    // renderer idle inbox-wake nudge is the guaranteed drain fallback.
+    id: 'openisy',
+    label: 'OpenISy',
+    defaultCommand: 'openisy',
+    commandGroups: [],
+    // The checked-in OpenISy launcher sets this too; keeping it here makes a
+    // custom/bare launcher receive the same L1 command surface on every OS.
+    nonInteractiveEnv: { OPENCODE_EXPERIMENTAL_L1: '1' },
+    autoModeFlag: '',
+    autoFlag: '',
+    supportsModel: true,
+    modelFlag: '--model',
+    // hiveAware=false: OpenISy takes the hive protocol as a positional initial
+    // prompt (same as OpenCode), not via --append-system-prompt (Claude-only).
+    hiveAware: false,
+    bridge: { kind: 'hooks', shim: 'opencode' },
+    // Inbox drains via the opencode hook bridge's session.idle→Stop; the
+    // renderer idle inbox-wake nudge is the guaranteed fallback.
+    canReceiveInbox: true,
+    initialPromptFlag: '--prompt',
+    resumeFlag: undefined,
+    recommendedOrchestratorModel: undefined
+  },
+  {
     // Crush — Charmbracelet's Go TUI coding agent (charmbracelet/crush), successor to
     // the archived Go opencode-ai/opencode. Non-hiveAware. Its hook surface is
     // Claude-shaped but exposes ONLY PreToolUse today (NO Stop/SessionEnd) — so a
@@ -587,6 +623,7 @@ export function isAgentProvider(value: unknown): value is AgentProvider {
     value === 'antigravity' ||
     value === 'qwen' ||
     value === 'opencode' ||
+    value === 'openisy' ||
     value === 'crush' ||
     value === 'pi' ||
     value === 'copilot' ||
@@ -639,6 +676,7 @@ export function inferAgentProvider(command: string | undefined, explicit?: unkno
   if (bin === 'agy' || bin === 'antigravity') return 'antigravity';
   if (bin === 'qwen') return 'qwen';
   if (bin === 'opencode') return 'opencode';
+  if (bin === 'openisy') return 'openisy';
   if (bin === 'crush') return 'crush';
   if (bin === 'pi') return 'pi';
   if (bin === 'copilot') return 'copilot';

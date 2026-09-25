@@ -17,7 +17,7 @@ const {
 // — the queue's one-pending-compact invariant depends entirely on this predicate —
 
 test('isCompactionCommand matches every provider that has a compact verb', () => {
-  for (const p of ['claude', 'codex', 'grok', 'kimi', 'qwen', 'opencode', 'pi', 'copilot', 'cursor']) {
+  for (const p of ['claude', 'codex', 'grok', 'kimi', 'qwen', 'opencode', 'openisy', 'pi', 'copilot', 'cursor']) {
     const cmd = compactionCommandForProvider(p, '');
     if (!cmd) continue; // provider has no typeable compaction — nothing to dedupe
     assert.equal(isCompactionCommand(cmd), true, `${p}: ${cmd}`);
@@ -55,6 +55,7 @@ test('each provider receives only its supported compaction syntax', () => {
   assert.equal(compactionCommandForProvider('kimi', ''), '/compact');
   assert.equal(compactionCommandForProvider('qwen', ''), '/compress');
   assert.equal(compactionCommandForProvider('opencode', ''), '/compact');
+  assert.equal(compactionCommandForProvider('openisy', ''), '/compact');
   assert.equal(compactionCommandForProvider('pi', ''), '/compact');
 
   // No command we can trust → no keystrokes at all.
@@ -74,6 +75,7 @@ test('the focus rides along only where the TUI parses it', () => {
   // codex/opencode ignore trailing text, so it must be dropped, not typed.
   assert.equal(compactionCommandForProvider('codex', focus), '/compact');
   assert.equal(compactionCommandForProvider('opencode', focus), '/compact');
+  assert.equal(compactionCommandForProvider('openisy', focus), '/compact');
 
   // Omitting the message keeps the trigger default, not a bare command.
   assert.equal(
@@ -94,6 +96,7 @@ test('clearing uses each CLI own verb, not a hardcoded /clear', () => {
   // These three start a fresh session instead — '/clear' is not a command there.
   assert.equal(clearCommandForProvider('grok'), '/new');
   assert.equal(clearCommandForProvider('opencode'), '/new');
+  assert.equal(clearCommandForProvider('openisy'), '/new');
   assert.equal(clearCommandForProvider('pi'), '/new');
   // Palette-only TUI, print-mode CLI, Cursor (unverified slash surface), unknown binary.
   for (const p of ['crush', 'copilot', 'cursor', 'custom']) {

@@ -93,6 +93,21 @@ test('codex preset still resolves (no regression)', () => {
   assert.strictEqual(ap.providerPreset('codex').defaultCommand, 'codex');
 });
 
+test('OpenISy is a god-eligible provider via the opencode hook bridge', () => {
+  assert.ok(ap.isAgentProvider('openisy'), 'isAgentProvider("openisy")');
+  assert.strictEqual(ap.inferAgentProvider('openisy --model local/llama3'), 'openisy');
+  assert.strictEqual(ap.inferAgentProvider('/home/user/.opencode/bin/openisy --prompt hi'), 'openisy');
+  const p = ap.providerPreset('openisy');
+  assert.strictEqual(p.defaultCommand, 'openisy');
+  assert.strictEqual(p.initialPromptFlag, '--prompt');
+  assert.strictEqual(p.modelFlag, '--model');
+  assert.strictEqual(p.autoModeFlag, '');
+  assert.strictEqual(p.hiveAware, false);
+  assert.strictEqual(p.canReceiveInbox, true, 'inbox drains via the opencode hook bridge (session.idle → Stop)');
+  assert.deepStrictEqual(ap.bridgeOf('openisy'), { kind: 'hooks', shim: 'opencode' }, 'bridge descriptor routes to installOpenCodePlugin');
+  assert.deepStrictEqual(ap.nonInteractiveEnvForProvider('openisy'), { OPENCODE_EXPERIMENTAL_L1: '1' });
+});
+
 if (failures > 0) {
   console.log(`\n${failures} test(s) failed`);
   process.exit(1);

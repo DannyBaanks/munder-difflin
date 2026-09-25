@@ -70,6 +70,7 @@ visualized as avatars at work on a shared office floor.
 - [What it is](#what-it-is)
 - [How it works](#how-it-works)
 - [Features](#features)
+- [This fork](#this-fork)
 - [Getting started](#getting-started)
 - [Architecture & project structure](./docs/ARCHITECTURE.md)
 - [Roadmap](#roadmap)
@@ -261,7 +262,7 @@ than sending you to a docs page.
 - **Shareable hires + Agent Gallery** — import a role from a `munderdifflin://hire` link; import only pre-fills the form, a human still spawns it. Browse roles at the [Agent Gallery](https://munderdiffl.in/hires/).
 - **BYOK keys + local LLMs** — per-provider keys in a write-only secret broker, plus Ollama / LM Studio / vLLM base URLs. Guides: [open models](https://munderdiffl.in/blog/run-munder-difflin-on-open-models/) · [Mac Mini](https://munderdiffl.in/blog/run-munder-difflin-on-a-mac-mini/).
 - **Updates in one click**: the title-bar badge runs the real update. It downloads the build for your machine, then restarts and installs it, and it reads `latest` once a check confirms you are current. A manual download is the fallback for when the updater cannot fetch the build itself. The first run afterwards opens that release's notes as a designed page rather than a version number.
-- **Your language**: English, Simplified Chinese and Arabic, with right to left layout for Arabic. English is the default and nothing changes until you pick another one in Settings. The app does not read your OS locale. All three app fonts ship inside the bundle, so nothing is fetched at boot.
+- **Your language**: English, Spanish, Simplified Chinese and Arabic, with right to left layout for Arabic. English is the default and nothing changes until you pick another one in Settings. The app does not read your OS locale. The app fonts ship inside the bundle, so nothing is fetched at boot.
 - **Prerequisites** — one Settings page showing which supporting tools (uv, git, Node, MemPalace, each agent CLI) you have, what each is for, and a button that asks Michael to install what is missing.
 
 > [!NOTE]
@@ -288,6 +289,17 @@ than sending you to a docs page.
 > and it has been removed entirely.
 > macOS (signed & notarized), Windows, and Linux builds are on the
 > [releases page](https://github.com/chaitanyagiri/munder-difflin/releases/latest).
+
+<div align="right">(<a href="#munder-difflin">↑ back to top</a>)</div>
+
+## This fork
+
+This tree is [DannyBaanks/munder-difflin](https://github.com/DannyBaanks/munder-difflin), a fork of [chaitanyagiri/munder-difflin](https://github.com/chaitanyagiri/munder-difflin). Signed installers stay on the upstream releases page. What this fork adds on top of v0.4.6:
+
+- **Spanish** in the language picker, next to English, Simplified Chinese and Arabic. English is still the default until you pick another language in Settings.
+- **Loopback control channel.** While the app is running it binds `127.0.0.1` only, writes `{ port, token }` to a `0600` file under userData, and serves `GET /salud`, `GET /sesion`, `POST /sesion/agentes`, `DELETE /sesion/agentes/:id`, plus an on-demand repaint. Nothing on that port is reachable off the machine, and a request without the boot token is refused.
+- **Linux launcher.** `./start.sh` starts the built app detached from the terminal, so agent PTYs are not frozen by `SIGTSTP`. `./start.sh --user-data-dir DIR` is a second session with its own config.
+- **Delivery supervision.** If outbox mail is queued and the router loop has stopped, the 15s wake beat re-arms it and drains the backlog. A tool event with no input no longer counts as a repeated identical call.
 
 <div align="right">(<a href="#munder-difflin">↑ back to top</a>)</div>
 

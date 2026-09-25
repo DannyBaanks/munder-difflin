@@ -184,6 +184,16 @@ export class CircuitBreaker {
    *  no-progress arm reads); the SAME key in a row is the loop signal. */
   recordToolUse(agentId: string, toolName: string | undefined, toolInput: unknown, now = Date.now()): void {
     const s = this.get(agentId);
+    if (toolInput === undefined || toolInput === null) {
+      // Absence of evidence is not evidence of a loop: the Pi bridge and the
+      // OpenCode plugin post PostToolUse WITHOUT tool_input, so every call
+      // through them keys identically and any N consecutive same-tool calls
+      // read as an N× "identical" loop (observed: boot sequences and standby
+      // inbox polling tripping the loop arm). Skip repeat accounting for
+      // input-less events; the velocity / error-storm / no-progress arms still
+      // apply to these agents unchanged.
+      return;
+    }
     const key = this.toolKey(toolName, toolInput);
     if (key === s.repeatKey) {
       s.repeatCount += 1;

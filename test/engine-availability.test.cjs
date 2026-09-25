@@ -41,6 +41,13 @@ test('a missing engine with an installer installs on first run and does not bloc
   }
 });
 
+test('OpenISy remains an honest manual install until its external launcher is present', () => {
+  const a = classifyEngineAvailability(statusesFor([]), 'openisy');
+  assert.equal(a.state, 'not-installable');
+  assert.equal(a.installCommand, '');
+  assert.equal(engineBlocksOnboarding(a), true);
+});
+
 test('the repro: grok, antigravity and qwen are offered by the wizard but cannot install', () => {
   const s = statusesFor([]);
   const offered = AGENT_PROVIDER_PRESETS.filter((p) => canReceiveInbox(p.id)).map((p) => p.id);

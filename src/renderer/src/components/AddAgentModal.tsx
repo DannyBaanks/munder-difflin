@@ -993,7 +993,7 @@ export function AddAgentModal({ onClose, config, onConfigChange }: AddAgentModal
                       </Row>
                     )}
 
-                    {(provider === 'opencode' || provider === 'crush' || provider === 'pi' || provider === 'qwen') && (
+                    {(provider === 'opencode' || provider === 'openisy' || provider === 'crush' || provider === 'pi' || provider === 'qwen') && (
                       <div style={{ fontSize: 12, color: 'var(--cth-ink-500)', lineHeight: '16px', margin: '2px 0 6px' }}>
                         {tr('addAgent.byokNote')}
                         {' '}
