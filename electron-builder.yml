@@ -69,6 +69,12 @@ extraResources:
     to: kg.cjs
   - from: src/main/kg-core.cjs
     to: kg-core.cjs
+  # Munder Link engine for Settings → Munder Link (same files as `munder link`;
+  # builtins only). link-serve.cjs is the detached server the tab turns on.
+  - from: tools/munder/lib-link.cjs
+    to: munder/lib-link.cjs
+  - from: tools/munder/link-serve.cjs
+    to: munder/link-serve.cjs
   # Bundled default skills (read-only/no-secret). copyBundledSkills() reads these
   # from skillsResourceDir() = <process.resourcesPath>/skills in the packaged app
   # and refreshes each agent's .claude/skills/ per spawn (dev resolves to
