@@ -31,7 +31,13 @@ const whoCards = [['angela', 'Angela', 'wrote the tests'], ['oscar', 'Oscar', 'r
 
 const floor = ['michael', 'jim', 'pam', 'dwight', 'angela', 'kevin'].map((n) => `<div class="deskp">${pt(n)}<i class="tbl"></i></div>`).join('');
 const rail = `<div class="rail"><div class="ri sel">${pt('michael')}Michael<small>working</small></div><div class="ri">${pt('angela')}Angela<small>working</small></div><div class="ri">${pt('oscar')}Oscar</div><div class="ri">${pt('kevin')}Kevin<small>working</small></div><div class="ri">${pt('dwight')}Dwight</div></div><div class="pane2"><span><b>michael</b> › ship the signup fix</span><span>→ acm-1 to Dwight</span><span>→ acm-3 to Angela</span><span>✓ acm-4 reviewed by Oscar</span><span class="blobf"></span></div>`;
-const nightRow = ['jim', 'pam', 'dwight', 'michael', 'angela', 'oscar', 'kevin', 'creed'].map((n) => `<div class="nd">${pt(n)}<i class="mon"></i><i class="tbl"></i></div>`).join('');
+// the floors building: each floor is its own office on its own folder, stacked, with an empty one on top for New Floor
+const storey = (n, dir, crew, st) => `<div class="storey s${n}"><div class="sy-h"><b>Floor ${n}</b><span>${dir}</span><em>${st}</em></div><div class="sy-d">${crew.map((c) => `<div class="sy-p">${pt(c)}<i class="tbl"></i></div>`).join('')}</div></div>`;
+const tower = `<div class="storey snew"><span>New Floor</span><span class="kbd">⇧ ⌘ N</span></div>` +
+  storey(2, '~/side/app', ['michael', 'dwight', 'angela', 'oscar'], '4 working') +
+  storey(1, '~/work/client', ['michael', 'jim', 'pam', 'kevin', 'creed'], '5 working') +
+  `<div class="lobby"><span>One licence · one machine</span></div>`;
+const nightRow =['jim', 'pam', 'dwight', 'michael', 'angela', 'oscar', 'kevin', 'creed'].map((n) => `<div class="nd">${pt(n)}<i class="mon"></i><i class="tbl"></i></div>`).join('');
 
 
 // the local machine: a laptop with the office on its screen, your subscriptions on the left, your tools on the right,
@@ -70,6 +76,7 @@ const faq = [
   ['What is Munder Difflin?', 'A free and open source multi agent harness for macOS, Windows and Linux. It runs Claude Code, Codex, Gemini CLI, Copilot, Cursor and seven more coding agents as one team of clones on your own machine, on the subscriptions you already pay for.'],
   ['Does it work with my Claude Code subscription?', 'Yes. Munder Difflin drives the Claude Code CLI you already use, so your plan and its hourly limits do the work. The same goes for Codex, Gemini CLI and the other providers.'],
   ['Which coding agents does it support?', 'Twelve: Claude Code, Codex, Grok, Kimi Code, Antigravity, Qwen, Gemini CLI, OpenCode, Crush, Pi, Copilot and Cursor. New models show up in the pickers without a new version.'],
+  ['Can I run agents on more than one project at once?', 'Yes. Each project gets its own floor: File, New Floor opens a second office in its own window, on its own folder, with its own agents, board and memory. Floors run side by side, one folder only ever opens in one floor, and one licence covers every floor on your machine.'],
   ['Does my code ever leave my laptop?', 'No. Your node runs on your machine. Code, keys and personal context stay there. The only thing that travels is clone to clone messages, sealed on your machine and opened only on your teammate\'s.'],
   ['Can the Stapler replace Granola and Wispr Flow?', 'That is what it is built for. It takes dictation in any app and writes down your meetings, both sides of the call, with transcription running on your machine. Then it hands the text to your agents.'],
   ['Is the Stapler free?', 'The Stapler is part of Pro, with a 14 day trial. Dictation in the Munder Difflin message box works in the free version too.'],
@@ -116,7 +123,7 @@ ${L[28]}
 let body = rd('body.html')
   .replace(/\{\{RAW:(\d+),(\d+)\}\}/g, (_, a, b) => raw(+a, +b))
   .replace('{{DESKS}}', desks).replace('{{ROSTER}}', roster).replace('{{WHO}}', whoCards)
-  .replace('{{FLOOR}}', floor).replace('{{RAIL}}', rail).replace('{{NIGHT}}', nightRow).replace('{{MACHINE}}', machineSvg).replace('{{FAQ}}', faqHtml);
+  .replace('{{FLOOR}}', floor).replace('{{RAIL}}', rail).replace('{{NIGHT}}', nightRow).replace('{{MACHINE}}', machineSvg).replace('{{FAQ}}', faqHtml).replace('{{TOWER}}', tower);
 if (/\{\{/.test(body)) throw new Error('unfilled slot');
 
 const html = [
