@@ -4187,6 +4187,18 @@
     },
     "youtube": []
   },
+  "indian-open-source-ai-projects-vs-big-tech": {
+    "title": "Top 10 Indian open source projects that are giving US big tech a tough time",
+    "category": "comparisons",
+    "hero": {
+      "file": "assets/media/indian-open-source-ai-projects-vs-big-tech/hero.png",
+      "alt": "Ten small colourful mascots labelled Laya, Mem0, Munder Difflin, Plane, ToolJet, Khoj, Chatwoot, SigNoz, Supermemory and Composio pull a rope against a sweating grey robot labelled big tech, covered in stickers for Meta, Google, Microsoft, OpenAI, Amazon, SpaceXAI, Salesforce and Atlassian",
+      "prompt": "",
+      "status": "ready"
+    },
+    "inline": {},
+    "youtube": []
+  },
   "munder-difflin-0-5-3": {
     "title": "Munder Difflin 0.5.3: Stapler Listens, And It Listens Locally",
     "category": "story",

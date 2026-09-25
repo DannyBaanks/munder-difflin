@@ -16,6 +16,14 @@
     <summary>0.5.3 turns the Stapler into dictation for any app and a meeting recorder that hears both sides of a call, all on your machine. Plus the new sidebar, a Tasks tab with real ticket keys, two floors on one computer, Opus 5.5 as the default, and a long list of fixes.</summary>
   </entry>
   <entry>
+    <title>Top 10 Indian open source projects that are giving US big tech a tough time</title>
+    <link href="https://munderdiffl.in/blog/indian-open-source-ai-projects-vs-big-tech/" />
+    <id>https://munderdiffl.in/blog/indian-open-source-ai-projects-vs-big-tech/</id>
+    <published>2026-09-25T00:00:00.000Z</published>
+    <updated>2026-09-25T00:00:00.000Z</updated><category term="Comparisons" />
+    <summary>Ten open source AI projects from Indian developers, each lined up against the big tech product it takes on. Laya vs Jev, Munder Difflin vs Muse and Grok Bot.</summary>
+  </entry>
+  <entry>
     <title>Aider vs Claude Code in 2026: Which Should You Use?</title>
     <link href="https://munderdiffl.in/blog/aider-vs-claude-code/" />
     <id>https://munderdiffl.in/blog/aider-vs-claude-code/</id>
@@ -478,13 +486,5 @@
     <published>2026-06-27T00:00:00.000Z</published>
     <updated>2026-06-27T00:00:00.000Z</updated><category term="Story" />
     <summary>Munder Difflin v0.3.2 adds Realtime Michael — a low-latency voice channel to the GOD orchestrator. Talk to Michael and he listens, answers, and acts: reading the hive and, behind spoken echo-back confirmation, dispatching, spawning, and steering the floor in real time.</summary>
-  </entry>
-  <entry>
-    <title>Run Munder Difflin Locally on a Mac Mini</title>
-    <link href="https://munderdiffl.in/blog/run-munder-difflin-on-a-mac-mini/" />
-    <id>https://munderdiffl.in/blog/run-munder-difflin-on-a-mac-mini/</id>
-    <published>2026-06-22T00:00:00.000Z</published>
-    <updated>2026-09-10T00:00:00.000Z</updated><category term="Guides" />
-    <summary>Run a whole Munder Difflin office offline on an Apple silicon Mac mini: size the model to your unified memory, install Ollama or LM Studio, and wire OpenCode, Crush, Qwen and Pi to it. Current as of Munder Difflin 0.5.2 and the M6 and M5 Pro Mac mini.</summary>
   </entry>
 </feed>
