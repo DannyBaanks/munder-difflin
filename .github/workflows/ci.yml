@@ -37,7 +37,10 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        os: [ubuntu-latest, windows-latest, macos-latest]
+        # windows-2022, not -latest: the same image release.yml builds the .exe on
+        # (and the VS 2022 Build Tools install.ps1 installs). windows-latest ships
+        # Visual Studio 18, which @electron/rebuild's node-gyp can't detect yet.
+        os: [ubuntu-latest, windows-2022, macos-latest]
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-node@v4
@@ -56,7 +59,10 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        os: [ubuntu-latest, windows-latest, macos-latest]
+        # windows-2022, not -latest: the same image release.yml builds the .exe on
+        # (and the VS 2022 Build Tools install.ps1 installs). windows-latest ships
+        # Visual Studio 18, which @electron/rebuild's node-gyp can't detect yet.
+        os: [ubuntu-latest, windows-2022, macos-latest]
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-node@v4
