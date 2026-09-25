@@ -1682,10 +1682,11 @@ async function interactiveMenu() {
       { label: '◈ Proveedores y modelos…', value: 'proveedor' },
       { label: '◍ Avatar (lienzo/editar)…', value: 'avatar' },
       { label: '✦ Repintar interfaz', value: 'repaint' },
+      { label: '⇄ Oficinas enlazadas (Munder Link)…', value: 'link' },
       { label: 'Salir', value: 'quit' },
     ]);
     console.log('');
-    if (i < 0 || i === 10) { console.log(st('  nos vemos :p', C.dim)); return; }
+    if (i < 0 || i === 11) { console.log(st('  nos vemos :p', C.dim)); return; }
     if (i === 0) { if (running) await cmdStatus(); else await cmdStart(false); }
     else if (i === 1) await cmdStop();
     else if (i === 2) { await cmdStop(); await cmdStart(false); }
@@ -1700,6 +1701,13 @@ async function interactiveMenu() {
     else if (i === 7) await cmdSesionProveedor([]);
     else if (i === 8) await cmdAvatar([]);
     else if (i === 9) await cmdRepaint();
+    else if (i === 10) {
+      await cmdLink(['estado']);
+      if (Object.keys(require('./lib-link.cjs').loadPeers()).length === 0) {
+        const a = (await ask('¿Buscar oficinas y enlazar una ahora? [s/N] ')).trim().toLowerCase();
+        if (a === 's' || a === 'si' || a === 'sí') await cmdLink(['conectar']);
+      }
+    }
     console.log('');
   }
 }
@@ -1741,6 +1749,9 @@ Comandos:
   repaint           Pide a la app viva repintar su interfaz (sin reiniciar).
   ctl ping          Prueba el canal de control de la app viva (M0).
   ctl limpiar       Borra munder-control.json huérfano (puerto cerrado + sin procesos).
+  link conectar     Enlaza esta oficina con otra (misma red o Tailscale): busca,
+                    muestra un código de 6 dígitos y empareja. Luego:
+                    link enviar <oficina> "tarea" · link estado · link ayuda
   ps              Lista PIDs del dev (sin matar nada)
   check           Verifica checkout: package.json + node_modules
   help            Esta ayuda
@@ -1762,6 +1773,14 @@ Ejemplos:
   munder create-harness ~/Development harness-isYco`);
 }
 
+// ─── link (Munder Link: oficinas enlazadas; ver LINK.md) ────────────────────
+async function cmdLink(args) {
+  let version = 'dev';
+  try { version = JSON.parse(fs.readFileSync(path.join(MUNDER_DIR, 'package.json'), 'utf8')).version; } catch { /* sin checkout */ }
+  const { runLink } = require('./lib-link-cli.cjs');
+  await runLink(args, { say, die, st, C, select, ask, IS_TTY, scriptPath: __filename, version });
+}
+
 // ─── dispatch ──────────────────────────────────────────────────────────────
 async function main() {
   const [cmd, ...rest] = process.argv.slice(2);
@@ -1780,13 +1799,14 @@ async function main() {
     case 'avatar': await cmdAvatar(rest); break;
     case 'repaint': await cmdRepaint(); break;
     case 'ctl': await cmdCtl(rest); break;
+    case 'link': await cmdLink(rest); break;
     case 'ps': cmdPs(); break;
     case 'check': cmdCheck(); break;
     case '--stop': await cmdStop(); break;
     case '--check': cmdCheck(); break;
     case '--fg': await cmdStart(true); break;
     case 'help': case '--help': case '-h': printHelp(); break;
-    default: die(`comando desconocido '${cmd}'. Usa: munder {start|stop|restart|status|logs|create-harness|ps|check|help}`);
+    default: die(`comando desconocido '${cmd}'. Usa: munder {start|stop|restart|status|logs|create-harness|link|ps|check|help}`);
   }
 }
 

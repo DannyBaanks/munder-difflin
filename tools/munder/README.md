@@ -79,11 +79,17 @@ Mismo texto = mismo PNG. `INVALID_ENUM` + lista = corrige y reintenta.
 Detalle del formato para modelos: `AVATAR_AGENTES.md`.
 Spec congelado v1: `AVATAR_SPEC.md` + `avatar-spec.schema.json`.
 
+## Oficinas enlazadas (Munder Link)
+
+Enlaza esta oficina con otra máquina (misma red o Tailscale) para que un Michael le
+delegue trabajo al otro. En las dos: `munder link conectar`. Guía completa: [LINK.md](LINK.md).
+
 ## Tests
 
 ```bash
 node tools/munder/avatar.test.cjs
 node tools/munder/proveedor.test.cjs
+node --test tools/munder/link.test.cjs
 ```
 
 `avatar-engine.cjs` es GENERATED desde
