@@ -5,6 +5,7 @@ import { Server } from '@modelcontextprotocol/sdk/server/index.js';
 import { StdioServerTransport } from '@modelcontextprotocol/sdk/server/stdio.js';
 import { CallToolRequestSchema, ListToolsRequestSchema } from '@modelcontextprotocol/sdk/types.js';
 import { gateReachability } from './network-gate.mjs';
+import { SELF, isSelfQuery, selfNotAPeer, selfStatus, selfSummary } from './self-office.mjs';
 
 const require = createRequire(import.meta.url);
 const defaultLinkModule = fileURLToPath(new URL('../../../tools/munder/lib-link.cjs', import.meta.url));
@@ -17,12 +18,19 @@ const {
   findPeer,
   prettyFingerprint,
   stateDir,
+  loadIdentity,
+  localHiveRoot,
 } = link;
 
 const SERVER_NAME = 'munder-chatgpt-link';
 const SERVER_VERSION = '0.1.0';
 const PROTOCOL = 'munder-chatgpt-link@1';
 const LINK_DIR = process.env.MUNDER_LINK_DIR || stateDir();
+const identity = () => loadIdentity(LINK_DIR);
+/** Reject "self" on tools that only make sense against a peer. */
+function peerOnly(tool, office) {
+  if (isSelfQuery(office, identity())) throw selfNotAPeer(tool);
+}
 
 function asText(value, isError = false) {
   return {
@@ -93,23 +101,23 @@ server.setRequestHandler(ListToolsRequestSchema, async () => ({
       description: 'Verify that a paired Munder office is cryptographically authenticated and reachable over loopback, the same LAN subnet, or Tailscale. Performs a signed+encrypted status round-trip before returning success.',
       inputSchema: {
         type: 'object',
-        properties: { office: { type: 'string', description: 'Paired office name/id/prefix, e.g. xeon' } },
+        properties: { office: { type: 'string', description: `Paired office name/id/prefix, e.g. xeon; "${SELF}" is this office` } },
         required: ['office'],
       },
       annotations: { readOnlyHint: true, openWorldHint: false },
     },
     {
       name: 'munder_link_peers',
-      description: 'List locally paired Munder Link offices without exposing private keys.',
+      description: 'Where you are standing: `self` is the office this server runs in, `peers` are the offices paired with it. No private keys.',
       inputSchema: { type: 'object', properties: {} },
       annotations: { readOnlyHint: true, openWorldHint: false },
     },
     {
       name: 'munder_office_status',
-      description: 'Get capacity and Michael state from a verified paired office. The network/identity gate runs first.',
+      description: `Get capacity and Michael state from an office. "${SELF}" (or this office's own name/id) reads this machine directly; any other value is a verified paired office, network/identity gate first.`,
       inputSchema: {
         type: 'object',
-        properties: { office: { type: 'string' } },
+        properties: { office: { type: 'string', description: `"${SELF}" or a paired office name/id/prefix` } },
         required: ['office'],
       },
       annotations: { readOnlyHint: true, openWorldHint: false },
@@ -175,17 +183,22 @@ server.setRequestHandler(CallToolRequestSchema, async (request) => {
   try {
     switch (name) {
       case 'munder_link_verify':
+        if (isSelfQuery(args.office, identity())) {
+          return asText({ verified: true, self: true, peer: selfSummary(identity(), link), address: 'local', network: { ok: true, class: 'self' } });
+        }
         return asText(await verifyOffice(args.office));
 
       case 'munder_link_peers': {
         const peers = Object.values(loadPeers(LINK_DIR)).map(peerSummary);
-        return asText({ peers });
+        return asText({ self: selfSummary(identity(), link), peers });
       }
 
       case 'munder_office_status':
+        if (isSelfQuery(args.office, identity())) return asText(selfStatus(identity(), link, localHiveRoot()));
         return asText(await gatedCall(args.office, 'status'));
 
       case 'munder_compose_submit': {
+        peerOnly(name, args.office);
         const verification = await verifyOffice(args.office);
         const result = await delegate(args.office, args.compose, {
           title: args.title,
@@ -202,12 +215,15 @@ server.setRequestHandler(CallToolRequestSchema, async (request) => {
       }
 
       case 'munder_task_get':
+        peerOnly(name, args.office);
         return asText(await gatedCall(args.office, 'get', { task_id: args.task_id }));
 
       case 'munder_task_message':
+        peerOnly(name, args.office);
         return asText(await gatedCall(args.office, 'message', { task_id: args.task_id, message: args.message }));
 
       case 'munder_task_cancel':
+        peerOnly(name, args.office);
         return asText(await gatedCall(args.office, 'cancel', { task_id: args.task_id, reason: args.reason || '' }));
 
       default:

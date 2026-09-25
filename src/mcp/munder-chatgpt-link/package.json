@@ -12,6 +12,6 @@
   },
   "scripts": {
     "start": "node server.mjs",
-    "test": "node --test test-network-gate.mjs"
+    "test": "node --test test-network-gate.mjs test-self-office.mjs test-self-e2e.mjs"
   }
 }
