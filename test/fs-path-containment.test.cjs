@@ -165,7 +165,8 @@ test('an in-workspace symlink to an in-workspace target is followed, not refused
     assert.equal(viaLink.ok, true, viaLink.ok ? '' : viaLink.error);
     assert.equal(viaLink.content, 'in-workspace\n');
     assert.equal(
-      viaLink.path, path.join(fs.realpathSync(root), 'real.txt'),
+      // .native: on Windows the JS realpath keeps 8.3 short names (RUNNER~1).
+      viaLink.path, path.join(fs.realpathSync.native(root), 'real.txt'),
       'the link resolves to the canonical path of its target, not to the link'
     );
 

@@ -73,8 +73,10 @@ jobs:
       # tests that spawn real PTYs; the build gives start.sh --check its bundle.
       - run: npm ci
       - run: npm run build
+      # spec reporter: it ends with a "failing tests" summary, so every failure
+      # is in the tail of the log (TAP scatters them across ~6000 lines).
       - name: Focused tests
-        run: npm run test:focused
+        run: npm run test:focused -- --test-reporter=spec
       # proveedor.test.cjs is left out: it prompts for sudo and hangs headless.
       - name: munder CLI tests
         run: node --test tools/munder/link.test.cjs tools/munder/avatar.test.cjs

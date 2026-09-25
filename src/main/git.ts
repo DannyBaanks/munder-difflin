@@ -1,5 +1,6 @@
 import { spawn } from 'node:child_process';
 import { openForRead, safeResolve } from './fs';
+import { detachWorktreeDepsLink } from './worktreeDeps';
 
 /** Run git in `cwd` with `args`. Returns stdout text or an error. */
 function runGit(cwd: string, args: string[], timeoutMs = 8000): Promise<{
@@ -266,6 +267,10 @@ export async function addWorktree(
 export async function removeWorktree(
   cwd: string, wtPath: string
 ): Promise<{ ok: boolean; error?: string }> {
+  // The dependency link goes first, so no recursive delete can ever walk
+  // through it into the base checkout's node_modules (see worktreeDeps.ts).
+  const detached = await detachWorktreeDepsLink(wtPath);
+  if (!detached.ok) return { ok: false, error: `could not detach node_modules link: ${detached.error}` };
   const res = await runGit(cwd, ['worktree', 'remove', '--force', wtPath]);
   if (res.ok) return { ok: true };
   return { ok: false, error: res.error };

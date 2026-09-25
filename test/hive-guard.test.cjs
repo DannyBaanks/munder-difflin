@@ -73,8 +73,12 @@ test('`..` cannot smuggle a write out of an allowed folder', () => {
 
 test('case-insensitive file systems cannot be bypassed with capitals', () => {
   assert.equal(decide(`${HOME}/HIVE/Registry.json`, { caseInsensitive: true }).deny, true);
-  assert.equal(decide(`${HOME}/HIVE/Registry.json`, { caseInsensitive: false }).deny, false,
-    'on Linux that is genuinely a different folder');
+  // On Linux HIVE is genuinely another folder. Node's win32 path math already
+  // compares case-insensitively, so on Windows the guard (rightly) still denies.
+  if (process.platform !== 'win32') {
+    assert.equal(decide(`${HOME}/HIVE/Registry.json`, { caseInsensitive: false }).deny, false,
+      'on Linux that is genuinely a different folder');
+  }
 });
 
 test('read-only and shell tools are not judged here', () => {

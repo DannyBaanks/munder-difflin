@@ -73,14 +73,16 @@ test('the no-node script explains the real problem instead of failing at it', ()
 });
 
 test('the native rung actually runs, and says why it differs', () => {
-  const out = script('claude', false);
+  // The POSIX script (one command per line); win32 builds a one-line cmd.exe
+  // script, covered by its own tests below.
+  const out = script('claude', false, 'linux');
   assert.match(out, /no Node needed/);
-  const native = installInfoForProvider('claude').nativeCommand;
+  const native = installInfoForProvider('claude', 'linux').nativeCommand;
   assert.ok(out.split('\n').includes(native), 'the installer must be an executed line, not only echoed');
 });
 
 test('with npm present nothing mentions a missing Node', () => {
-  const out = script('claude', true);
+  const out = script('claude', true, 'linux');
   assert.doesNotMatch(out, /Node\.js is not installed/);
   assert.ok(out.split('\n').includes('npm install -g @anthropic-ai/claude-code'));
 });

@@ -91,7 +91,9 @@ test('validateHomeSwitch allows nested homes in fresh mode (multi-harness layout
 });
 
 test('validateHomeSwitch keeps refusing same-folder and nested moves', () => {
-  const dev = '/home/danny/Development';
+  // Absolute for THIS OS: the IPC resolves paths before calling, so on Windows
+  // they arrive as D:\… with backslashes, never as /home/….
+  const dev = path.resolve('/home/danny/Development');
   assert.deepStrictEqual(
     fsmod.validateHomeSwitch(dev, dev, 'fresh'),
     { ok: false, error: 'That is already the current home folder.' });
@@ -99,24 +101,26 @@ test('validateHomeSwitch keeps refusing same-folder and nested moves', () => {
     fsmod.validateHomeSwitch(dev, dev, 'move'),
     { ok: false, error: 'That is already the current home folder.' });
   // 'move' COPIES: nesting would self-copy forever, so it stays refused.
-  const r1 = fsmod.validateHomeSwitch(dev, `${dev}/harness-isYco`, 'move');
+  const r1 = fsmod.validateHomeSwitch(dev, path.join(dev, 'harness-isYco'), 'move');
   assert.strictEqual(r1.ok, false);
   assert.match(r1.error, /not inside/);
-  const r2 = fsmod.validateHomeSwitch(`${dev}/ISyCo`, dev, 'move');
+  const r2 = fsmod.validateHomeSwitch(path.join(dev, 'ISyCo'), dev, 'move');
   assert.strictEqual(r2.ok, false);
   assert.match(r2.error, /not inside/);
   // Sibling prefix lookalikes are NOT nesting ('harness2' vs 'harness').
   assert.deepStrictEqual(
-    fsmod.validateHomeSwitch(`${dev}/harness`, `${dev}/harness2`, 'move'), { ok: true });
+    fsmod.validateHomeSwitch(path.join(dev, 'harness'), path.join(dev, 'harness2'), 'move'), { ok: true });
   assert.deepStrictEqual(
     fsmod.validateHomeSwitch(dev, '', 'fresh'),
     { ok: false, error: 'invalid newHome' });
 });
 
 test('normalizeHiveHome puts the created home first in recents', () => {
-  const r = fsmod.normalizeHiveHome('/home/danny/harness2', ['/home/danny/Development']);
-  assert.strictEqual(r.home, '/home/danny/harness2');
-  assert.deepStrictEqual(r.recentHives.slice(0, 2), ['/home/danny/harness2', '/home/danny/Development']);
+  const h2 = path.resolve('/home/danny/harness2');
+  const dev = path.resolve('/home/danny/Development');
+  const r = fsmod.normalizeHiveHome(h2, [dev]);
+  assert.strictEqual(r.home, h2);
+  assert.deepStrictEqual(r.recentHives.slice(0, 2), [h2, dev]);
 });
 
 test('ensureHarnessGitignore writes runtime ignores into a fresh home', () => {

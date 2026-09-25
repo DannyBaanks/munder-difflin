@@ -21,7 +21,10 @@ const { projectDir } = loadTs('src/main/transcript.ts');
 function withHome(run) {
   const home = fs.mkdtempSync(path.join(os.tmpdir(), 'md-transcript-'));
   const prev = process.env.HOME;
+  const prevProfile = process.env.USERPROFILE;
   process.env.HOME = home;
+  // os.homedir() reads USERPROFILE on Windows, HOME everywhere else.
+  process.env.USERPROFILE = home;
   try {
     return run(home, (key) => {
       const dir = path.join(home, '.claude/projects', key);
@@ -31,6 +34,8 @@ function withHome(run) {
   } finally {
     if (prev === undefined) delete process.env.HOME;
     else process.env.HOME = prev;
+    if (prevProfile === undefined) delete process.env.USERPROFILE;
+    else process.env.USERPROFILE = prevProfile;
     fs.rmSync(home, { recursive: true, force: true });
   }
 }

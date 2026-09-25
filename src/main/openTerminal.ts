@@ -35,7 +35,7 @@
  */
 import { spawn, spawnSync } from 'node:child_process';
 import { existsSync } from 'node:fs';
-import { join } from 'node:path';
+import { posix } from 'node:path';
 
 export type TerminalKind =
   | 'gnome-terminal'
@@ -92,12 +92,14 @@ const defaultDeps: TerminalDeps = {
 
 /** First installed emulator wins, in LINUX_CANDIDATES order. Null = none found. */
 export function resolveLinuxTerminal(deps: TerminalDeps = defaultDeps): ResolvedTerminal | null {
-  const homeBin = join(deps.homeDir(), '.local', 'bin');
+  // Linux paths on purpose (posix.join): this only resolves Linux terminals,
+  // and the native join would spell them `\usr\bin\…` on a Windows build.
+  const homeBin = posix.join(deps.homeDir(), '.local', 'bin');
   for (const c of LINUX_CANDIDATES) {
     const fromPath = deps.which(c.name);
     if (fromPath) return { bin: fromPath, kind: c.kind };
     for (const dir of [...SYSTEM_BIN_DIRS, homeBin]) {
-      const p = join(dir, c.name);
+      const p = posix.join(dir, c.name);
       if (deps.exists(p)) return { bin: p, kind: c.kind };
     }
   }
