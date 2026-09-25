@@ -1617,6 +1617,14 @@
     "pairingHint": "On {{name}} open Settings → Munder Link (or run `munder link aceptar`) and check it shows this same code.",
     "codesMatch": "The code matches",
     "codesDiffer": "It doesn't match, cancel",
-    "paired": "Done on this side. Once {{name}} accepts, you can delegate work to each other."
+    "paired": "Done on this side. Once {{name}} accepts, you can delegate work to each other.",
+    "phoneBadge": "· phone",
+    "pendingPhoneHint": "A phone that is accepted can see the board, answer the questions on it and message your {{godName}}. It is not an office: it never receives work.",
+    "phones": "Phones",
+    "phonesDesc": "Run this office from your phone: open one of these addresses in Safari, add it to the home screen, then pair it from the icon. The code shows up above, under requests. Pair over Tailscale if you can: over plain home Wi-Fi the page itself is not signed.",
+    "viaTailscale": "Tailscale (works away from home)",
+    "viaLan": "home network ({{ifname}})",
+    "noAppUrls": "This machine has no LAN or Tailscale address right now.",
+    "noPhones": "No phone paired yet."
   }
 }

@@ -1617,6 +1617,14 @@
     "pairingHint": "在 {{name}} 上打开 设置 → Munder Link（或运行 `munder link aceptar`），确认显示相同的代码。",
     "codesMatch": "代码一致",
     "codesDiffer": "不一致，取消",
-    "paired": "本端已完成。{{name}} 接受后，你们就可以互相委派工作。"
+    "paired": "本端已完成。{{name}} 接受后，你们就可以互相委派工作。",
+    "phoneBadge": "· 手机",
+    "pendingPhoneHint": "被接受的手机可以查看看板、回答上面的问题，并给你的 {{godName}} 发消息。它不是办公室：永远不会接收工作。",
+    "phones": "手机",
+    "phonesDesc": "用手机管理这个办公室：在 Safari 中打开下面任一地址，添加到主屏幕，然后从图标进行配对。代码会显示在上方的请求中。尽量通过 Tailscale 配对：在家里的普通 Wi-Fi 上，页面本身没有签名。",
+    "viaTailscale": "Tailscale（出门在外也能用）",
+    "viaLan": "家庭网络（{{ifname}}）",
+    "noAppUrls": "这台机器目前没有局域网或 Tailscale 地址。",
+    "noPhones": "还没有配对任何手机。"
   }
 }

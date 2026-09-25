@@ -24,7 +24,9 @@ const HELP = `munder link — enlaza oficinas (Michael ↔ Michael) por tu red o
   munder link tarea <oficina> <task_id>
   munder link mensaje <oficina> <task_id> "texto"
   munder link cancelar <oficina> <task_id> [motivo]
-  munder link olvidar <oficina> Quita la confianza en esa oficina
+  munder link olvidar <oficina|celular>
+                                Quita la confianza en esa oficina o celular
+  munder link celular           Maneja esta oficina desde el celular (Munder Remote)
   munder link nombre <nuevo>    Cambia el nombre de esta oficina
 
 Guía: tools/munder/LINK.md`;
@@ -142,7 +144,7 @@ async function runLink(args, h) {
         if (pending.length) {
           console.log('');
           console.log(st('SOLICITUDES', C.bold));
-          for (const q of pending) console.log(`  ${q.name}  ${L.prettyFingerprint(q.office_id)}  código ${q.code}  → munder link aceptar ${q.code}`);
+          for (const q of pending) console.log(`  ${q.name}${q.kind === 'remote' ? ' (celular)' : ''}  ${L.prettyFingerprint(q.office_id)}  código ${q.code}  → munder link aceptar ${q.code}`);
         }
         break;
       }
@@ -209,13 +211,14 @@ async function runLink(args, h) {
         if (!pending.length) { say('no hay solicitudes pendientes (duran 10 minutos)'); break; }
         let code = rest[0];
         if (!code) {
-          for (const q of pending) console.log(`  ${st(q.name, C.bold)}  ${L.prettyFingerprint(q.office_id)}  desde ${q.addresses.join(' ') || '?'}  código ${st(q.code.replace(/(\d{3})(\d{3})/, '$1 $2'), C.bold, C.green)}`);
+          for (const q of pending) console.log(`  ${st(q.name, C.bold)}${q.kind === 'remote' ? ' (celular)' : ''}  ${L.prettyFingerprint(q.office_id)}  desde ${q.addresses.join(' ') || '?'}  código ${st(q.code.replace(/(\d{3})(\d{3})/, '$1 $2'), C.bold, C.green)}`);
           if (!IS_TTY) die('escribe el código: munder link aceptar <código>');
           code = (await ask('Escribe el código que ves en la OTRA pantalla: ')).replace(/\s/g, '');
         }
         const p = L.acceptPending(code.replace(/\s/g, ''));
         if (!p) die('ese código no coincide con ninguna solicitud. Si no lo esperabas, no aceptes nada.');
-        say(`enlazada con ${p.name} (${L.prettyFingerprint(p.office_id)}). Ya puede delegarte trabajo.`);
+        if (p.kind === 'remote') say(`celular ${p.name} (${L.prettyFingerprint(p.office_id)}) emparejado. Ya puede manejar esta oficina.`);
+        else say(`enlazada con ${p.name} (${L.prettyFingerprint(p.office_id)}). Ya puede delegarte trabajo.`);
         break;
       }
       case 'enviar': case 'send': {
@@ -264,10 +267,31 @@ async function runLink(args, h) {
         break;
       }
       case 'olvidar': case 'forget': {
-        if (!rest[0]) die('uso: munder link olvidar <oficina>');
+        if (!rest[0]) die('uso: munder link olvidar <oficina|celular>');
         const p = L.forgetPeer(rest[0]);
-        if (!p) die(`no hay una oficina enlazada «${rest[0]}»`);
-        say(`olvidada: ${p.name}. Para volver a enlazarla hay que emparejar de nuevo.`);
+        if (p) { say(`olvidada: ${p.name}. Para volver a enlazarla hay que emparejar de nuevo.`); break; }
+        const phone = L.forgetRemote(rest[0]);
+        if (!phone) die(`no hay una oficina ni un celular «${rest[0]}»`);
+        say(`celular olvidado: ${phone.name}. Deja de funcionar en su siguiente llamada.`);
+        break;
+      }
+      case 'celular': case 'phone': case 'remote': {
+        const pid = daemonPid();
+        console.log(st('MUNDER REMOTE', C.bold) + st('  — esta oficina desde el celular', C.dim));
+        if (!pid) console.log(`  ${st('el enlace está apagado — munder link encender', C.yellow)}`);
+        const urls = L.appUrls();
+        if (!urls.length) console.log(st('  esta máquina no tiene dirección de red local ni de Tailscale', C.yellow));
+        for (const u of urls) console.log(`  ${st(u.url, C.cyan)}  ${st(u.via === 'tailscale' ? 'Tailscale (también fuera de casa)' : `red de casa (${u.ifname})`, C.dim)}`);
+        console.log('');
+        console.log('  1. Ábrela en Safari y toca Compartir → «Agregar a inicio».');
+        console.log('  2. Abre Munder desde el ícono y toca «Emparejar».');
+        console.log(`  3. Aquí: ${st('munder link aceptar', C.cyan)} si el código coincide con el del celular.`);
+        console.log(st('  Mejor por Tailscale: por el Wi-Fi de casa la página misma no va firmada.', C.dim));
+        const phones = Object.values(L.loadRemotes());
+        console.log('');
+        console.log(st('CELULARES', C.bold));
+        if (!phones.length) console.log(st('  ninguno todavía', C.dim));
+        for (const r of phones) console.log(`  ${st(r.name, C.bold)}  ${L.prettyFingerprint(r.device_id)}  ${st(`desde ${String(r.paired_at || '').slice(0, 10)}`, C.dim)}  → munder link olvidar ${r.device_id}`);
         break;
       }
       case 'nombre': case 'name': {

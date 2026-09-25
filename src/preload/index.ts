@@ -854,7 +854,8 @@ const api = {
       ipcRenderer.invoke('link:pairRequest', address),
     pairConfirm: (token: string): Promise<LinkResult<{ office_id: string; name: string }>> => ipcRenderer.invoke('link:pairConfirm', token),
     accept: (code: string): Promise<LinkResult<{ office_id: string; name: string }>> => ipcRenderer.invoke('link:accept', code),
-    forget: (officeId: string): Promise<LinkResult<{ office_id: string; name: string }>> => ipcRenderer.invoke('link:forget', officeId)
+    forget: (officeId: string): Promise<LinkResult<{ office_id: string; name: string }>> => ipcRenderer.invoke('link:forget', officeId),
+    forgetPhone: (deviceId: string): Promise<LinkResult<{ office_id: string; name: string }>> => ipcRenderer.invoke('link:forgetPhone', deviceId)
   },
 
   // ─── Enterprise Knowledge Graph (multimodal context for agents) ───────────

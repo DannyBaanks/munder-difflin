@@ -139,6 +139,10 @@ test('link-serve.cjs is a working server, the one the tab starts', async (t) => 
   });
   const card = await L.hello(`127.0.0.1:${port}`);
   assert.equal(card.name, 'michael-served');
+  // The same daemon serves the phone app (Munder Remote).
+  const app = await fetch(`http://127.0.0.1:${port}/app/`);
+  assert.equal(app.status, 200);
+  assert.match(await app.text(), /Munder Remote/);
   child.kill('SIGTERM');
   const [code, signal] = await new Promise((r) => child.on('exit', (c, s) => r([c, s])));
   if (process.platform === 'win32') {
@@ -148,4 +152,36 @@ test('link-serve.cjs is a working server, the one the tab starts', async (t) => 
   } else {
     assert.equal(code, 0, 'SIGTERM closes it cleanly');
   }
+});
+
+test('phones: a pending phone is marked, accepting it lists it apart from the peers, and forgetPhone revokes it', async (t) => {
+  const o = await serve(office('phones'));
+  t.after(() => o.server.close());
+  const C = require('../tools/munder/remote-app/remote-crypto.js');
+  const post = async (route, body) => (await fetch(`http://${o.address}${route}`, { method: 'POST', body: JSON.stringify(body) })).json();
+  const kp = C.x25519Keypair();
+  const nonce = C.random(16);
+  const r1 = await post('/remote/v1/pair', { name: 'iPhone', pub: C.b64u(kp.pub), commit: C.b64u(C.sha256(nonce)) });
+  await post('/remote/v1/reveal', { device_id: r1.device_id, nonce: C.b64u(nonce) });
+
+  // The panel reads A's state dir; this office is another one, so point it there for this test.
+  const prev = process.env.MUNDER_LINK_DIR;
+  process.env.MUNDER_LINK_DIR = o.dir;
+  t.after(() => { process.env.MUNDER_LINK_DIR = prev; });
+  const panel = new LinkPanel(L, noSpawn);
+  let st = await panel.status();
+  assert.equal(st.pending.length, 1);
+  assert.equal(st.pending[0].phone, true);
+  assert.ok(Array.isArray(st.appUrls));
+  const accepted = panel.accept(st.pending[0].code);
+  assert.equal(accepted.name, 'iPhone');
+
+  st = await panel.status();
+  assert.deepEqual(st.peers, []);
+  assert.equal(st.phones.length, 1);
+  assert.equal(st.phones[0].device_id, r1.device_id);
+  assert.throws(() => panel.forget(r1.device_id), /no está enlazada/, 'a phone is not forgotten as an office');
+  assert.equal(panel.forgetPhone(r1.device_id).name, 'iPhone');
+  assert.equal((await panel.status()).phones.length, 0);
+  assert.throws(() => panel.forgetPhone(r1.device_id), /no está emparejado/);
 });

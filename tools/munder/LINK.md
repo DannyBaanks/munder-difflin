@@ -143,6 +143,38 @@ ENLAZADAS
 
 `munder link encender` deja el servidor corriendo en segundo plano (puertos 47831/tcp y 47832/udp). `munder link apagar` lo detiene. `munder link servir` es lo mismo pero en primer plano, para ver qué pasa. **La máquina que va a recibir trabajo necesita el enlace encendido.** `conectar` lo enciende solo.
 
+## Munder Remote: la oficina desde el celular
+
+El mismo servidor del enlace sirve una app web en `/app`. Ábrela en el celular, agrégala a la pantalla de inicio y maneja esta oficina desde ahí.
+
+```bash
+munder link encender     # si no estaba encendido
+munder link celular      # te da las direcciones: Tailscale primero, luego tu red de casa
+```
+
+1. En el iPhone, abre en Safari la dirección que te dio `munder link celular`, por ejemplo `http://100.x.y.z:47831/app/`.
+2. Toca Compartir → **Agregar a inicio**.
+3. Abre **Munder** desde el ícono y toca **Emparejar**. Tiene que ser desde el ícono: la app de inicio guarda sus llaves aparte de Safari.
+4. El celular muestra un código de 6 dígitos. En la computadora, acéptalo con `munder link aceptar`, o en Configuración → Munder Link → Solicitudes. Solo si el código es el mismo.
+
+**Qué puedes hacer desde el celular:**
+- **Oficina:** estado de Michael, workers libres, tareas abiertas, RAM y CPU; el equipo; y un campo para pedirle algo a Michael.
+- **Preguntas:** las preguntas (`humanQA`) de las tarjetas bloqueadas. Tu respuesta se guarda en la tarjeta y le llega a Michael, igual que desde el tablero ASK ME.
+- **Tablero:** las tareas bloqueadas, en curso, por hacer y las últimas terminadas.
+- **Enlace:** las otras oficinas enlazadas en vivo, y delegarles trabajo.
+
+**Cómo está protegido:**
+- **Quién guarda qué.** El celular tiene su propia llave X25519, y la computadora lo guarda en `remotes.json`, no en `peers.json`. Un celular es un control remoto, no una oficina: no recibe trabajo, y otra oficina que reciba algo delegado desde él lo ve como enviado por **esta** oficina.
+- **Cómo viajan las llamadas.** Todas van cifradas y autenticadas (ChaCha20-Poly1305), con hora y protección contra repetición. El celular hace la criptografía en JavaScript puro (`remote-app/remote-crypto.js`) porque el navegador no da WebCrypto por `http://`. Los tests comprueban que da exactamente lo mismo que Node.
+- **El código de emparejamiento.** El celular se compromete a su nonce (manda solo su hash) antes de ver el de la computadora. Así, nadie en medio puede probar nonces hasta que los dos códigos coincidan.
+- **Revocar un celular.** Usa `munder link olvidar <celular>`, o Olvidar en Configuración → Munder Link → Celulares. Deja de funcionar en su siguiente llamada.
+
+**Trampas:**
+- **Mejor por Tailscale.** Por el Wi-Fi de casa (`http://192.168…`) las llamadas van cifradas, pero la página misma no va firmada. Alguien capaz de reescribir el tráfico de tu red podría servirle al celular una app modificada. Por Tailscale (WireGuard) eso no pasa.
+- **Cada dirección cuenta como una app distinta.** Para el navegador, la IP de tu casa y la de Tailscale son sitios distintos, cada uno con su emparejamiento. Si usas Tailscale también en casa, empareja solo por Tailscale.
+- **La hora.** Si el celular y la computadora difieren más de 2 minutos, las llamadas se rechazan. Deja la hora automática en los dos.
+- **Firewall.** Igual que el enlace entre oficinas: 47831/tcp tiene que estar abierto en la computadora.
+
 ## Cómo leer lo que ves
 
 | Ves | Significa | Qué hacer |
@@ -178,4 +210,5 @@ ENLAZADAS
 - Entre dos máquinas físicas distintas: todo lo de arriba se probó con dos oficinas en la misma computadora (también por su IP de Tailscale, `100.115.163.4`).
 - En Windows: la librería solo usa módulos de Node y debería funcionar, pero no se ha corrido allí. En Windows sería `node tools\munder\munder link conectar`.
 - `responder` entre dos máquinas distintas: el flujo completo se probó con las dos oficinas en la misma computadora.
+- Munder Remote en un iPhone de verdad: se probó en Chromium con el perfil de iPhone 13, en claro y oscuro, con la misma criptografía que usa Safari. Falta confirmar en Safari que «Agregar a inicio» conserva el emparejamiento después de cerrar la app.
 - Delegar automáticamente según la capacidad (el «router de oficinas»): el estado ya trae RAM, CPUs, carga y workers libres para decidirlo, pero la política todavía no existe.
