@@ -26,6 +26,8 @@ jobs:
       # it on the release branch, before a tag, instead of on launch day.
       - name: Release links consistent
         run: npm run check:links
+      - name: Unit tests
+        run: npm run test:focused
 
   build:
     name: Build

@@ -31,6 +31,15 @@ const NONCE_TTL_MS = 10 * 60_000;
 const PENDING_TTL_MS = 10 * 60_000;
 const MAX_PENDING = 5;
 const MAX_BODY = 256 * 1024;
+// Retry and concurrency ceilings. Discovery and calls are best-effort by nature,
+// so every loop is bounded: fixed attempts, a fixed deadline and a fixed fan-out.
+const MAX_DISCOVERY_ATTEMPTS = 4;
+const MAX_DISCOVERY_TARGETS = 32;
+const MAX_PEER_ADDRESSES = 8;
+// The durable origin index is what makes a retried `submit` a no-op after a
+// restart; keep it small and short-lived so it can never grow without bound.
+const ORIGIN_TTL_MS = 30 * 24 * 60 * 60_000;
+const MAX_ORIGINS = 2000;
 
 // ─── files ───────────────────────────────────────────────────────────────────
 function stateDir() {
@@ -40,7 +49,9 @@ function stateDir() {
 }
 
 function readJson(file, fallback) {
-  try { return JSON.parse(fs.readFileSync(file, 'utf8')); } catch { return fallback; }
+  // Strip a leading BOM: a JSON file saved by a Windows editor would otherwise
+  // read as empty, and a silently empty roster reads as "no workers".
+  try { return JSON.parse(fs.readFileSync(file, 'utf8').replace(/^\uFEFF/, '')); } catch { return fallback; }
 }
 
 /** Private files: written 0600 through a temp file, so a crash never leaves half a key. */
@@ -56,6 +67,7 @@ const files = (dir = stateDir()) => ({
   identity: path.join(dir, 'identity.json'),
   peers: path.join(dir, 'peers.json'),
   pending: path.join(dir, 'pending.json'),
+  origins: path.join(dir, 'origins.json'),
   receipts: path.join(dir, 'receipts.jsonl'),
   pid: path.join(dir, 'link.pid'),
   log: path.join(dir, 'link.log'),
@@ -217,11 +229,59 @@ function localHiveRoot() {
   return home ? path.join(home, 'hive') : null;
 }
 
+// ─── the durable origin index ────────────────────────────────────────────────
+// `origin_ref` is the correlation id a delegating office mints for one piece of
+// delegated work. It is only ever stored next to the office it belongs to — the
+// key is always `<authenticated peer>|<ref>`, never a bare ref — so a ref is
+// meaningless to any other peer. Both ends keep the same record for the same
+// key: the receiving office uses it to make a retried `submit` a no-op, the
+// delegating office uses it to route and authorise the reply back.
+
+/** Canonical, peer-scoped key for an origin ref. Peer-derived, never self-declared. */
+function originKey(peerOfficeId, ref) { return `${peerOfficeId}|${ref}`; }
+
+/** Accept only short, boring refs, so the index can never be keyed by junk. */
+function checkOriginRef(ref) {
+  if (typeof ref !== 'string') return null;
+  const clean = ref.trim();
+  if (!clean || clean.length > 120 || !/^[A-Za-z0-9._:-]+$/.test(clean)) return null;
+  return clean;
+}
+
+function payloadFingerprint({ compose, title, priority }) {
+  const normalizedTitle = typeof title === 'string' ? title.trim() : '';
+  const normalizedPriority = Number.isInteger(priority) ? priority : 5;
+  return crypto.createHash('sha256').update(JSON.stringify([String(compose).trim(), normalizedTitle, normalizedPriority])).digest('hex');
+}
+
+/** The index, pruned by age and capped in size so it can never grow unbounded. */
+function loadOrigins(dir = stateDir()) {
+  const all = readJson(files(dir).origins, {});
+  const now = Date.now();
+  const live = Object.entries(all).filter(([, o]) => o && now - Date.parse(o.created_at || 0) < ORIGIN_TTL_MS);
+  live.sort((a, b) => Date.parse(a[1].created_at || 0) - Date.parse(b[1].created_at || 0));
+  return Object.fromEntries(live.slice(-MAX_ORIGINS));
+}
+
+function saveOrigins(origins, dir = stateDir()) { writePrivate(files(dir).origins, origins); }
+
+/** Record (or refresh) one delegation, scoped to the office it went to. */
+function rememberOrigin({ dir = stateDir(), toOffice, toName, originRef, taskId, messageId = null, payloadHash = null }) {
+  const ref = checkOriginRef(originRef);
+  if (!ref || !toOffice || !taskId) return null;
+  const all = loadOrigins(dir);
+  const rec = { origin_ref: ref, task_id: taskId, message_id: messageId, to_office: toOffice, to_name: toName || null, payload_hash: payloadHash, created_at: new Date().toISOString() };
+  all[originKey(toOffice, ref)] = rec;
+  saveOrigins(all, dir);
+  return rec;
+}
+
 class Office {
-  constructor(hiveRoot, agentId = 'munder-link') {
+  constructor(hiveRoot, agentId = 'munder-link', dir = stateDir()) {
     if (!hiveRoot) throw new LinkError('no_hive', 'no encuentro el hive de esta oficina (abre Munder una vez o usa MUNDER_LINK_HIVE)', 503);
     this.root = path.resolve(hiveRoot);
     this.agentId = agentId;
+    this.dir = dir;
   }
 
   p(...parts) {
@@ -239,7 +299,22 @@ class Office {
   }
 
   tasks() { return readJson(this.p('tasks.json'), { tasks: [] }).tasks || []; }
-  registry() { return readJson(this.p('registry.json'), {}); }
+
+  /**
+   * The agent roster. Newer hives nest the agents under `agents` (with `godId`
+   * next to them); older ones wrote them at the root. Read both, so a link
+   * started before an upgrade keeps counting workers instead of reporting the
+   * wrapper keys as if they were agents.
+   */
+  registryData() {
+    const reg = readJson(this.p('registry.json'), {});
+    if (!reg || typeof reg !== 'object' || Array.isArray(reg)) return { agents: {}, godId: 'god' };
+    const agents = reg.agents;
+    if (agents && typeof agents === 'object' && !Array.isArray(agents)) return { agents, godId: typeof reg.godId === 'string' ? reg.godId : 'god' };
+    return { agents: reg, godId: 'god' };
+  }
+
+  registry() { return this.registryData().agents; }
 
   log(entry) {
     fs.mkdirSync(this.root, { recursive: true });
@@ -270,8 +345,36 @@ class Office {
     return { id: crypto.randomUUID(), timestamp: new Date().toISOString(), kind, correlation_id: correlationId };
   }
 
+  // ── durable origin index ───────────────────────────────────────────────────
+  loadOrigins() { return loadOrigins(this.dir); }
+  saveOrigins(origins) { saveOrigins(origins, this.dir); }
+
+  /** The origin ref THIS peer owns, or null. Peer-derived: the sender cannot pick. */
+  originOf(ref, fromOffice) {
+    return this.loadOrigins()[originKey(fromOffice, ref)] || null;
+  }
+
   submit({ compose, title, priority, origin }) {
     if (typeof compose !== 'string' || !compose.trim()) throw new LinkError('bad_args', 'falta el texto de la tarea');
+    const ref = checkOriginRef(origin.task_ref);
+    const key = ref ? originKey(origin.office_id, ref) : null;
+    const payloadHash = payloadFingerprint({ compose, title, priority });
+    const origins = this.loadOrigins();
+
+    if (key && origins[key] && origins[key].task_id) {
+      const previousHash = origins[key].payload_hash;
+      if (previousHash && previousHash !== payloadHash) throw new LinkError('origin_conflict', 'origin_ref ya existe con otro contenido', 409);
+      const seen = this.tasks().find((x) => x.id === origins[key].task_id);
+      if (seen) {
+        if (!previousHash) {
+          origins[key].payload_hash = payloadHash;
+          this.saveOrigins(origins);
+        }
+        this.log({ event: 'link_submit_duplicate', task_id: seen.id, from_office: origin.office_id, origin_ref: ref });
+        return { task_id: seen.id, message_id: origins[key].message_id || null, status: 'accepted', duplicate: true, receipt: this.receipt('link_task_duplicate', seen.id) };
+      }
+    }
+
     const taskId = `task-${Date.now()}-${crypto.randomUUID().slice(0, 8)}`;
     const t = (typeof title === 'string' && title.trim()) ? title.trim().slice(0, 120) : compose.trim().slice(0, 80);
     const body = [
@@ -288,11 +391,68 @@ class Office {
     tasks.push({
       id: taskId, title: t, description: compose, status: 'todo', dependsOn: [],
       priority: Number.isInteger(priority) ? priority : 5, createdAt: new Date().toISOString(),
-      link: { from_office: origin.office_id, from_name: origin.name, origin_ref: origin.task_ref || null },
+      link: { from_office: origin.office_id, from_name: origin.name, origin_ref: ref || null },
     });
     this.writeJson(this.p('tasks.json'), { tasks });
-    this.log({ event: 'link_received', task_id: taskId, message_id: messageId, from_office: origin.office_id, from_name: origin.name, compose: compose.slice(0, 200) });
-    return { task_id: taskId, message_id: messageId, status: 'accepted', receipt: this.receipt('link_task_accepted', taskId) };
+    if (key) {
+      origins[key] = {
+        origin_ref: ref, task_id: taskId, message_id: messageId, payload_hash: payloadHash,
+        to_office: origin.office_id, to_name: origin.name,
+        created_at: new Date().toISOString(),
+      };
+      this.saveOrigins(origins);
+    }
+    this.log({ event: 'link_received', task_id: taskId, message_id: messageId, from_office: origin.office_id, from_name: origin.name, origin_ref: ref, compose: compose.slice(0, 200) });
+    return { task_id: taskId, message_id: messageId, status: 'accepted', duplicate: false, receipt: this.receipt('link_task_accepted', taskId) };
+  }
+
+  /**
+   * A peer answers work we delegated. The sender may only answer a ref that WE
+   * minted for THAT office, so a reply can never land in a stranger's thread.
+   * The delegator never held the card (it lives on the other side), so the
+   * origin index is the routing table and the answer arrives the same way the
+   * Office Bridge delivers anything: as a message for our own Michael.
+   */
+  reply({ origin_ref, text, result, status }, fromOffice, fromName) {
+    const ref = checkOriginRef(origin_ref);
+    if (!ref) throw new LinkError('bad_args', 'falta o no vale esa origin_ref');
+    const rec = this.originOf(ref, fromOffice);
+    if (!rec) {
+      // Either the ref never was ours, or it belongs to another office: the
+      // sender cannot tell which apart, and neither can anyone watching.
+      this.log({ event: 'link_reply_rejected', from_office: fromOffice, from_name: fromName, origin_ref: ref, reason: 'unknown_origin' });
+      throw new LinkError('unknown_origin', 'no tengo ninguna tarea delegada con esa referencia', 404);
+    }
+    const note = (typeof text === 'string' && text.trim()) ? text.trim().slice(0, 4000) : null;
+    const done = (typeof result === 'string' && result.trim()) ? result.trim() : null;
+    const want = (typeof status === 'string' && ['todo', 'doing', 'blocked', 'done'].includes(status)) ? status : null;
+    if (!note && !done && !want) throw new LinkError('bad_args', 'no hay nada que contestar');
+
+    // A card on our own board carrying this exact ref (only if we ever mirrored
+    // the delegation) gets the answer, so `status` reports what really happened.
+    const tasks = this.tasks();
+    const i = tasks.findIndex((x) => x.link && x.link.from_office === fromOffice && x.link.origin_ref === ref);
+    let cardStatus = null;
+    if (i >= 0) {
+      if (done) tasks[i].result = done;
+      if (want) tasks[i].status = want;
+      else if (done && tasks[i].status !== 'doing') tasks[i].status = 'done';
+      cardStatus = tasks[i].status;
+      this.writeJson(this.p('tasks.json'), { tasks });
+    }
+    if (note || done) {
+      this.message(`Re: ${rec.origin_ref}`, [
+        `**Origin_ref:** \`${ref}\``,
+        `**Tarea delegada:** ${rec.task_id}`,
+        `**Desde:** ${fromName}`,
+        note ? `\n${note}` : '',
+        done ? `\n**Resultado:** ${done}` : '',
+        want ? `\n**Estado:** ${want}` : '',
+        '',
+      ].join('\n'), 'inform');
+    }
+    this.log({ event: 'link_reply_received', task_id: rec.task_id, from_office: fromOffice, from_name: fromName, origin_ref: ref, has_result: !!done });
+    return { origin_ref: ref, task_id: rec.task_id, status: cardStatus, result: done || (i >= 0 ? tasks[i].result || null : null), receipt: this.receipt('link_reply_received', rec.task_id) };
   }
 
   /** A peer can only read the tasks it delegated, never the rest of our board. */
@@ -305,7 +465,13 @@ class Office {
   get({ task_id }, fromOffice) {
     const t = this.ownTask(task_id, fromOffice);
     const map = { todo: 'queued', doing: 'working', blocked: 'blocked', done: 'done' };
-    return { task_id: t.id, status: map[t.status] || 'queued', title: t.title, assignee: t.assignee || null, result: t.result || null, created_at: t.createdAt, receipt: this.receipt('link_task_read', t.id) };
+    return {
+      task_id: t.id, status: map[t.status] || 'queued', title: t.title, assignee: t.assignee || null,
+      result: t.result || null, created_at: t.createdAt,
+      // The ref WE minted for this task: only useful to the office that owns it.
+      origin_ref: (t.link && t.link.origin_ref) || null,
+      receipt: this.receipt('link_task_read', t.id),
+    };
   }
 
   note({ task_id, message }, fromOffice, fromName) {
@@ -324,20 +490,32 @@ class Office {
   }
 }
 
-/** Capacity summary: the numbers a router needs to decide where work goes. */
-function capacity(office) {
+/**
+ * Host capacity: what anyone on the network may learn before trusting us. These
+ * numbers describe the machine, not the office — no roster, no board, no work.
+ */
+function hostCapacity() {
   const gb = (n) => Math.round((n / 1024 ** 3) * 10) / 10;
-  const out = {
+  return {
     ram_total_gb: gb(os.totalmem()), ram_free_gb: gb(os.freemem()),
     cpus: os.cpus().length, load1: Math.round(os.loadavg()[0] * 100) / 100,
     platform: process.platform,
   };
+}
+
+/**
+ * Capacity summary for the router: the host numbers plus this office's own
+ * numbers. Only ever built for an authenticated `status` call (or for the local
+ * CLI) — the public hello must stay on `hostCapacity()`.
+ */
+function capacity(office) {
+  const out = hostCapacity();
   if (office) {
-    const reg = office.registry();
-    const agents = Object.entries(reg);
-    out.workers_total = agents.filter(([id]) => id !== 'god').length;
-    out.workers_idle = agents.filter(([id, a]) => id !== 'god' && a && a.status === 'idle').length;
-    out.michael_state = reg.god ? (reg.god.status || 'idle') : 'offline';
+    const { agents: registry, godId } = office.registryData();
+    const agents = Object.entries(registry).filter(([id, a]) => id !== godId && a && typeof a === 'object');
+    out.workers_total = agents.length;
+    out.workers_idle = agents.filter(([, a]) => a.status === 'idle').length;
+    out.michael_state = registry[godId] && typeof registry[godId] === 'object' ? (registry[godId].status || 'idle') : 'offline';
     const tasks = office.tasks();
     out.tasks_open = tasks.filter((t) => t.status !== 'done').length;
   }
@@ -373,7 +551,9 @@ function appendReceipt(dir, entry) {
 function createLinkServer({ dir = stateDir(), hiveRoot = localHiveRoot(), version = 'dev', now = () => Date.now() } = {}) {
   const identity = loadIdentity(dir);
   const seen = new Map();
-  const card = () => publicCard(identity, { version, capacity: capacity(null) });
+  // Public route: our card plus HOST capacity only. The office's own numbers
+  // (workers, board, Michael) stay behind the sealed, signed `status` call.
+  const card = () => publicCard(identity, { version, capacity: hostCapacity() });
 
   const server = http.createServer(async (req, res) => {
     try {
@@ -414,21 +594,26 @@ function createLinkServer({ dir = stateDir(), hiveRoot = localHiveRoot(), versio
 
   async function dispatch(payload, peer) {
     const { op, args = {} } = payload || {};
-    const office = () => new Office(hiveRoot, `link:${peer.name}`);
+    const office = () => new Office(hiveRoot, `link:${peer.name}`, dir);
     switch (op) {
       case 'status': {
         let cap;
-        try { cap = capacity(office()); } catch { cap = { ...capacity(null), michael_state: 'offline' }; }
+        try { cap = capacity(office()); } catch { cap = { ...hostCapacity(), michael_state: 'offline' }; }
         return { office_id: identity.office_id, name: identity.name, version, capacity: cap };
       }
       case 'submit': {
         const r = office().submit({ ...args, origin: { office_id: peer.office_id, name: peer.name, task_ref: args.origin_ref } });
-        appendReceipt(dir, { event: 'received', from: peer.office_id, from_name: peer.name, task_id: r.task_id });
+        appendReceipt(dir, { event: 'received', from: peer.office_id, from_name: peer.name, task_id: r.task_id, origin_ref: args.origin_ref || null, duplicate: !!r.duplicate });
         return r;
       }
       case 'get': return office().get(args, peer.office_id);
       case 'message': return office().note(args, peer.office_id, peer.name);
       case 'cancel': return office().cancel(args, peer.office_id, peer.name);
+      case 'reply': {
+        const r = office().reply(args, peer.office_id, peer.name);
+        appendReceipt(dir, { event: 'reply_received', from: peer.office_id, from_name: peer.name, task_id: r.task_id, origin_ref: r.origin_ref });
+        return r;
+      }
       default: throw new LinkError('bad_op', `operación desconocida: ${op}`);
     }
   }
@@ -496,9 +681,13 @@ async function requestPair(address, { dir = stateDir(), port = DEFAULT_PORT } = 
 function trustPeer(peer, dir = stateDir()) {
   const peers = loadPeers(dir);
   const prev = peers[peer.office_id];
+  // Bounded address list: a call walks it in order, so it must not be able to
+  // grow forever (a pairing that moved address a dozen times, a hostile list).
+  const addresses = [...new Set([...(peer.addresses || []), ...((prev && prev.addresses) || [])])]
+    .slice(0, MAX_PEER_ADDRESSES);
   peers[peer.office_id] = {
     office_id: peer.office_id, name: peer.name, sign_pub: peer.sign_pub, box_pub: peer.box_pub,
-    addresses: [...new Set([...(peer.addresses || []), ...((prev && prev.addresses) || [])])],
+    addresses,
     paired_at: (prev && prev.paired_at) || new Date().toISOString(),
   };
   savePeers(peers, dir);
@@ -524,17 +713,26 @@ function forgetPeer(query, dir = stateDir()) {
   return p;
 }
 
-/** A sealed call to a paired office, trying each known address; remembers the one that worked. */
-async function call(query, op, args = {}, { dir = stateDir(), timeoutMs = 6000 } = {}) {
+/**
+ * A sealed call to a paired office, trying each known address; remembers the one
+ * that worked. Bounded on both axes: at most MAX_PEER_ADDRESSES attempts and a
+ * total budget (`budgetMs`) on top of the per-address timeout, so a peer with
+ * several dead addresses can never make one command hang indefinitely.
+ */
+async function call(query, op, args = {}, { dir = stateDir(), timeoutMs = 6000, budgetMs = null } = {}) {
   const identity = loadIdentity(dir);
   const peers = loadPeers(dir);
   const peer = findPeer(query, peers);
   if (!peer) throw new LinkError('unknown_peer', `no hay una oficina emparejada que se llame «${query}»`, 404);
+  const total = Math.max(Number(timeoutMs) || 0, Number(budgetMs) || Number(timeoutMs) * 2);
+  const startedAll = Date.now();
   let lastErr = null;
-  for (const address of peer.addresses) {
+  for (const address of (peer.addresses || []).slice(0, MAX_PEER_ADDRESSES)) {
+    const left = total - (Date.now() - startedAll);
+    if (left <= 0) break;
     const started = Date.now();
     try {
-      const r = await httpJson('POST', `http://${address}/link/v1/call`, seal(identity, peer, { op, args }), timeoutMs);
+      const r = await httpJson('POST', `http://${address}/link/v1/call`, seal(identity, peer, { op, args }), Math.min(timeoutMs, left));
       if (r.status !== 200) throw new LinkError(r.body.code || 'call_failed', r.body.error || `HTTP ${r.status}`, r.status);
       const { payload } = open(identity, { [peer.office_id]: peer }, r.body, new Map());
       if (!payload.ok) throw new LinkError('remote_error', 'la otra oficina respondió con error', 502);
@@ -542,7 +740,7 @@ async function call(query, op, args = {}, { dir = stateDir(), timeoutMs = 6000 }
       return { peer, address, latency_ms: Date.now() - started, result: payload.result };
     } catch (e) {
       lastErr = e;
-      if (e instanceof LinkError && ['unknown_peer', 'bad_signature', 'no_task', 'bad_args', 'bad_op', 'no_hive'].includes(e.code)) throw e;
+      if (e instanceof LinkError && ['unknown_peer', 'bad_signature', 'no_task', 'unknown_origin', 'origin_conflict', 'bad_args', 'bad_op', 'no_hive'].includes(e.code)) throw e;
     }
   }
   throw lastErr || new LinkError('no_address', 'esa oficina no tiene direcciones conocidas', 503);
@@ -551,12 +749,21 @@ async function call(query, op, args = {}, { dir = stateDir(), timeoutMs = 6000 }
 async function delegate(query, compose, { title, priority, dir = stateDir(), hiveRoot = localHiveRoot() } = {}) {
   const originRef = `link-${Date.now()}-${crypto.randomUUID().slice(0, 6)}`;
   const r = await call(query, 'submit', { compose, title, priority, origin_ref: originRef }, { dir });
-  appendReceipt(dir, { event: 'delegated', to: r.peer.office_id, to_name: r.peer.name, origin_ref: originRef, remote_task_id: r.result.task_id, compose: compose.slice(0, 200) });
+  // Remember the ref we just minted, scoped to the office that answered: that is
+  // what lets a reply from that exact office be routed back into this thread.
+  rememberOrigin({ dir, toOffice: r.peer.office_id, toName: r.peer.name, originRef, taskId: r.result.task_id, payloadHash: payloadFingerprint({ compose, title, priority }) });
+  appendReceipt(dir, { event: 'delegated', to: r.peer.office_id, to_name: r.peer.name, origin_ref: originRef, remote_task_id: r.result.task_id, duplicate: !!r.result.duplicate, compose: compose.slice(0, 200) });
   if (hiveRoot) {
     // our own Michael's audit trail also records that this work left the office
     try { new Office(hiveRoot).log({ event: 'link_delegated', origin_ref: originRef, to_office: r.peer.office_id, to_name: r.peer.name, remote_task_id: r.result.task_id, compose: compose.slice(0, 200) }); } catch { /* no local hive: receipts file still has it */ }
   }
   return { ...r, origin_ref: originRef };
+}
+
+/** Answer a peer that delegated us work: routes by the ref it gave us, nothing else. */
+async function reply(query, originRef, { text, result, status, dir = stateDir() } = {}) {
+  if (typeof originRef !== 'string' || !originRef.trim()) throw new LinkError('bad_args', 'falta la origin_ref de la tarea');
+  return call(query, 'reply', { origin_ref: originRef.trim(), text, result, status }, { dir });
 }
 
 // ─── discovery ───────────────────────────────────────────────────────────────
@@ -574,12 +781,36 @@ function broadcastAddresses() {
   return [...out];
 }
 
-/** Offices on this LAN, by UDP broadcast. Never trusts anything: it only lists. */
-function discoverLan({ timeoutMs = 1500, targets = broadcastAddresses(), udpPort = DISCOVERY_PORT, dir = stateDir() } = {}) {
+/**
+ * Offices on this LAN, by UDP broadcast. Never trusts anything: it only lists.
+ *
+ * Broadcast datagrams are routinely dropped (a busy Wi-Fi, a laptop that just
+ * woke, a firewall that has not finished learning the subnet), so one probe per
+ * target is not enough. Sweep the targets a few times inside one fixed
+ * deadline: `attempts` rounds, never more than MAX_DISCOVERY_ATTEMPTS, never
+ * more than MAX_DISCOVERY_TARGETS addresses, never past `timeoutMs`.
+ */
+function discoverLan({ timeoutMs = 1500, targets = broadcastAddresses(), udpPort = DISCOVERY_PORT, dir = stateDir(), attempts = 3 } = {}) {
   const me = loadIdentity(dir).office_id;
+  const budget = Math.min(Math.max(200, Number(timeoutMs) || 0), 15_000);
+  const rounds = Math.min(MAX_DISCOVERY_ATTEMPTS, Math.max(1, Number(attempts) || 1));
+  const list = [...new Set((targets || []).map(String))].slice(0, MAX_DISCOVERY_TARGETS);
+  const gap = Math.max(50, Math.floor(budget / (rounds + 1)));
   return new Promise((resolve) => {
     const found = new Map();
-    const sock = dgram.createSocket('udp4');
+    let sock = null;
+    let sweepTimer = null;
+    let doneTimer = null;
+    let closed = false;
+    const finish = () => {
+      if (closed) return;
+      closed = true;
+      if (sweepTimer) clearInterval(sweepTimer);
+      if (doneTimer) clearTimeout(doneTimer);
+      try { sock.close(); } catch { /* already closed */ }
+      resolve([...found.values()]);
+    };
+    sock = dgram.createSocket('udp4');
     sock.on('message', (msg, rinfo) => {
       try {
         const c = JSON.parse(msg.toString('utf8'));
@@ -589,10 +820,16 @@ function discoverLan({ timeoutMs = 1500, targets = broadcastAddresses(), udpPort
     });
     sock.on('error', () => { /* best effort */ });
     sock.bind(0, () => {
-      sock.setBroadcast(true);
-      for (const t of targets) sock.send(PROBE, udpPort, t, () => {});
+      if (closed) return;
+      try { sock.setBroadcast(true); } catch { /* already on */ }
+      const sweep = () => {
+        if (closed) return;
+        for (const t of list) { try { sock.send(PROBE, udpPort, t, () => {}); } catch { /* socket gone */ } }
+      };
+      sweep();
+      sweepTimer = setInterval(sweep, gap);
     });
-    setTimeout(() => { try { sock.close(); } catch { /* closed */ } resolve([...found.values()]); }, timeoutMs);
+    doneTimer = setTimeout(finish, budget);
   });
 }
 
@@ -602,11 +839,13 @@ async function discoverTailscale({ timeoutMs = 1500, dir = stateDir() } = {}) {
   try { status = JSON.parse(execFileSync('tailscale', ['status', '--json'], { encoding: 'utf8', timeout: 4000, stdio: ['ignore', 'pipe', 'ignore'] })); }
   catch { return { available: false, offices: [] }; }
   const me = loadIdentity(dir).office_id;
-  const peers = Object.values(status.Peer || {}).filter((p) => p.Online && Array.isArray(p.TailscaleIPs) && p.TailscaleIPs.length);
+  const peers = Object.values(status.Peer || {}).filter((p) => p.Online && Array.isArray(p.TailscaleIPs) && p.TailscaleIPs.length).slice(0, 32);
+  const deadline = Date.now() + Math.max(1500, Number(timeoutMs) || 0) * 2;
   const results = await Promise.all(peers.map(async (p) => {
+    const remaining = Math.max(1, deadline - Date.now());
     const ip = p.TailscaleIPs.find((x) => !x.includes(':')) || p.TailscaleIPs[0];
     try {
-      const c = await hello(ip, timeoutMs);
+      const c = await hello(ip, Math.min(timeoutMs, remaining));
       return c.office_id === me ? null : { ...c, address: hostPort(ip), via: 'tailscale', host: p.HostName };
     } catch { return null; }
   }));
@@ -615,10 +854,12 @@ async function discoverTailscale({ timeoutMs = 1500, dir = stateDir() } = {}) {
 
 module.exports = {
   PROTOCOL, DEFAULT_PORT, DISCOVERY_PORT, LinkError,
+  MAX_DISCOVERY_ATTEMPTS, MAX_PEER_ADDRESSES,
   stateDir, files, loadIdentity, publicCard, prettyFingerprint, officeIdOf,
   loadPeers, loadPending, findPeer, sas, seal, open,
-  Office, localHiveRoot, capacity,
+  Office, localHiveRoot, capacity, hostCapacity,
+  originKey, checkOriginRef, loadOrigins, saveOrigins, rememberOrigin,
   createLinkServer, createDiscoveryResponder,
-  hello, requestPair, trustPeer, acceptPending, forgetPeer, call, delegate,
+  hello, requestPair, trustPeer, acceptPending, forgetPeer, call, delegate, reply,
   discoverLan, discoverTailscale, hostPort,
 };

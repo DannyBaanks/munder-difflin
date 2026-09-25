@@ -80,6 +80,11 @@
   "overrides": {
     "app-builder-lib": {
       "@electron/rebuild": "$@electron/rebuild"
-    }
+    },
+    "hono": "^4.13.9",
+    "fast-uri": "^3.1.8",
+    "multer": "^2.4.0",
+    "proxy-addr": "^2.0.8",
+    "toml": "^4.2.0"
   }
 }
