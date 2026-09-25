@@ -813,6 +813,30 @@ function ensureClaudeGlobalPermissions(home: string): void {
 type ClaudeProjectConfig = Record<string, unknown> & { hasTrustDialogAccepted?: boolean };
 type ClaudeConfig = Record<string, unknown> & { projects?: Record<string, ClaudeProjectConfig> };
 
+/** A cwd with a drive letter is a Windows path no matter which platform we are
+ *  running on. UNC (`\\server\share`) and POSIX paths are deliberately NOT
+ *  matched: backslash is a legal character in a POSIX filename, so rewriting
+ *  those would pre-accept a DIFFERENT directory that happens to exist. */
+const WINDOWS_DRIVE_PATH = /^[A-Za-z]:[\\/]/;
+
+/** Every key Claude Code might look a folder's trust entry up under.
+ *
+ *  Claude resolves the entry per-platform, not per-input: on Windows it walks
+ *  parents comparing with `o.startsWith(r + "/")` and writes `C:/Users/...`,
+ *  so a flag stored under the raw `C:\Users\...` is never read. The folder then
+ *  stays untrusted, the spawned agent hits the interactive "Accessing
+ *  workspace" dialog it cannot answer, that dialog defaults to "No, exit", and
+ *  `claude` exits 1 with the agent stuck at "waiting". A folder declined once
+ *  (`hasTrustDialogAccepted: false`) is stranded the same way, because only
+ *  the raw spelling was ever repaired.
+ *
+ *  Both spellings are written, so the entry is found whichever one Claude
+ *  reads. Upstream evidence: chaitanyagiri/munder-difflin#607. */
+function trustKeysFor(cwd: string): string[] {
+  if (!WINDOWS_DRIVE_PATH.test(cwd)) return [cwd];
+  return Array.from(new Set([cwd.replace(/\\/g, '/'), cwd]));
+}
+
 function ensureClaudeProjectTrust(home: string, cwd: string): void {
   const p = join(home, '.claude.json');
   try {
@@ -822,11 +846,15 @@ function ensureClaudeProjectTrust(home: string, cwd: string): void {
       if (parsed === null || typeof parsed !== 'object' || Array.isArray(parsed)) return;
       c = parsed as ClaudeConfig;
     }
-    if (c.projects?.[cwd]?.hasTrustDialogAccepted !== true) {
-      c.projects = c.projects ?? {};
-      c.projects[cwd] = { ...(c.projects[cwd] ?? {}), hasTrustDialogAccepted: true };
-      writeFileSync(p, JSON.stringify(c, null, 2), 'utf8');
+    // Every spelling is checked on its own: one may already be trusted while
+    // the other Claude actually reads is still missing or explicitly false.
+    const pending = trustKeysFor(cwd).filter((k) => c.projects?.[k]?.hasTrustDialogAccepted !== true);
+    if (pending.length === 0) return;
+    c.projects = c.projects ?? {};
+    for (const k of pending) {
+      c.projects[k] = { ...(c.projects[k] ?? {}), hasTrustDialogAccepted: true };
     }
+    writeFileSync(p, JSON.stringify(c, null, 2), 'utf8');
   } catch (error) {
     console.warn(
       `[config] Could not safely update Claude config at ${p}:`,
@@ -846,7 +874,8 @@ function ensureClaudeProjectTrust(home: string, cwd: string): void {
  *   1. `~/.claude/settings.json` → `skipDangerousModePermissionPrompt` +
  *      `skipAutoPermissionPrompt` — these gate the bypass-mode warning (global).
  *   2. `~/.claude.json` → `projects[cwd].hasTrustDialogAccepted` — the per-folder
- *      "do you trust the files in this folder?" dialog.
+ *      "do you trust the files in this folder?" dialog, written under every
+ *      spelling of `cwd` that Claude might look up (see `trustKeysFor`).
  *
  *  Each file is an independent best-effort boundary: unsafe existing contents
  *  are preserved without preventing the other file from being handled safely. */
