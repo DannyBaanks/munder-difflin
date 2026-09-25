@@ -21,7 +21,7 @@ Risks found: the drag region, which the tabs sit on with `cth-titlebar-nodrag`, 
 ## Decisions
 
 - **Settings → option B: a menu over the existing modal.** `Configuración ▾` lists `SETTINGS_SECTIONS`. Picking an item opens the same `SettingsModal` on that section.
-  - The section list moved to `components/globalNav.ts`, and the modal and the menu both render it, so there is one source of truth.
+  - The section list moved to `components/globalNavModel.ts`, and the modal and the menu both render it, so there is one source of truth.
   - The title-bar gear went away because the tab replaces it. Focus mode's gear stays and fires the same event.
 - **Marketplace → an overlay.** It paints over the main row (`zIndex 100`: above the floor's overlays, below every modal at 200 and up). The floor, the terminals and the agents stay mounted underneath.
   - Verified with the flow: the canvas tagged before opening Marketplace is still the same node afterwards (`1 1`).

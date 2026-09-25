@@ -24,7 +24,7 @@ import { useAppTheme, toggleAppTheme } from '@/design/theme';
 import { SettingsModal, type Section as SettingsSection } from '@/components/SettingsModal';
 import { GlobalNav } from '@/components/GlobalNav';
 import { MarketplaceView } from '@/components/MarketplaceView';
-import { navDensity, type GlobalView } from '@/components/globalNav';
+import { navDensity, type GlobalView } from '@/components/globalNavModel';
 import { PixelPanel } from '@/components/PixelPanel';
 import { PixelButton } from '@/components/PixelButton';
 import { Icon } from '@/components/Icon';

@@ -2,7 +2,7 @@
 
 /**
  * Title-bar global navigation (Office · Settings ▾ · Marketplace).
- * The logic is pure (components/globalNav.ts); the wiring checks read the
+ * The logic is pure (components/globalNavModel.ts); the wiring checks read the
  * source, the way the other renderer tests here do, because what matters is
  * structural: one Settings, nothing unmounted when the view changes.
  */
@@ -13,7 +13,7 @@ const fs = require('node:fs');
 const path = require('node:path');
 const loadTs = require('./load-ts.cjs');
 
-const N = loadTs('src/renderer/src/components/globalNav.ts');
+const N = loadTs('src/renderer/src/components/globalNavModel.ts');
 const src = (p) => fs.readFileSync(path.join(__dirname, '..', p), 'utf8');
 const app = src('src/renderer/src/App.tsx');
 const modal = src('src/renderer/src/components/SettingsModal.tsx');

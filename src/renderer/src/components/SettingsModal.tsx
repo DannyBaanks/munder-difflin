@@ -33,7 +33,7 @@ import {
 import { notifyArabicTerminalChangeAll } from '@/components/terminalPool';
 import { isComposingKey } from '@shared/imeGuard';
 import { LANGUAGES, setLanguage } from '@/i18n';
-import { SETTINGS_SECTIONS, SETTINGS_SECTION_KEYS, type SettingsSection } from '@/components/globalNav';
+import { SETTINGS_SECTIONS, SETTINGS_SECTION_KEYS, type SettingsSection } from '@/components/globalNavModel';
 
 export interface SettingsModalProps {
   config: HarnessConfig;
@@ -181,7 +181,7 @@ const sectionHeadFlush = { ...sectionHead, marginBottom: 0 } as const;
 /** The 2px rule between Settings sections. */
 const sectionRule = { height: 2, background: 'var(--cth-ink-300)' } as const;
 
-/** The section list and its labels live in globalNav.ts: the title bar's
+/** The section list and its labels live in globalNavModel.ts: the title bar's
  *  Settings menu renders the same list, so the two never drift apart. */
 export type Section = SettingsSection;
 const NAV_SECTIONS = SETTINGS_SECTIONS;

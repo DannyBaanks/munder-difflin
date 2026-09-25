@@ -3,7 +3,7 @@ import { useTranslation } from 'react-i18next';
 import {
   SETTINGS_SECTIONS, SETTINGS_SECTION_KEYS, buttonKey, menuKey,
   type GlobalView, type NavDensity, type SettingsSection
-} from '@/components/globalNav';
+} from '@/components/globalNavModel';
 
 /**
  * The title bar's product-level tabs: OFICINA · CONFIGURACIÓN ▾ · MARKETPLACE.

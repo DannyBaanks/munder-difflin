@@ -2,7 +2,7 @@ import { useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import { PixelPanel } from '@/components/PixelPanel';
 import { PixelButton } from '@/components/PixelButton';
-import { MARKETPLACE_CATEGORIES, MARKETPLACE_CATALOG_CONNECTED } from '@/components/globalNav';
+import { MARKETPLACE_CATEGORIES, MARKETPLACE_CATALOG_CONNECTED } from '@/components/globalNavModel';
 
 /**
  * Marketplace — the global surface for extending Munder (MCPs, harness
