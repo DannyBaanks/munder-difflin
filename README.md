@@ -153,6 +153,23 @@ Cada mensaje entre oficinas va firmado y cifrado, y el emparejamiento se confirm
 
 Conecta ChatGPT a tu oficina y pídele cosas como «que la oficina del Xeon corra las pruebas». ChatGPT habla con un servidor local y ese servidor usa Munder Link, así que tu red no queda expuesta. ChatGPT sabe cuál es la oficina donde está conectado (`self`) y cuáles son las enlazadas. Cómo levantarlo: [`src/mcp/munder-chatgpt-link/README.md`](./src/mcp/munder-chatgpt-link/README.md).
 
+### 🛟 Munder Reviver: si Munder se cae, se vuelve a levantar
+
+Un proceso chiquito y aparte que vive junto a Munder y sabe hacer solo cuatro cosas: `status`, `start`, `restart` y `stop`.
+
+- **Si Munder se cae,** lo levanta solo. Lo intenta un número limitado de veces y deja un recibo de cada intento.
+- **Si lo cerraste tú,** lo deja cerrado.
+- **Desde el celular o ChatGPT** («¿está vivo Munder en el Xeon? levántalo») funciona aunque Munder y Link estén muertos.
+- **Solo cuenta como sano** si contesta con la identidad de tu oficina.
+- **No toca lo que no es suyo:** nunca mata un `opencode` ni nada que no pueda comprobar que es el suyo.
+
+```bash
+munder reviver init && munder reviver instalar   # systemd --user en Linux, tarea al iniciar sesión en Windows
+munder reviver status
+```
+
+Guía: [`tools/munder/REVIVER.md`](./tools/munder/REVIVER.md).
+
 ### 🧰 Oficinas listas para tu giro
 
 Arranca con un equipo armado: servicios del hogar, servicios profesionales, restaurante, tienda o SaaS/consultoría.
@@ -197,6 +214,7 @@ Una herramienta sin dependencias para manejar todo desde la terminal. Instálala
 | Ver o armar el equipo | `munder sesion ver` · `munder sesion armar` |
 | Elegir CLIs y modelos | `munder sesion proveedor` |
 | Enlazar otra computadora | `munder link conectar` |
+| Que Munder se levante solo si se cae | `munder reviver init` · `munder reviver instalar` |
 | Usar la oficina en el celular | `munder link celular` |
 | Crear un avatar | `munder avatar compilar "descripción"` |
 
@@ -212,6 +230,7 @@ Detalle en [`tools/munder/README.md`](./tools/munder/README.md).
 | El celular dice que la hora no coincide | Activa la hora automática en el celular y en la computadora. |
 | `munder link buscar` no encuentra la otra máquina | Abre en su firewall los puertos 47831/tcp y 47832/udp, o usa Tailscale. |
 | El celular dice que ya no lo reconocen | Lo olvidaron en la computadora: toca «Olvidar en este celular» y vuelve a emparejar. |
+| Munder se cerró y no estás en la compu | Si instalaste el Reviver: `munder reviver llamar <credencial> start` desde otra máquina, o `munder_start` desde ChatGPT. |
 
 <details>
 <summary><b>Para desarrolladores: todo lo que cambia este fork, con detalle técnico</b></summary>
@@ -307,6 +326,19 @@ Cada push compila y corre la suite en los tres sistemas. Encontró un bug real: 
 - **Dónde viven los celulares:** en `remotes.json`, nunca en `peers.json`.
 - **Operaciones:** `overview`, `peers`, `answer` (igual que ASK ME), `ask` y `delegate`.
 
+### 18. Munder Reviver (plano de mantenimiento)
+- **Independiente:** `tools/munder/lib-reviver.cjs` usa solo builtins de Node y tiene su propia llave y sus propios clientes. No necesita a Munder, Link, el hive ni Electron.
+- **Sano = cuatro pruebas:** el proceso del destino configurado, `/salud` con el token de ese arranque, el mismo pid y el `office_id` fijado. Para eso `/salud` ahora dice `pid`, `version` y `office_id`.
+- **Sin shell:** solo `status`, `start`, `restart` y `stop`. El destino vive en `config.json`.
+- **Protocolo:** Ed25519 en los dos sentidos, con nonce de un solo uso, ±60 s de hora y la petición atada al reviver y a la oficina.
+- **Para solo lo que es suyo:**
+  - fuerza únicamente al proceso principal y a sus helpers `--type=`;
+  - nunca toca el daemon de Link, la terminal de un humano ni un `opencode` ajeno;
+  - ante la duda, falla cerrado.
+- **Watchdog acotado:** 3 intentos en 10 min, con espera entre ellos, y luego un estado `failed`. Distingue un cierre limpio de una caída.
+- **Instalación:** systemd `--user` con `KillMode=process`; en Windows, tarea al iniciar sesión con `RestartOnFailure`.
+- **ChatGPT:** un conector MCP aparte (`reviver-mcp.cjs`, `chatgpt-tunnel.sh --reviver`) con el mismo filtro de red que `munder-chatgpt-link`.
+
 </details>
 
 ## Garantías de este fork
@@ -316,7 +348,7 @@ Cada push compila y corre la suite en los tres sistemas. Encontró un bug real: 
 * **`avatar-engine.cjs` no se edita a mano.** Se genera desde `portraitArt.ts` con `node tools/munder/sync-avatar-engine.cjs`, y la suite verifica su hash.
 * **Tests:**
   * `npm run test:focused` (los mismos en los tres sistemas)
-  * `node --test tools/munder/link.test.cjs tools/munder/remote.test.cjs tools/munder/avatar.test.cjs`
+  * `node --test tools/munder/link.test.cjs tools/munder/remote.test.cjs tools/munder/avatar.test.cjs tools/munder/reviver.test.cjs`
   * `npm run typecheck`
 * **Gate de release:** `node tools/check-release-links.cjs --live` comprueba que cada descarga anunciada exista de verdad.
 

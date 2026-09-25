@@ -34,6 +34,20 @@ export interface ControlChannelOptions {
   importPack?: (raw: unknown) => { pack?: OfficePack; errors: string[] };
   /** Deliver a job brief to a freshly spawned agent's inbox (from god). */
   brief?: (agentId: string, subject: string, body: string) => void;
+  /** Who is answering `GET /salud`: the main pid, the app version and the
+   *  office identity. The Reviver (tools/munder/lib-reviver.cjs) needs them to
+   *  tell "this office is healthy" from "some Munder answered". Absent → the
+   *  plain M0 answer. */
+  about?: () => InstanceInfo;
+}
+
+/** What `GET /salud` adds when `about` is set. Nothing secret: no token, no key. */
+export interface InstanceInfo {
+  pid: number;
+  version: string;
+  /** Link office id (public fingerprint of the office key), or null if this office never made one. */
+  office_id: string | null;
+  started_at: string;
 }
 
 /** One pack as `GET /packs` lists it: enough to choose, nothing more. */
@@ -315,8 +329,10 @@ export class ControlChannel {
   private readonly packs?: ControlChannelOptions['packs'];
   private readonly importPack?: ControlChannelOptions['importPack'];
   private readonly brief?: ControlChannelOptions['brief'];
+  private readonly about?: ControlChannelOptions['about'];
 
   constructor(opts: ControlChannelOptions) {
+    this.about = opts.about;
     this.packs = opts.packs;
     this.importPack = opts.importPack;
     this.brief = opts.brief;
@@ -384,7 +400,9 @@ export class ControlChannel {
         json(res, 401, { ok: false, error: 'unauthorized' });
         return;
       }
-      json(res, 200, { ok: true, service: 'munder-control' });
+      let instance: InstanceInfo | undefined;
+      try { instance = this.about?.(); } catch { instance = undefined; }
+      json(res, 200, instance ? { ok: true, service: 'munder-control', instance } : { ok: true, service: 'munder-control' });
       return;
     }
     if (req.method === 'GET' && path === '/sesion') {

@@ -1816,6 +1816,20 @@ async function startSlackReplyServer(): Promise<void> {
  *  arrive in M1/M2 on this same server and auth). Started/stopped alongside
  *  the other loopback services; see controlChannel.ts. */
 let controlChannel: ControlChannel | null = null;
+const MAIN_STARTED_AT = new Date().toISOString();
+
+/** The Link office id, read-only: `/salud` reports it so the Reviver can check
+ *  that the office answering is the one it was configured to revive. Never
+ *  creates an identity (that is `munder link` / `munder-reviver init`'s job). */
+function officeIdForHealth(): string | null {
+  try {
+    const lib = createRequire(__filename)(join(linkToolsDir(), 'lib-link.cjs')) as { stateDir(): string };
+    const id = JSON.parse(readFileSync(join(lib.stateDir(), 'identity.json'), 'utf8').replace(/^\uFEFF/, '')) as { office_id?: unknown };
+    return typeof id.office_id === 'string' ? id.office_id : null;
+  } catch {
+    return null;
+  }
+}
 
 /** Kill by agent id OR pty id (tries both, like a human would). Mirrors the
  *  `pty:kill` handler exactly (kill + idempotent teardown). */
@@ -1836,6 +1850,7 @@ async function startControlChannel(): Promise<void> {
     const token = randomBytes(24).toString('hex');
     const next = new ControlChannel({
       token,
+      about: () => ({ pid: process.pid, version: app.getVersion(), office_id: officeIdForHealth(), started_at: MAIN_STARTED_AT }),
       read: () => {
         // Registry identity (static) + live PTYs, joined by buildSessionView.
         // provider llega como union AgentProvider: cast a string para la vista

@@ -5,13 +5,27 @@
 #         -> cloudflared quick tunnel (HTTPS publica, URL aleatoria).
 # Uso:  ./chatgpt-tunnel.sh
 #       (deja supergateway + tunel corriendo; matalos con --stop)
+#       ./chatgpt-tunnel.sh --reviver [--stop]
+#       lo mismo para el Munder Reviver (tools/munder/reviver-mcp.cjs, puerto
+#       8094): OTRO conector, que sigue sirviendo aunque Munder este muerto.
+#       Necesita MUNDER_REVIVER_TARGETS (ver tools/munder/REVIVER.md).
 # Requiere: node, npx (supergateway), cloudflared en PATH, link encendido.
 set -euo pipefail
 
 HERE="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
-PORT="${MUNDER_CHATGPT_PORT:-8093}"
-WRAP="$HOME/.local/share/munder/munder-link-stdio.sh"
-STATE="$HOME/.local/state/munder/chatgpt-tunnel"
+if [[ "${1:-}" == "--reviver" ]]; then
+  shift
+  [[ "${1:-}" == "--stop" || -n "${MUNDER_REVIVER_TARGETS:-}" ]] || { echo "chatgpt-tunnel: falta MUNDER_REVIVER_TARGETS" >&2; exit 1; }
+  PORT="${MUNDER_REVIVER_MCP_PORT:-8094}"
+  WRAP="$HOME/.local/share/munder/munder-reviver-stdio.sh"
+  STATE="$HOME/.local/state/munder/chatgpt-tunnel-reviver"
+  SERVER="$HERE/../../../tools/munder/reviver-mcp.cjs"
+else
+  PORT="${MUNDER_CHATGPT_PORT:-8093}"
+  WRAP="$HOME/.local/share/munder/munder-link-stdio.sh"
+  STATE="$HOME/.local/state/munder/chatgpt-tunnel"
+  SERVER="$HERE/server.mjs"
+fi
 
 if [[ "${1:-}" == "--stop" ]]; then
   pkill -f "supergateway.*$PORT" 2>/dev/null || true
@@ -23,7 +37,7 @@ fi
 # Wrapper sin espacios: supergateway parte --stdio por espacios y la ruta
 # del repo ("ISyCo Git") lo rompe. El server resuelve lib-link por si solo.
 mkdir -p "$(dirname "$WRAP")" "$STATE"
-printf '#!/bin/sh\nexec node "%s/server.mjs" "$@"\n' "$HERE" > "$WRAP"
+printf '#!/bin/sh\nexec node "%s" "$@"\n' "$SERVER" > "$WRAP"
 chmod +x "$WRAP"
 
 command -v cloudflared >/dev/null || { echo "chatgpt-tunnel: falta cloudflared" >&2; exit 1; }
