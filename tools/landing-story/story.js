@@ -35,7 +35,7 @@
     io.observe(el);
   }
   $$('[data-rv]').forEach(function (el) { once(el, function (x) { x.classList.add('in'); }, { threshold: 0.15 }); });
-  ['#pile', '#desks', '#roster', '#orbit'].forEach(function (s) { once($(s), function (x) { x.classList.add('in'); }); });
+  ['#pile', '#desks', '#roster', '#machine'].forEach(function (s) { once($(s), function (x) { x.classList.add('in'); }); });
 
   /* counters */
   $$('[data-count]').forEach(function (el) {

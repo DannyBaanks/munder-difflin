@@ -33,6 +33,39 @@ const floor = ['michael', 'jim', 'pam', 'dwight', 'angela', 'kevin'].map((n) => 
 const rail = `<div class="rail"><div class="ri sel">${pt('michael')}Michael<small>working</small></div><div class="ri">${pt('angela')}Angela<small>working</small></div><div class="ri">${pt('oscar')}Oscar</div><div class="ri">${pt('kevin')}Kevin<small>working</small></div><div class="ri">${pt('dwight')}Dwight</div></div><div class="pane2"><span><b>michael</b> › ship the signup fix</span><span>→ acm-1 to Dwight</span><span>→ acm-3 to Angela</span><span>✓ acm-4 reviewed by Oscar</span><span class="blobf"></span></div>`;
 const nightRow = ['jim', 'pam', 'dwight', 'michael', 'angela', 'oscar', 'kevin', 'creed'].map((n) => `<div class="nd">${pt(n)}<i class="mon"></i><i class="tbl"></i></div>`).join('');
 
+
+// the local machine: a laptop with the office on its screen, your subscriptions on the left, your tools on the right,
+// packets moving along the wires (SVG animateMotion, no script). Drawn once, nothing rotates.
+const node = (x, y, label, side, i) => {
+  const wx = side === 'l' ? x + 150 : x, wy = y + 22;
+  const tx = side === 'l' ? 214 : 426, ty = 196 + (i - 1.5) * 16;
+  const c1 = side === 'l' ? wx + 40 : wx - 40, c2 = side === 'l' ? tx - 40 : tx + 40;
+  const d = `M${wx} ${wy}C${c1} ${wy} ${c2} ${ty} ${tx} ${ty}`;
+  const pid = `w${side}${i}`, dur = (2.2 + i * 0.35).toFixed(2), beg = (i * 0.6).toFixed(1);
+  const dir = side === 'l' ? 'keyPoints="1;0" keyTimes="0;1" calcMode="linear"' : '';
+  return `<path id="${pid}" class="wire-l" d="${d}"/>` +
+    `<g class="nd-${side}" style="--i:${i}"><rect x="${x}" y="${y}" width="150" height="44" rx="12" class="nbox"/>` +
+    `<circle cx="${x + 22}" cy="${y + 22}" r="6" class="ndot"/><text x="${x + 38}" y="${y + 27}" class="nlab">${label}</text></g>` +
+    `<circle r="4.5" class="pk"><animateMotion dur="${dur}s" begin="${beg}s" repeatCount="indefinite" ${dir}><mpath href="#${pid}"/></animateMotion></circle>`;
+};
+const subs = ['Claude Code', 'Codex', 'Gemini CLI', 'Copilot'].map((l, i) => node(8, 70 + i * 74, l, 'l', i)).join('');
+const tools = ['GitHub', 'Linear', 'Telegram', 'Webhooks'].map((l, i) => node(482, 70 + i * 74, l, 'r', i)).join('');
+const cam = (n, x) => `<image href="${cast[n].portrait}" x="${x}" y="158" width="27" height="42" class="pix"/><rect x="${x - 6}" y="196" width="39" height="8" rx="2" class="mdesk"/>`;
+const machineSvg = `<svg viewBox="0 0 640 420" role="img" aria-label="Munder Difflin on your laptop, driving Claude Code, Codex, Gemini CLI and Copilot, woken by GitHub, Linear, Telegram and webhooks">
+<text x="83" y="50" class="colh" text-anchor="middle">YOUR SUBSCRIPTIONS</text><text x="557" y="50" class="colh" text-anchor="middle">YOUR TOOLS</text>
+${subs}${tools}
+<rect x="206" y="118" width="228" height="150" rx="16" class="glow"/>
+<rect x="214" y="126" width="212" height="136" rx="10" class="scr"/>
+<rect x="214" y="126" width="212" height="18" rx="10" class="bar"/><circle cx="226" cy="135" r="3" class="d1"/><circle cx="236" cy="135" r="3" class="d2"/><circle cx="246" cy="135" r="3" class="d3"/>
+<rect x="222" y="150" width="196" height="104" rx="6" class="flr"/>
+${cam('michael', 240)}${cam('pam', 306)}${cam('dwight', 372)}
+<g class="bub"><rect x="268" y="152" width="44" height="14" rx="7"/><text x="290" y="162" text-anchor="middle">on it</text></g>
+<rect x="232" y="214" width="176" height="30" rx="5" class="term"/><text x="240" y="226" class="tline"><tspan class="acc">claude</tspan> › ship the signup fix</text><text x="240" y="238" class="tline dim">✓ acm-4 reviewed by Oscar</text>
+<path d="M184 268H456L474 290H166Z" class="base"/><rect x="290" y="268" width="60" height="6" rx="3" class="notch"/>
+<g class="lock"><rect x="236" y="318" width="168" height="32" rx="16"/><path d="M255 334v-3a5 5 0 0 1 10 0v3" class="shk"/><rect x="252" y="333" width="16" height="11" rx="2" class="body"/><text x="276" y="339">keys stay here</text></g>
+<text x="320" y="306" class="mlab" text-anchor="middle">YOUR MACHINE</text>
+</svg>`;
+
 const faq = [
   ['What is Munder Difflin?', 'A free and open source multi agent harness for macOS, Windows and Linux. It runs Claude Code, Codex, Gemini CLI, Copilot, Cursor and seven more coding agents as one team of clones on your own machine, on the subscriptions you already pay for.'],
   ['Does it work with my Claude Code subscription?', 'Yes. Munder Difflin drives the Claude Code CLI you already use, so your plan and its hourly limits do the work. The same goes for Codex, Gemini CLI and the other providers.'],
@@ -83,14 +116,14 @@ ${L[28]}
 let body = rd('body.html')
   .replace(/\{\{RAW:(\d+),(\d+)\}\}/g, (_, a, b) => raw(+a, +b))
   .replace('{{DESKS}}', desks).replace('{{ROSTER}}', roster).replace('{{WHO}}', whoCards)
-  .replace('{{FLOOR}}', floor).replace('{{RAIL}}', rail).replace('{{NIGHT}}', nightRow).replace('{{FAQ}}', faqHtml);
+  .replace('{{FLOOR}}', floor).replace('{{RAIL}}', rail).replace('{{NIGHT}}', nightRow).replace('{{MACHINE}}', machineSvg).replace('{{FAQ}}', faqHtml);
 if (/\{\{/.test(body)) throw new Error('unfilled slot');
 
 const html = [
   raw(1, 17), '', head, raw(46, 320),
   castCss, rd('story.css'), '</style>', '</head>', '<body>',
   raw(324, 351), '', body, '', raw(736, 757), '',
-  raw(759, 1034), rd('story.js'), raw(1035, L.length),
+  raw(759, 1034).replace("var STAPLER_COLOR = '#B3D4F0';", "var STAPLER_COLOR = '#FFCA54';"), rd('story.js'), raw(1035, L.length),
 ].join('\n');
 
 // house style on the words a visitor reads (comments and data excluded)
