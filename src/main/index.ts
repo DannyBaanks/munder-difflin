@@ -1,7 +1,7 @@
 import { app, BrowserWindow, clipboard, dialog, ipcMain, Menu, powerMonitor, powerSaveBlocker, screen, shell, Notification } from 'electron';
 import { execFile, spawn } from 'node:child_process';
 import {
-  rmSync, existsSync, readFileSync, readdirSync, statSync, cpSync, writeFileSync,
+  rmSync, existsSync, openSync, readFileSync, readdirSync, statSync, cpSync, writeFileSync,
   unlinkSync, mkdirSync, renameSync, createWriteStream, copyFileSync, lstatSync,
   readlinkSync, symlinkSync
 } from 'node:fs';
@@ -33,6 +33,8 @@ import { CircuitBreaker, type BreakerInput } from './breaker';
 import type { UsageProvider } from './usage';
 import { MemoryManager } from './memory';
 import { KnowledgeManager } from './knowledge';
+import { LinkPanel, type LinkLib } from './linkPanel';
+import { createRequire } from 'node:module';
 import { loadBundledPacks, loadImportedPack, packsResourceDir } from './packs';
 import { claudeCliVersion } from './claudeCliVersion';
 import { CLAUDE_MODEL_CLI_FLOOR, modelForCli } from '../shared/modelCliFloor';
@@ -3923,6 +3925,51 @@ async function ingestSequentially(paths: string[], tags?: string[]) {
   }
   return results;
 }
+
+// ─── IPC: Munder Link (Settings → Munder Link) ──────────────────────────────
+// The same engine the `munder link` CLI uses, loaded from the repo in dev and
+// from extraResources/munder when packaged. Loaded lazily: an install without
+// the files simply shows the tab as unavailable.
+function linkToolsDir(): string {
+  return app.isPackaged ? join(process.resourcesPath, 'munder') : join(app.getAppPath(), 'tools', 'munder');
+}
+let linkPanel: LinkPanel | null | undefined;
+function getLinkPanel(): LinkPanel | null {
+  if (linkPanel !== undefined) return linkPanel;
+  try {
+    const lib = createRequire(__filename)(join(linkToolsDir(), 'lib-link.cjs')) as LinkLib;
+    linkPanel = new LinkPanel(lib, (logFile) => {
+      // Detached like `munder link encender`: the link keeps serving after the
+      // app quits, and the CLI's `apagar` can stop it.
+      const out = openSync(logFile, 'a');
+      const child = spawn(process.execPath, [join(linkToolsDir(), 'link-serve.cjs')], {
+        detached: true, stdio: ['ignore', out, out], windowsHide: true,
+        env: { ...process.env, ELECTRON_RUN_AS_NODE: '1', MUNDER_LINK_VERSION: app.getVersion() }
+      });
+      child.unref();
+      return child.pid ?? 0;
+    });
+  } catch (e) {
+    console.error('[link] Munder Link no disponible en este build:', e);
+    linkPanel = null;
+  }
+  return linkPanel;
+}
+/** Every link IPC answers {ok, ...} or {ok:false, error}: the tab shows the reason. */
+async function linkCall<T>(fn: (p: LinkPanel) => T | Promise<T>): Promise<{ ok: true; data: T } | { ok: false; error: string }> {
+  const p = getLinkPanel();
+  if (!p) return { ok: false, error: 'Munder Link no viene en este build' };
+  try { return { ok: true, data: await fn(p) }; }
+  catch (e) { return { ok: false, error: e instanceof Error ? e.message : String(e) }; }
+}
+ipcMain.handle('link:status', () => linkCall((p) => p.status()));
+ipcMain.handle('link:start', () => linkCall((p) => p.start()));
+ipcMain.handle('link:stop', () => linkCall((p) => p.stop()));
+ipcMain.handle('link:discover', () => linkCall((p) => p.discover()));
+ipcMain.handle('link:pairRequest', (_evt, address: unknown) => linkCall((p) => p.pairRequest(String(address ?? ''))));
+ipcMain.handle('link:pairConfirm', (_evt, token: unknown) => linkCall((p) => p.pairConfirm(String(token ?? ''))));
+ipcMain.handle('link:accept', (_evt, code: unknown) => linkCall((p) => p.accept(String(code ?? ''))));
+ipcMain.handle('link:forget', (_evt, officeId: unknown) => linkCall((p) => p.forget(String(officeId ?? ''))));
 
 // ─── IPC: composer attachments (images + arbitrary files, attached by PATH) ──
 // The message queue pipes raw text into a Claude CLI PTY, so attachments travel

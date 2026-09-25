@@ -564,6 +564,15 @@ export interface PreservedWorktreeSnapshot {
   preservedAt: number;
 }
 
+/** Munder Link IPC answers: data, or the reason it failed (shown as-is in the tab). */
+export type LinkResult<T> = { ok: true; data: T } | { ok: false; error: string };
+export type { LinkStatus, LinkPeerView } from '../main/linkPanel';
+import type { LinkStatus } from '../main/linkPanel';
+export interface LinkDiscovery {
+  offices: Array<{ office_id: string; name: string; fingerprint: string; address: string; via: string; paired: boolean }>;
+  tailscale: boolean;
+}
+
 const api = {
   version: __APP_VERSION__,
 
@@ -834,6 +843,19 @@ const api = {
    *  the per-agent outcomes ({ id, condensed, reason, oldBytes?, newBytes? }). */
   reflectNow: (id?: string): Promise<Array<{ id: string; condensed: boolean; reason: string; oldBytes?: number; newBytes?: number }>> =>
     ipcRenderer.invoke('memory:reflectNow', id),
+
+  // ─── Munder Link (Settings → Munder Link; same engine as `munder link`) ────
+  link: {
+    status: (): Promise<LinkResult<LinkStatus>> => ipcRenderer.invoke('link:status'),
+    start: (): Promise<LinkResult<{ ok: true; pid: number; already: boolean }>> => ipcRenderer.invoke('link:start'),
+    stop: (): Promise<LinkResult<{ ok: true; pid: number | null }>> => ipcRenderer.invoke('link:stop'),
+    discover: (): Promise<LinkResult<LinkDiscovery>> => ipcRenderer.invoke('link:discover'),
+    pairRequest: (address: string): Promise<LinkResult<{ token: string; name: string; fingerprint: string; code: string }>> =>
+      ipcRenderer.invoke('link:pairRequest', address),
+    pairConfirm: (token: string): Promise<LinkResult<{ office_id: string; name: string }>> => ipcRenderer.invoke('link:pairConfirm', token),
+    accept: (code: string): Promise<LinkResult<{ office_id: string; name: string }>> => ipcRenderer.invoke('link:accept', code),
+    forget: (officeId: string): Promise<LinkResult<{ office_id: string; name: string }>> => ipcRenderer.invoke('link:forget', officeId)
+  },
 
   // ─── Enterprise Knowledge Graph (multimodal context for agents) ───────────
   kgStatus: (): Promise<KnowledgeStatus> => ipcRenderer.invoke('kg:status'),
