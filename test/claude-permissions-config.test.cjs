@@ -31,6 +31,11 @@ const settingsDir = path.join(home, '.claude');
 const settingsPath = path.join(settingsDir, 'settings.json');
 const projectConfigPath = path.join(home, '.claude.json');
 const cwd = path.join(home, 'workspace', 'project');
+// On Windows the trust flag is ALSO written under the forward-slash spelling
+// Claude Code reads (C:/Users/...); on POSIX there is only the one key.
+const cwdForward = /^[A-Za-z]:[\\/]/.test(cwd) ? cwd.replace(/\\/g, '/') : null;
+const withForwardTrust = (projects) =>
+  cwdForward && cwdForward !== cwd ? { ...projects, [cwdForward]: { hasTrustDialogAccepted: true } } : projects;
 // A Windows drive-letter cwd. Claude Code looks the trust entry up under the
 // forward-slash spelling, so both spellings have to end up trusted.
 const winCwd = 'C:\\Users\\danny\\workspace\\project';
@@ -103,14 +108,14 @@ test('merges required fields into valid configs without losing unrelated data', 
   });
   assert.deepEqual(JSON.parse(fs.readFileSync(projectConfigPath, 'utf8')), {
     numStartups: 7,
-    projects: {
+    projects: withForwardTrust({
       [cwd]: {
         allowedTools: ['Read'],
         custom: 'keep',
         hasTrustDialogAccepted: true
       },
       '/another/project': { hasTrustDialogAccepted: false }
-    }
+    })
   });
 });
 
@@ -122,7 +127,7 @@ test('creates minimal config files when they are missing', () => {
     skipAutoPermissionPrompt: true
   });
   assert.deepEqual(JSON.parse(fs.readFileSync(projectConfigPath, 'utf8')), {
-    projects: { [cwd]: { hasTrustDialogAccepted: true } }
+    projects: withForwardTrust({ [cwd]: { hasTrustDialogAccepted: true } })
   });
 });
 
