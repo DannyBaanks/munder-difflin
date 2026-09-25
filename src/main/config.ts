@@ -1,5 +1,6 @@
 import { app } from 'electron';
-import { existsSync, mkdirSync, readFileSync, writeFileSync } from 'node:fs';
+import { existsSync, mkdirSync, readFileSync, renameSync, rmSync, writeFileSync } from 'node:fs';
+import { randomBytes } from 'node:crypto';
 import { dirname, join } from 'node:path';
 import { homedir } from 'node:os';
 import {
@@ -639,7 +640,19 @@ export function onConfigWritten(listener: ConfigWriteListener): () => void {
 function persistConfig(next: HarnessConfig): HarnessConfig {
   const p = configPath();
   mkdirSync(dirname(p), { recursive: true });
-  writeFileSync(p, JSON.stringify(next, null, 2), 'utf8');
+  // Temp file + rename, like the hive's ledger writes. config.json holds the
+  // settings, webhooks and mission state, and a truncated one silently resets
+  // all of them to defaults on the next boot — with `readConfig`'s catch-all
+  // swallowing the cause. config.ts does not share Hive's private helper, so
+  // the same three steps are spelled out here.
+  const tmp = `${p}.tmp-${randomBytes(3).toString('hex')}`;
+  try {
+    writeFileSync(tmp, JSON.stringify(next, null, 2), 'utf8');
+    renameSync(tmp, p);
+  } catch (error) {
+    rmSync(tmp, { force: true });
+    throw error;
+  }
   // Saving one setting stores only that setting, so fill the rest back in first:
   // subscribers must see the same complete config a read gives them, never a
   // half-filled one. Skip the migration — it saves in its own right, and has

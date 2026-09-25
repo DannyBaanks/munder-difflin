@@ -129,3 +129,37 @@ test('webhook dispatch appends via atomic addTask, not a stale whole-ledger rewr
   assert.doesNotMatch(fn, /writeTasks\s*\(\[\s*\.\.\.existing/,
     'dispatchWebhookWork must not rebuild a stale whole-ledger snapshot');
 });
+
+// A ledger write that dies halfway must cost the interrupted card, never the
+// board. Written in place, the file is truncated between the open and the last
+// byte, and `readJson`'s catch-all then hands the app an empty ledger — the
+// whole floor silently disappears with nothing in the log pointing at why.
+test('an interrupted ledger write leaves the previous tasks.json intact', (t) => {
+  const hive = floor(t);
+  hive.writeTasks([card('keep-me')]);
+  const root = hive.root();
+  const tasksPath = path.join(root, 'tasks.json');
+  const before = fs.readFileSync(tasksPath, 'utf8');
+
+  // ENOSPC/EIO/a pulled power cord: half the payload lands, then the write
+  // throws. load-ts transpiles to CommonJS, so the module reads
+  // `node:fs`.writeFileSync at call time and this reaches the real code path.
+  const realWriteFileSync = fs.writeFileSync;
+  fs.writeFileSync = function (target, data, ...rest) {
+    if (typeof target === 'string' && target.includes('tasks.json')) {
+      const text = String(data);
+      realWriteFileSync.call(fs, target, text.slice(0, Math.floor(text.length / 2)), ...rest);
+      throw Object.assign(new Error('ENOSPC: simulated interrupted write'), { code: 'ENOSPC' });
+    }
+    return realWriteFileSync.call(fs, target, data, ...rest);
+  };
+  t.after(() => { fs.writeFileSync = realWriteFileSync; });
+
+  assert.throws(() => hive.writeTasks([card('never-landed')]), /ENOSPC/);
+
+  assert.equal(fs.readFileSync(tasksPath, 'utf8'), before,
+    'the previous ledger must survive byte-for-byte');
+  assert.deepEqual(hive.tasks().tasks.map((task) => task.id), ['keep-me']);
+  assert.deepEqual(fs.readdirSync(root).filter((name) => name.includes('.tmp-')), [],
+    'an interrupted write must leave no temp file in the hive root');
+});

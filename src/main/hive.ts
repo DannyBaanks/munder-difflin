@@ -2773,13 +2773,31 @@ export class HiveManager {
   private readJson<T>(p: string, fallback: T): T {
     try { return JSON.parse(readFileSync(p, 'utf8')) as T; } catch { return fallback; }
   }
+  /** Durable JSON write: temp file in the same directory, then rename. rename
+   *  is atomic within a volume, so a reader sees either the whole previous file
+   *  or the whole new one — never the truncated middle of a write that a
+   *  force-quit, a Windows-update reboot or a full disk interrupted.
+   *
+   *  Every state file this class owns routes through here (registry, tasks,
+   *  fleet, cursor, hook settings), which is why the guarantee lives in ONE
+   *  place instead of depending on each call site remembering to ask for it.
+   *  This app is force-killed in ordinary use and the webhook/settings/mission
+   *  handlers write on nearly every IPC call, so the window is exercised a lot. */
   private writeJson(p: string, data: unknown): void {
-    writeFileSync(p, JSON.stringify(data, null, 2), 'utf8');
+    this.atomicWriteJson(p, data);
   }
   private atomicWriteJson(p: string, data: unknown): void {
     const tmp = `${p}.tmp-${shortRand()}`;
-    writeFileSync(tmp, JSON.stringify(data, null, 2), 'utf8');
-    renameSync(tmp, p);
+    try {
+      writeFileSync(tmp, JSON.stringify(data, null, 2), 'utf8');
+      renameSync(tmp, p);
+    } catch (error) {
+      // A half-written temp file is litter in a directory the inbox/outbox
+      // scanners and the ledger guard walk. The real file was never opened, so
+      // whatever it held before is still intact.
+      rmSync(tmp, { force: true });
+      throw error;
+    }
   }
 
   // — git (single committer, retry + stale-lock recovery) —
