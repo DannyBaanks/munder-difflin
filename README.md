@@ -24,7 +24,7 @@ Munder Difflin es una **oficina de agentes de IA** que corre en tu computadora. 
 Este fork en español ([DannyBaanks/munder-difflin](https://github.com/DannyBaanks/munder-difflin)) le agrega tres cosas grandes:
 
 - 🔗 **Dos computadoras, una oficina.** Tu Michael le puede pasar trabajo al Michael de otra máquina (Munder Link).
-- 📱 **Tu oficina en el celular.** Contesta las preguntas de Michael, revisa el tablero y delega desde el iPhone (Munder Mobile).
+- 📱 **Tu oficina en el celular.** Contesta las preguntas de Michael, revisa el tablero y delega desde la PWA o la app nativa de iPhone (Munder Mobile).
 - 🇲🇽 **Todo en español**, con una terminal cómoda (`munder`) para no depender de `npm run dev`.
 
 > Es un fork de [chaitanyagiri/munder-difflin](https://github.com/chaitanyagiri/munder-difflin), al día con su 0.5.2. Este README cubre lo que cambia en el fork y lo mínimo para correrlo. El producto base se documenta en [su README](https://github.com/chaitanyagiri/munder-difflin/blob/main/README.md), [`HIVE.md`](./HIVE.md), [`SPEC.md`](./SPEC.md) y [`DESIGN.md`](./DESIGN.md).
@@ -33,7 +33,7 @@ Este fork en español ([DannyBaanks/munder-difflin](https://github.com/DannyBaan
 
 ### Opción A: descarga y listo
 
-En [**Releases**](https://github.com/DannyBaanks/munder-difflin/releases) están el instalador y la versión portable para **Windows** (`.exe`) y la de **Linux** (`.AppImage`), con `SHA256SUMS.txt` para verificarlas. En **Mac**, el `.dmg` sale del [upstream](https://github.com/chaitanyagiri/munder-difflin/releases/latest).
+En [**Releases**](https://github.com/DannyBaanks/munder-difflin/releases) están el instalador y la versión portable para **Windows** (`.exe`) y la de **Linux** (`.AppImage`), con `SHA256SUMS.txt` para verificarlas. En **Mac**, el `.dmg` sale del [upstream](https://github.com/chaitanyagiri/munder-difflin/releases/latest). Para iPhone, la app nativa se compila como artifact de [**Actions → iOS (Munder Mobile)**](https://github.com/DannyBaanks/munder-difflin/actions/workflows/ios.yml); la guía está en [`ios/MunderMobile/README.md`](./ios/MunderMobile/README.md).
 
 Solo necesitas **al menos un agente instalado**, por ejemplo [Claude Code](https://claude.com/claude-code) (`claude`). También sirven `codex`, `gemini`, `grok`, `kimi`, `qwen`, `opencode`, `crush`, `pi`, `copilot`, `cursor-agent` y `agy`.
 
@@ -54,15 +54,19 @@ La primera vez sale una bienvenida donde eliges idioma y motor. Luego, con **Add
 
 ## Lo que puedes hacer
 
+Hay dos maneras de llevar la oficina al celular: la **PWA**, que se instala desde Safari en segundos, y la **app nativa de iPhone**, que ahora compila el CI en SwiftUI. Las dos hablan el mismo protocolo y se emparejan con el mismo código de seis dígitos.
+
 ### 📱 Munder Mobile: tu oficina en el celular
 
 Michael te hace una pregunta y no estás en la compu. Contéstale desde el celular y la oficina sigue trabajando.
 
+#### PWA: rápida y sin compilar
+
 <p align="center">
-  <img src="./docs/isyco/mobile/office-light.png" alt="Munder Mobile, pestaña Oficina: Michael trabajando, 2 de 4 workers libres, 2 preguntas pendientes y un campo para pedirle algo a Michael" width="200">
-  <img src="./docs/isyco/mobile/questions-light.png" alt="Pestaña Preguntas: la pregunta de Michael sobre qué dominio usar, con su caja de respuesta" width="200">
-  <img src="./docs/isyco/mobile/board-dark.png" alt="Pestaña Tablero en modo oscuro: tareas bloqueadas, en curso, por hacer y hechas" width="200">
-  <img src="./docs/isyco/mobile/link-dark.png" alt="Pestaña Enlace en modo oscuro: la oficina michael-xeon en línea con 12 de 16 workers libres, y un formulario para delegarle trabajo" width="200">
+  <img src="./docs/isyco/mobile/office-light.png" alt="Munder Mobile PWA, pestaña Oficina: Michael trabajando, 2 de 4 workers libres, 2 preguntas pendientes y un campo para pedirle algo a Michael" width="200">
+  <img src="./docs/isyco/mobile/questions-light.png" alt="PWA, pestaña Preguntas: la pregunta de Michael sobre qué dominio usar, con su caja de respuesta" width="200">
+  <img src="./docs/isyco/mobile/board-dark.png" alt="PWA, pestaña Tablero en modo oscuro: tareas bloqueadas, en curso, por hacer y hechas" width="200">
+  <img src="./docs/isyco/mobile/link-dark.png" alt="PWA, pestaña Enlace en modo oscuro: la oficina michael-xeon en línea con 12 de 16 workers libres, y un formulario para delegarle trabajo" width="200">
 </p>
 
 | Pestaña | Qué haces ahí |
@@ -98,7 +102,36 @@ Luego:
 - **¿Perdiste el celular?** Olvídalo desde la computadora (**Olvidar** en Celulares, o `munder link olvidar <nombre>`) y deja de funcionar en ese momento.
 - **Un celular no es una oficina.** Puede ver, contestar y pedir, pero nunca recibe trabajo.
 
-La guía completa está en [`tools/munder/LINK.md`](./tools/munder/LINK.md#munder-remote-la-oficina-desde-el-celular). En el código se llama **Munder Remote**.
+La guía completa de la PWA está en [`tools/munder/LINK.md`](./tools/munder/LINK.md#munder-remote-la-oficina-desde-el-celular). En el código se llama **Munder Remote**.
+
+#### iPhone nativo (SwiftUI)
+
+La nueva app nativa hace lo mismo que la PWA, pero sin depender del navegador: las llaves viven en el **Keychain de iOS**, la app aprende las direcciones LAN/Tailscale de la oficina y prueba primero la que respondió la última vez. Las pantallas son SwiftUI y el CI corre los tests en el simulador.
+
+<p align="center">
+  <img src="./docs/isyco/mobile/ios/office-light.png" alt="App nativa, pantalla Oficina con Michael, workers, preguntas, tareas y el equipo" width="200">
+  <img src="./docs/isyco/mobile/ios/questions-light.png" alt="App nativa, pantalla Preguntas para contestar a Michael" width="200">
+  <img src="./docs/isyco/mobile/ios/board-light.png" alt="App nativa, pantalla Tablero con tareas bloqueadas, en curso, por hacer y hechas" width="200">
+  <img src="./docs/isyco/mobile/ios/link-light.png" alt="App nativa, pantalla Enlace para ver oficinas y delegar trabajo" width="200">
+  <img src="./docs/isyco/mobile/ios/pair-light.png" alt="App nativa, pantalla de emparejamiento con la dirección de la computadora" width="200">
+</p>
+<sub>Capturas reales del simulador iPhone, generadas por el CI en modo demo (<code>-MunderDemo</code>); no son mockups.</sub>
+
+**Cómo instalarla:**
+
+1. En GitHub, abre [**Actions → iOS (Munder Mobile)**](https://github.com/DannyBaanks/munder-difflin/actions/workflows/ios.yml) y descarga el artifact `MunderMobile-unsigned-ipa` de la última corrida verde de `main`.
+2. Firma el `.ipa` con tu Apple ID gratuito usando **iloader**, **SideStore** o **AltStore**.
+3. En el iPhone, confía en tu Apple ID en **Ajustes → General → VPN y administración de dispositivos** y activa **Modo de desarrollador** si iOS lo pide.
+4. En la computadora, prende el enlace:
+
+```bash
+munder link encender
+munder link celular
+```
+
+5. Escribe esa dirección en la app, toca **Emparejar** y acepta el mismo código de seis dígitos en la computadora.
+
+La guía completa —incluidos los límites de la cuenta gratuita de Apple, la renovación de firma y qué hacer si no contesta— está en [`ios/MunderMobile/README.md`](./ios/MunderMobile/README.md). Con una Apple ID gratuita la firma dura **7 días** y puedes tener hasta **3 apps** firmadas a la vez.
 
 ### 🔗 Munder Link: dos computadoras, una oficina
 
@@ -263,11 +296,14 @@ Plantillas `core` más cinco giros. Las de packs importados limitan a «pedir pe
 ### 16. CI en Linux, Windows y macOS
 Cada push compila y corre la suite en los tres sistemas. Encontró un bug real: en Windows, borrar un worktree podía seguir el junction de `node_modules` hasta el checkout principal. Hoy un test con un `must-survive.txt` lo vigila.
 
-### 17. Munder Mobile (Munder Remote)
-- **Qué sirve:** el daemon de Link sirve una PWA en `/app` y su API sellada en `/remote/v1/*`, en `tools/munder/lib-remote.cjs`.
+### 17. Munder Mobile: PWA + iOS nativo
+- **PWA:** el daemon de Link sirve la app web en `/app` y su API sellada en `/remote/v1/*`, en `tools/munder/lib-remote.cjs`.
 - **Emparejamiento commit-reveal:** el nonce del celular va comprometido antes de ver el de la oficina, así nadie en medio puede probar nonces hasta que coincidan los códigos.
 - **Llamadas:** ChaCha20-Poly1305 bajo X25519 + HKDF, con hora y anti-replay.
-- **Criptografía del celular:** va en JS puro (`remote-app/remote-crypto.js`) porque el navegador no da WebCrypto por `http://`. Los tests la comparan byte a byte con Node.
+- **Criptografía de la PWA:** va en JS puro (`remote-app/remote-crypto.js`) porque el navegador no da WebCrypto por `http://`. Los tests la comparan byte a byte con Node.
+- **App iOS nativa:** `ios/MunderMobile/` implementa el mismo protocolo `munder-remote@1` en SwiftUI, guarda las llaves en el Keychain y prueba las direcciones LAN/Tailscale de la oficina.
+- **Generado y verificado:** `scripts/make-assets.cjs` produce retratos, icono, vectores y fixtures; el CI falla si quedan viejos y los tests del simulador comparan los bytes con la oficina.
+- **Capturas reales:** el job `Simulator screenshots (demo office)` publica las pantallas en el artifact y las copias de referencia quedan en `docs/isyco/mobile/ios/`.
 - **Dónde viven los celulares:** en `remotes.json`, nunca en `peers.json`.
 - **Operaciones:** `overview`, `peers`, `answer` (igual que ASK ME), `ask` y `delegate`.
 
