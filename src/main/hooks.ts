@@ -19,6 +19,7 @@ import type { ControlRegistry } from './control';
 import type { CircuitBreaker } from './breaker';
 import { estimateCostUsd } from './pricing';
 import { validateHookEvent } from '../shared/hookEvents';
+import { GUARDED_TOOLS, hiveWriteDecision } from './hiveGuard';
 
 /** Maximum JSON payload bytes in one newline-delimited hook frame. */
 const MAX_HOOK_FRAME_BYTES = 256 * 1024;
@@ -283,6 +284,35 @@ export class HookServer {
             permissionDecisionReason: d.reason ?? 'Denied by operator.'
           }
         };
+      }
+    }
+
+    // The hive is coordination only: a file write into it is refused unless it
+    // is one of the protocol files this agent owns. The tool check comes first
+    // so ordinary tool calls never touch the filesystem layout.
+    if (event === 'PreToolUse' && agentId && GUARDED_TOOLS.has(p.tool_name ?? '')) {
+      const hiveRoot = this.hive.root();
+      if (hiveRoot) {
+        const d = hiveWriteDecision({
+          tool: p.tool_name ?? '',
+          toolInput: p.tool_input,
+          cwd: p.cwd,
+          agentId,
+          isGod: this.hive.isGod(agentId),
+          hiveRoot,
+          caseInsensitive: process.platform !== 'linux'
+        });
+        if (d.deny) {
+          this.emitControl(agentId, p.tool_name, d.reason);
+          this.emit(agentId, event, p);
+          return {
+            hookSpecificOutput: {
+              hookEventName: 'PreToolUse',
+              permissionDecision: 'deny',
+              permissionDecisionReason: d.reason
+            }
+          };
+        }
       }
     }
 
