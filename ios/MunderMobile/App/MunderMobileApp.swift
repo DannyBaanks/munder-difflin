@@ -9,8 +9,8 @@ struct MunderMobileApp: App {
         let store = OfficeStore()
         // `-MunderDemo` (CI simulator screenshots): the bundled demo office, no network.
         if ProcessInfo.processInfo.arguments.contains("-MunderDemo"),
-           let o = Bundle.main.url(forResource: "overview", withExtension: "json", subdirectory: "Resources/Demo").flatMap({ try? Data(contentsOf: $0) }),
-           let p = Bundle.main.url(forResource: "demo-peers", withExtension: "json", subdirectory: "Resources/Demo").flatMap({ try? Data(contentsOf: $0) }) {
+           let o = Bundle.main.url(forResource: "overview", withExtension: "json", subdirectory: "Media/Demo").flatMap({ try? Data(contentsOf: $0) }),
+           let p = Bundle.main.url(forResource: "demo-peers", withExtension: "json", subdirectory: "Media/Demo").flatMap({ try? Data(contentsOf: $0) }) {
             store.loadDemo(overview: o, peers: p)
         }
         _store = StateObject(wrappedValue: store)

@@ -2,7 +2,7 @@
 /**
  * Generated inputs of the iOS app, from the same code the office runs:
  *
- *   Resources/Cast/<name>.png      the cast's 18×28 pixel portraits (avatar-engine.cjs)
+ *   Media/Cast/<name>.png      the cast's 18×28 pixel portraits (avatar-engine.cjs)
  *   Assets.xcassets/AppIcon…png    the app icon: Michael on the Munder lemon
  *   Tests/vectors.json             munder-remote@1 crypto vectors computed by the
  *                                  office's own Node code; the Swift tests must
@@ -63,7 +63,7 @@ function castPortraits() {
   const out = {};
   for (const name of Object.keys(A.AVATAR_RECIPES)) {
     const buf = A.composeAvatar(A.AVATAR_RECIPES[name]);
-    out[`Resources/Cast/${name}.png`] = png(A.PORTRAIT_W, A.PORTRAIT_H, new Uint8Array(buf), 4);
+    out[`Media/Cast/${name}.png`] = png(A.PORTRAIT_W, A.PORTRAIT_H, new Uint8Array(buf), 4);
   }
   return out;
 }
@@ -188,8 +188,8 @@ function demoData() {
     { office_id: '77aa00bb11cc22dd', name: 'michael-laptop', fingerprint: '77aa 00bb 11cc 22dd', online: false, error: 'sin respuesta' },
   ] };
   return {
-    'Resources/Demo/overview.json': Buffer.from(JSON.stringify(overview, null, 2) + '\n'),
-    'Resources/Demo/demo-peers.json': Buffer.from(JSON.stringify(peers, null, 2) + '\n'),
+    'Media/Demo/overview.json': Buffer.from(JSON.stringify(overview, null, 2) + '\n'),
+    'Media/Demo/demo-peers.json': Buffer.from(JSON.stringify(peers, null, 2) + '\n'),
   };
 }
 

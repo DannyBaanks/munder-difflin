@@ -42,7 +42,7 @@
 	     src/renderer/src/assets/fonts/LICENSE.txt). -->
 	<key>UIAppFonts</key>
 	<array>
-		<string>Resources/Fonts/PressStart2P-Regular.ttf</string>
+		<string>Media/Fonts/PressStart2P-Regular.ttf</string>
 	</array>
 	<!-- The link daemon speaks plain http on the LAN and over Tailscale. Every
 	     call is sealed end to end (ChaCha20-Poly1305); over Tailscale it also

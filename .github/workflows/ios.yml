@@ -111,8 +111,13 @@ jobs:
           APP=$(find /tmp/mm_dd -name "MunderMobile.app" -type d -path "*iphoneos*" | head -1)
           test -n "$APP" || { echo "::error::MunderMobile.app not found"; exit 1; }
           echo "App: $APP"; ls -la "$APP"
-          test -f "$APP/Resources/Fonts/PressStart2P-Regular.ttf" || { echo "::error::font missing from the bundle"; exit 1; }
-          test -f "$APP/Resources/Cast/michael.png" || { echo "::error::cast portraits missing from the bundle"; exit 1; }
+          test -f "$APP/Media/Fonts/PressStart2P-Regular.ttf" || { echo "::error::font missing from the bundle"; exit 1; }
+          test -f "$APP/Media/Cast/michael.png" || { echo "::error::cast portraits missing from the bundle"; exit 1; }
+          # iloader / SideStore / AltStore RE-SIGN this bundle when installing. Prove
+          # it can be signed at all, on a copy (the .ipa itself ships unsigned).
+          rm -rf /tmp/signcheck.app && cp -R "$APP" /tmp/signcheck.app
+          codesign --force --deep --sign - /tmp/signcheck.app
+          codesign --verify --deep --strict --verbose=2 /tmp/signcheck.app
           mkdir -p Payload && cp -R "$APP" Payload/
           zip -qr MunderMobile-unsigned.ipa Payload
           ls -la MunderMobile-unsigned.ipa

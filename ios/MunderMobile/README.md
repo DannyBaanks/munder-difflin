@@ -71,10 +71,10 @@ En el iPhone:
   - `Sources/` es el núcleo sin UI: el protocolo con CryptoKit (X25519, HKDF-SHA256, ChaCha20-Poly1305), el cliente que prueba varias direcciones, el Keychain y el estado.
   - `App/` son las pantallas en SwiftUI.
 - **Generado por `scripts/make-assets.cjs`** con el mismo código de la oficina; el CI falla si algo quedó viejo:
-  - `Resources/Cast/*.png` (retratos, desde `avatar-engine.cjs`);
+  - `Media/Cast/*.png` (retratos, desde `avatar-engine.cjs`);
   - el ícono;
   - `Tests/vectors.json` y `Tests/overview.json`;
-  - `Resources/Demo/*`.
+  - `Media/Demo/*`.
 
   Para regenerarlos: `node ios/MunderMobile/scripts/make-assets.cjs`.
 - **Tests:** comprueban en el simulador que el Swift produce **los mismos bytes** que la oficina: la llave de sesión, el código SAS, los sobres sellados en las dos direcciones y la decodificación de un `overview` real.

@@ -167,12 +167,12 @@ struct Bubble<Content: View>: View {
 // MARK: - the cast
 
 enum Cast {
-    static let names: [String] = Bundle.main.paths(forResourcesOfType: "png", inDirectory: "Resources/Cast")
+    static let names: [String] = Bundle.main.paths(forResourcesOfType: "png", inDirectory: "Media/Cast")
         .map { URL(fileURLWithPath: $0).deletingPathExtension().lastPathComponent }
         .sorted()
 
     static func image(_ name: String) -> UIImage? {
-        Bundle.main.path(forResource: name, ofType: "png", inDirectory: "Resources/Cast").flatMap(UIImage.init(contentsOfFile:))
+        Bundle.main.path(forResource: name, ofType: "png", inDirectory: "Media/Cast").flatMap(UIImage.init(contentsOfFile:))
     }
 
     /// Same rule as the PWA: the boss is Michael, else the name or id, else a stable pick.

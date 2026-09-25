@@ -40,8 +40,11 @@ targets:
       - path: App
         type: group
       - path: Assets.xcassets
-      # Copied as a folder: Resources/Fonts/… and Resources/Cast/<name>.png
-      - path: Resources
+      # Copied as a folder: Media/Fonts/…, Media/Cast/<name>.png, Media/Demo/….
+      # NOT "Resources": a top-level Resources/ in an iOS .app makes codesign
+      # read it as a macOS-style bundle and refuse to sign it ("code object is
+      # not signed at all"), which also breaks re-signing when sideloading.
+      - path: Media
         type: folder
     dependencies:
       - target: MunderMobileCore
