@@ -35,3 +35,15 @@ docs/blog-preview-*/
 # Finder duplicate files, e.g. "spec 2.js", "sitemap 2.xml"
 *\ 2.*
 *\ [0-9].*
+
+# munder link / control state — identidades, peers y recibos viven con 0600
+# FUERA del repo (~/.local/state/munder/, userData). Si alguna copia cae en
+# el arbol, esto impide commitearla: pierdes el peer, no la llave.
+link/
+avatar-overrides.json
+munder-control.json
+identity.json
+peers.json
+pending.json
+receipts.jsonl
+*.pid
