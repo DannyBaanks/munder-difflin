@@ -34,6 +34,8 @@ import type { UsageProvider } from './usage';
 import { MemoryManager } from './memory';
 import { KnowledgeManager } from './knowledge';
 import { LinkPanel, type LinkLib } from './linkPanel';
+import { opencodeDataDirs, opencodeSessionExists } from './opencodeSession';
+import Database from 'better-sqlite3';
 import { createRequire } from 'node:module';
 import { loadBundledPacks, loadImportedPack, packsResourceDir } from './packs';
 import { claudeCliVersion } from './claudeCliVersion';
@@ -3076,7 +3078,18 @@ async function spawnAgentCore(opts: AgentSpawnOptions, owner: Electron.WebConten
     // silently ignored it and started a brand-new empty session.
     const typedSid = typeof opts.resumeSessionId === 'string' ? opts.resumeSessionId.trim() : '';
     const sid = typedSid || (opts.resume === true ? hive.lastSession(opts.hive.id) : undefined);
-    if (sid && rf) {
+    // OpenCode/OpenISy exit 1 ("Session not found") on an id they no longer
+    // have, which would kill a restored agent on the spot: attach only a session
+    // their own store still holds, else start fresh (and say so).
+    const opencodeLike = provider === 'opencode' || provider === 'openisy';
+    const sessionGone = !!sid && opencodeLike && !opencodeSessionExists(sid, {
+      dirs: opencodeDataDirs({ ...process.env, ...(opts.env ?? {}) }),
+      openDb: (file) => new Database(file, { readonly: true, fileMustExist: true })
+    });
+    if (sessionGone) {
+      console.warn(`[resume] ${provider} session "${sid}" not found in its data dir - starting a fresh session`);
+      if (typedSid) resumeNotFound = true;
+    } else if (sid && rf) {
       const args = opts.args ?? [];
       if (!args.includes(rf)) { args.push(rf, sid); opts.args = args; didResume = true; }
     } else if (sid && rsub) {

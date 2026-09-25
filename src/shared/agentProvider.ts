@@ -392,9 +392,11 @@ export const AGENT_PROVIDER_PRESETS: AgentProviderPreset[] = [
     // every BYOK slug in the OpenCode model catalog stays one click away for
     // whoever has the key.
     recommendedOrchestratorModel: undefined,
-    // Capturing the TUI session id for resume is unverified; spawn fresh on respawn
-    // (protocol re-injected as the initial prompt), matching codex.
-    resumeFlag: undefined,
+    // `opencode --session <id>` reopens that conversation (verified on 1.18.32:
+    // `-s, --session  session id to continue`). The id comes from the bridge
+    // plugin, which reports the agent's ROOT session (never a subagent's child
+    // session) on every hook payload.
+    resumeFlag: '--session',
     installCommand: 'npm install -g opencode-ai@latest', // trusted, hardcoded
     // Node-free installers, for the rung that runs when npm is absent AND no Node
     // installer could be resolved (offline / unsupported platform) — until now
@@ -447,7 +449,8 @@ export const AGENT_PROVIDER_PRESETS: AgentProviderPreset[] = [
     // renderer idle inbox-wake nudge is the guaranteed fallback.
     canReceiveInbox: true,
     initialPromptFlag: '--prompt',
-    resumeFlag: undefined,
+    // Same CLI surface and the same bridge plugin as OpenCode: `--session <id>`.
+    resumeFlag: '--session',
     recommendedOrchestratorModel: undefined
   },
   {
