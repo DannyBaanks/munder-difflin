@@ -46,12 +46,15 @@ test('identity is created once, private, and its id is the key fingerprint', () 
   if (process.platform !== 'win32') assert.equal(fs.statSync(L.files(o.dir).identity).mode & 0o777, 0o600);
 });
 
-test('both sides compute the same pairing code; a different nonce gives a different code', () => {
-  const a = office('sa'); const b = office('sb');
-  const c1 = L.sas(a.identity.sign.x, b.identity.sign.x, 'n1', 'n2');
-  assert.equal(c1, L.sas(b.identity.sign.x, a.identity.sign.x, 'n2', 'n1'));
+test('both sides compute the same pairing code; a different nonce or sealing key gives a different code', () => {
+  const a = office('sa'); const b = office('sb'); const m = office('sm');
+  const [sa, sb, ba, bb] = [a.identity.sign.x, b.identity.sign.x, a.identity.box.x, b.identity.box.x];
+  const c1 = L.sas(sa, sb, 'n1', 'n2', ba, bb);
+  assert.equal(c1, L.sas(sb, sa, 'n2', 'n1', bb, ba));
   assert.match(c1, /^\d{6}$/);
-  assert.notEqual(c1, L.sas(a.identity.sign.x, b.identity.sign.x, 'n1', 'n3'));
+  assert.notEqual(c1, L.sas(sa, sb, 'n1', 'n3', ba, bb));
+  assert.notEqual(c1, L.sas(sa, sb, 'n1', 'n2', ba, m.identity.box.x), 'a swapped sealing key changes the code');
+  assert.throws(() => L.sas(sa, sb, 'n1', 'n2'), (e) => e.code === 'bad_args');
 });
 
 test('a sealed envelope opens only for its paired recipient, once, and only unaltered', () => {
@@ -167,6 +170,92 @@ test('messages keep the Office Bridge format, so Michael reads them like any oth
   const msg = JSON.parse(fs.readFileSync(path.join(inbox, fs.readdirSync(inbox)[0]), 'utf8'));
   // field list of HiveMessage in src/mcp/office-bridge/hiveAdapter.ts
   assert.deepEqual(Object.keys(msg).sort(), ['act', 'body', 'conversation', 'created_at', 'from', 'hops', 'id', 'in_reply_to', 'needs_human', 'requires_reply', 'subject', 'to'].sort());
+});
+
+// ─── hardening ───────────────────────────────────────────────────────────────
+
+/** A man in the middle of pairing: forwards /pair both ways, swapping ONLY the
+ *  sealing keys for its own. Signatures still verify, so before sas@2 both
+ *  screens showed the same code and the attacker could read every sealed call. */
+function mitmProxy(target, mallory) {
+  const http = require('node:http');
+  const server = http.createServer(async (req, res) => {
+    let raw = ''; for await (const c of req) raw += c;
+    const body = JSON.parse(raw || '{}');
+    if (body.box_pub) body.box_pub = mallory.identity.box.x;
+    const up = await fetch(`http://${target}${req.url}`, { method: req.method, body: JSON.stringify(body), headers: { 'Content-Type': 'application/json' } });
+    const back = await up.json();
+    if (back.box_pub) back.box_pub = mallory.identity.box.x;
+    res.writeHead(up.status, { 'Content-Type': 'application/json' });
+    res.end(JSON.stringify(back));
+  });
+  return new Promise((r) => server.listen(0, '127.0.0.1', () => r(server)));
+}
+
+test('a man in the middle who swaps sealing keys cannot make the two codes match', async (t) => {
+  const b = await serve(office('mb'));
+  const mallory = office('mallory');
+  const proxy = await mitmProxy(b.address, mallory);
+  t.after(() => { b.server.close(); proxy.close(); });
+  const a = office('ma');
+  const { peer, code } = await L.requestPair(`127.0.0.1:${proxy.address().port}`, { dir: a.dir });
+  assert.equal(peer.box_pub, mallory.identity.box.x, 'the attack really swapped the key A sees');
+  const onB = Object.values(L.loadPending(b.dir))[0];
+  assert.equal(onB.box_pub, mallory.identity.box.x, 'and the key B sees');
+  assert.notEqual(code, onB.code, 'the humans see different codes, so they refuse');
+  assert.equal(L.acceptPending(code, b.dir), null, 'typing A\'s code on B pairs nothing');
+});
+
+test('a pending request cannot be overwritten with other keys, and /pair is rate limited per address', async (t) => {
+  const b = await serve(office('rb'));
+  t.after(() => b.server.close());
+  const a = office('ra'); const m = office('rm');
+  await L.requestPair(b.address, { dir: a.dir });
+  const hijack = { ...L.publicCard(a.identity), box_pub: m.identity.box.x, nonce: 'x' };
+  const post = (card) => fetch(`http://${b.address}/link/v1/pair`, { method: 'POST', body: JSON.stringify(card), headers: { 'Content-Type': 'application/json' } });
+  const r = await post(hijack);
+  assert.equal(r.status, 409);
+  assert.equal((await r.json()).code, 'pending_conflict');
+  assert.equal(Object.values(L.loadPending(b.dir))[0].box_pub, a.identity.box.x, 'the real request survives');
+  // 2 used so far; the limit is 5 per address per window
+  const codes = [];
+  for (let i = 0; i < 4; i++) codes.push((await post({ ...L.publicCard(office(`rx${i}`).identity), nonce: 'n' })).status);
+  assert.deepEqual(codes, [200, 200, 200, 429]);
+});
+
+test('a reply is bound to the call it answers', async (t) => {
+  const a = await serve(office('ba'));
+  const b = await serve(office('bb'));
+  t.after(() => { a.server.close(); b.server.close(); });
+  const { peer, code } = await L.requestPair(b.address, { dir: a.dir });
+  L.trustPeer(peer, a.dir); L.acceptPending(code, b.dir);
+  // record a genuine sealed reply from B, then serve it to A for a DIFFERENT call
+  const aAsPeer = cardAsPeer(a);
+  const recorded = L.seal(b.identity, aAsPeer, { ok: true, result: { stale: true }, re: 'someone-elses-nonce' });
+  const http = require('node:http');
+  const replay = http.createServer((req, res) => { res.writeHead(200, { 'Content-Type': 'application/json' }); res.end(JSON.stringify(recorded)); });
+  await new Promise((r) => replay.listen(0, '127.0.0.1', r));
+  t.after(() => replay.close());
+  const peers = L.loadPeers(a.dir);
+  peers[peer.office_id].addresses = [`127.0.0.1:${replay.address().port}`];
+  require('node:fs').writeFileSync(L.files(a.dir).peers, JSON.stringify(peers));
+  await assert.rejects(L.call(peer.name, 'status', {}, { dir: a.dir }), (e) => e.code === 'bad_reply');
+});
+
+test('delegated tasks are marked external and tell Michael to ask before acting outward', async (t) => {
+  const o = office('ext');
+  const r = new L.Office(o.hive, 'link:x').submit({ compose: 'Manda el correo a todos los clientes', origin: { office_id: 'abcd', name: 'michael-otra' } });
+  const task = JSON.parse(fs.readFileSync(path.join(o.hive, 'tasks.json'), 'utf8')).tasks.find((x) => x.id === r.task_id);
+  assert.equal(task.link.external, true);
+  const inbox = path.join(o.hive, 'agents', 'god', 'inbox');
+  const msg = JSON.parse(fs.readFileSync(path.join(inbox, fs.readdirSync(inbox)[0]), 'utf8'));
+  assert.match(msg.body, /Petición externa/);
+  assert.match(msg.body, /confirmación humana/);
+});
+
+test('discovery answers private, loopback and Tailscale sources only', () => {
+  for (const a of ['10.1.2.3', '172.16.0.9', '192.168.0.4', '127.0.0.1', '169.254.1.1', '100.100.1.1', '::ffff:192.168.1.5']) assert.equal(L.isPrivateV4(a), true, a);
+  for (const a of ['8.8.8.8', '172.32.0.1', '100.128.0.1', '1.1.1.1', 'fe80::1', '']) assert.equal(L.isPrivateV4(a), false, a);
 });
 
 test('submit is idempotent per peer+origin_ref, and it survives a restart', async (t) => {
