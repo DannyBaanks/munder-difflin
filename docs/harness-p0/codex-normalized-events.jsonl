@@ -1,0 +1,7 @@
+{"at":"2026-09-25T19:33:55.990Z","kind":"session","session_id":"01a0da0f-607c-72c3-ad41-0a3aee8d514d","resumed":false}
+{"at":"2026-09-25T19:33:55.995Z","kind":"warning","message":"Model metadata for `fake-model` not found. Defaulting to fallback metadata; this can degrade performance and cause issues."}
+{"at":"2026-09-25T19:33:56.016Z","kind":"turn_start"}
+{"at":"2026-09-25T19:33:56.229Z","kind":"tool_start","tool":"command","input":"/bin/bash -lc 'echo \"harness-boundary-ok\" > MUNDER_P0.txt && wc -l README.md'"}
+{"at":"2026-09-25T19:33:56.231Z","kind":"tool_end","tool":"command","ok":true,"exit_code":0}
+{"at":"2026-09-25T19:33:56.257Z","kind":"message","text":"Listo: escribí MUNDER_P0.txt y conté las líneas de README.md."}
+{"at":"2026-09-25T19:33:56.271Z","kind":"usage","usage":{"input_tokens":20,"cached_input_tokens":0,"cache_write_input_tokens":0,"output_tokens":10,"reasoning_output_tokens":0}}

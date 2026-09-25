@@ -79,4 +79,4 @@ jobs:
         run: npm run test:focused -- --test-reporter=spec
       # proveedor.test.cjs is left out: it prompts for sudo and hangs headless.
       - name: munder CLI tests
-        run: node --test tools/munder/link.test.cjs tools/munder/remote.test.cjs tools/munder/avatar.test.cjs tools/munder/reviver.test.cjs tools/munder/gpt.test.cjs
+        run: node --test tools/munder/link.test.cjs tools/munder/remote.test.cjs tools/munder/avatar.test.cjs tools/munder/reviver.test.cjs tools/munder/gpt.test.cjs tools/munder/harness.test.cjs

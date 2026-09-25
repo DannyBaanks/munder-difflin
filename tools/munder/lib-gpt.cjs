@@ -532,6 +532,7 @@ const INVENTORY = {
     delegate: { exposed: 'link_delegate' },
   },
   link: {
+    overview: { excluded: 'el tablero de otra oficina es privado; GPT solo ve lo que delegó' },
     status: { exposed: 'link_office_status' },
     submit: { exposed: 'link_delegate', why: 'lado que recibe; GPT delega con L.delegate' },
     get: { exposed: 'link_task_get' },

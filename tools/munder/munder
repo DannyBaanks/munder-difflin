@@ -1799,6 +1799,8 @@ Comandos:
                     link enviar <oficina> "tarea" · link estado · link ayuda
   gpt …             ChatGPT como principal «gpt»: perfil (lectura/operador/full),
                     encender con URL fija, aprobar, revocar, auditoría. Ver GPT.md
+  harness …         Mandar una tarea a un harness externo (codex, deepseek/ACP) y
+                    recibir un recibo. Ver EXTERNAL_HARNESS_AUDIT.md
   reviver …         El Reviver: arranca y revive Munder aunque Munder esté muerto
                     (init · instalar · status · start · restart · stop). Ver REVIVER.md
   ps              Lista PIDs del dev (sin matar nada)
@@ -1851,6 +1853,11 @@ async function main() {
     case 'link': await cmdLink(rest); break;
     case 'gpt': {
       const r = spawnSync(process.execPath, [path.join(__dirname, 'gpt.cjs'), ...rest], { stdio: 'inherit' });
+      process.exitCode = r.status ?? 1;
+      break;
+    }
+    case 'harness': {
+      const r = spawnSync(process.execPath, [path.join(__dirname, 'harness.cjs'), ...rest], { stdio: 'inherit' });
       process.exitCode = r.status ?? 1;
       break;
     }
