@@ -172,6 +172,26 @@ export const MCP_CATALOG: McpCatalogEntry[] = [
     },
     tier: 'write',
     defaultEnabled: false
+  },
+
+  // ─── Munder ChatGPT Link — MCP facade over a paired Munder Link office ──
+  {
+    id: 'munder-chatgpt-link',
+    label: 'Munder ChatGPT Link',
+    description:
+      'Reach a paired Munder office from ChatGPT: verify peer identity and route, ' +
+      'read office status, delegate composes and follow tasks. Protocol: munder-chatgpt-link@1. ' +
+      'Local stdio only; every call re-verifies a pinned, paired peer.',
+    spec: {
+      command: 'node',
+      args: [
+        // Path relative to the munder-difflin project root.
+        // Requires `npm install` once inside src/mcp/munder-chatgpt-link.
+        'src/mcp/munder-chatgpt-link/server.mjs'
+      ]
+    },
+    tier: 'write',
+    defaultEnabled: false
   }
 ];
 

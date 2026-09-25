@@ -18,6 +18,12 @@ Después:
 munder link enviar xeon "audita PITON"
 ```
 
+Cuando la otra oficina termine, contesta ella:
+
+```bash
+munder link responder linux link-1790320261836-f1c80b "listo" --resultado "3 hallazgos"
+```
+
 ## La regla de oro
 
 **Solo acepta un código que estés viendo en la otra pantalla.** Emparejar es darle a esa máquina permiso de mandarle trabajo a tu Michael, y tu Michael ejecuta agentes en tu computadora. Si llega una solicitud que no esperabas, o el código no coincide, no aceptes nada.
@@ -28,7 +34,8 @@ munder link enviar xeon "audita PITON"
 Linux                                   Xeon
 Michael A ──▶ munder link enviar ──▶ servidor del enlace ──▶ inbox de Michael B
    ▲            (firmado + cifrado)        (puerto 47831)          │
-   └──────────── munder link tarea ◀──── estado de la tarea ◀──────┘
+   │                                                                ▼
+   └── munder link responder ◀── munder link responder ── Michael B termina
 ```
 
 - **Michael ↔ Michael.** La otra máquina nunca toca tu hive ni tus terminales. Deja la tarea en el inbox de tu Michael, igual que el Office Bridge, y tu Michael decide cómo hacerla.
@@ -36,6 +43,16 @@ Michael A ──▶ munder link enviar ──▶ servidor del enlace ──▶ i
 - **Cada llamada va firmada (Ed25519) y cifrada (X25519 + AES-256-GCM)**, también por Tailscale. Un sobre repetido, alterado o viejo se rechaza.
 - **Una oficina solo ve las tareas que ella misma delegó**, no el resto de tu tablero.
 - **Queda recibo en los dos lados:** `link_delegated` en el `log.jsonl` del hive que envía, `link_received` en el que recibe, y `~/.local/state/munder/link/receipts.jsonl`.
+
+## La `origin_ref`: por qué la respuesta llega a quien corresponde
+
+Cada `enviar` inventa un `origin_ref` (lo verás en la línea **Tarea de origen:** de la tarea delegada y en `link.origin_ref` dentro de `tasks.json`). Es el hilo.
+
+- **Se guarda siempre pegada a la oficina que la mandó**, en `~/.local/state/munder/link/origins.json`, con la clave `<oficina>|<origin_ref>`. Una `origin_ref` suelta no significa nada: por eso otra oficina emparejada no puede contestar una tarea que no es suya (sale `no tengo ninguna tarea delegada con esa referencia` y queda en el log como `link_reply_rejected`).
+- **Reenviar la misma `origin_ref` no duplica trabajo.** Si el comando se cayó a mitad de camino y lo repites con la misma ref, la otra oficina te devuelve la misma tarea en vez de crearte otra. La primera versión gana.
+- **Contestar no es abrir la puerta.** `responder` solo funciona para una ref que esa misma oficina te dio, y solo escribe un mensaje en el inbox de tu Michael (`link_reply_received` en tu log, y `reply_received` en sus recibos).
+
+El índice se poda solo: 30 días y 2000 entradas como máximo.
 
 ## Los comandos, uno por uno
 
@@ -88,7 +105,24 @@ munder: delegada a xeon en 15 ms → task-1790320263790-14f3f70b
 
 $ munder link tarea xeon task-1790320263790-14f3f70b
   Auditoría PITON  queued
+  origin_ref: link-1790320261836-f1c80b
 ```
+
+### Contestar (en la oficina que hizo el trabajo)
+
+```console
+$ munder link responder linux link-1790320261836-f1c80b "listo" --resultado "3 hallazgos"
+munder: respuesta entregada a linux en 32 ms → task-1790320263790-14f3f70b
+```
+
+Eso deja un mensaje en el inbox del Michael que mandó la tarea, y en la consola de la que lo escribió:
+
+```json
+{"subject": "Re: link-1790320261836-f1c80b", "act": "inform",
+ "body": "**Origin_ref:** `link-1790320261836-f1c80b`\n**Tarea delegada:** task-1790320263790-14f3f70b\n**Desde:** xeon\n\nlisto\n\n**Resultado:** 3 hallazgos"}
+```
+
+`--estado todo|doing|blocked|done` fija el estado si lo quieres explícito; con `--resultado` la tarea pasa a `done` sola. Si mandas una `origin_ref` que esa oficina nunca te dio: `no tengo ninguna tarea delegada con esa referencia`.
 
 También existen `munder link mensaje <oficina> <task_id> "texto"` para agregar contexto y `munder link cancelar <oficina> <task_id> [motivo]`. Al nombre de la oficina le puedes quitar el `michael-`, y basta con cualquier parte que no sea ambigua.
 
@@ -120,17 +154,25 @@ ENLAZADAS
 | `sobre fuera de tiempo` | Los relojes de las dos máquinas difieren más de 2 minutos | Ajusta la hora automática en ambas |
 | `oficina no emparejada` | La otra máquina te olvidó, o reinstaló | Vuelve a emparejar |
 | `esa tarea no existe o no es tuya` | Pediste una tarea que no delegaste tú | Usa el `task_id` que te dio `enviar` |
+| `no tengo ninguna tarea delegada con esa referencia` | La `origin_ref` no es de esa oficina, o es vieja (pasa a los 30 días) | Copia el `origin_ref` de la línea **Tarea de origen:** de la tarea |
+| `0/0 workers libres … Michael: offline` | La oficina no encuentra su `registry.json` | Abre Munder una vez en esa máquina, o revisa `MUNDER_LINK_HIVE` |
 
 ## Trampas
 
 1. **El código es la seguridad.** Si alguien en tu red intercepta el emparejamiento, los dos códigos no coinciden. Por eso nunca se acepta sin mirar las dos pantallas.
 2. **Firewall.** Si `buscar` no encuentra la otra máquina en la misma red, abre 47831/tcp y 47832/udp en la que recibe. Con Tailscale el descubrimiento no usa broadcast: pregunta directo a cada nodo en línea por el 47831.
-3. **Tailscale tiene que estar en línea en las dos.** Hoy (2026-09-25) `tailscale status` mostraba el nodo Windows `danny` «offline, last seen 4d ago»: así no aparece en `buscar`.
-4. **Olvidar es de un solo lado.** `munder link olvidar xeon` quita tu confianza en xeon, pero xeon te sigue conociendo hasta que ella también te olvide.
-5. **Las llaves viven en `~/.local/state/munder/link/`** (en Windows, bajo tu carpeta de usuario), con permisos privados. Si las borras, esta oficina es «otra» para todas y hay que emparejar de nuevo.
+3. **El broadcast se pierde, y eso es normal.** Por eso `buscar` no lanza un solo sondeo: barre la red varias veces dentro del mismo segundo y medio (nunca más de 4 rondas ni más de 32 direcciones). Si aun así no aparece, casi siempre es el firewall (trampa 2), no la red.
+4. **Tailscale tiene que estar en línea en las dos.** Hoy (2026-09-25) `tailscale status` mostraba el nodo Windows `danny` «offline, last seen 4d ago»: así no aparece en `buscar`.
+5. **Olvidar es de un solo lado.** `munder link olvidar xeon` quita tu confianza en xeon, pero xeon te sigue conociendo hasta que ella también te olvide.
+6. **Las llaves viven en `~/.local/state/munder/link/`** (en Windows, bajo tu carpeta de usuario), con permisos privados. Ahí también queda `origins.json`, el índice de `origin_ref` que permite contestar y repetir sin duplicar. Si lo borras, puedes seguir usando el enlace, pero las respuestas antiguas dejan de enrutar.
+
+## Qué ve cada quien
+
+`GET /link/v1/hello` es la única ruta sin cifrar, y solo dice cosas de la **máquina** (RAM, CPUs, carga, plataforma) más su nombre y sus llaves públicas. Los números de la **oficina** —workers libres, estado de Michael, tareas abiertas— solo salen por la llamada firmada `status`, y las tareas solo las ve quien las delegó.
 
 ## NO PROBADO
 
 - Entre dos máquinas físicas distintas: todo lo de arriba se probó con dos oficinas en la misma computadora (también por su IP de Tailscale, `100.115.163.4`).
 - En Windows: la librería solo usa módulos de Node y debería funcionar, pero no se ha corrido allí. En Windows sería `node tools\munder\munder link conectar`.
+- `responder` entre dos máquinas distintas: el flujo completo se probó con las dos oficinas en la misma computadora.
 - Delegar automáticamente según la capacidad (el «router de oficinas»): el estado ya trae RAM, CPUs, carga y workers libres para decidirlo, pero la política todavía no existe.
