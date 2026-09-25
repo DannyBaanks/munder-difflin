@@ -95,14 +95,19 @@ test('the dotted legacy twin loses to the dotted current spelling', () => {
   });
 });
 
-test('a legacy-only install still resolves, so old transcripts stay readable', () => {
+// The legacy spelling (leading slash dropped, dots kept) only ever existed on
+// POSIX: on win32 legacyProjectKey() IS projectKey(), so there is no older
+// Windows directory to fall back to.
+const POSIX_LEGACY = { skip: process.platform === 'win32' ? 'Windows never had the legacy project key' : false };
+
+test('a legacy-only install still resolves, so old transcripts stay readable', POSIX_LEGACY, () => {
   withHome((_home, mkProject) => {
     const legacy = mkProject('Users-me-app');
     assert.equal(projectDir('/Users/me/app'), legacy);
   });
 });
 
-test('a legacy-only install with dots resolves to its undashed twin', () => {
+test('a legacy-only install with dots resolves to its undashed twin', POSIX_LEGACY, () => {
   withHome((_home, mkProject) => {
     // The legacy key kept dots, so the fallback has to keep them too — deriving
     // it from the new key by stripping the leading dash would look for
