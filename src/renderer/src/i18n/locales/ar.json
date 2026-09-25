@@ -1626,5 +1626,34 @@
     "viaLan": "شبكة المنزل ({{ifname}})",
     "noAppUrls": "لا يملك هذا الجهاز عنوان شبكة محلية أو Tailscale الآن.",
     "noPhones": "لم يُقرن أي هاتف بعد."
+  },
+  "shell": {
+    "nav": {
+      "label": "التنقل العام",
+      "office": "المكتب",
+      "settings": "الإعدادات",
+      "settingsShort": "الإعدادات",
+      "marketplace": "المتجر"
+    },
+    "marketplace": {
+      "title": "المتجر",
+      "tagline": "اكتشف وابنِ إضافات لـ Munder.",
+      "searchPlaceholder": "ابحث عن الإضافات وخوادم MCP والمزوّدين…",
+      "categories": "الفئات",
+      "category": {
+        "mcp": "MCP",
+        "harness": "منصّة وكلاء",
+        "provider": "مزوّد",
+        "skill": "مهارة",
+        "pack": "حزمة مكتب",
+        "theme": "سمة"
+      },
+      "createTitle": "أنشئ لـ Munder",
+      "createBlurb": "صف ما تريد إضافته إلى Munder.",
+      "intentPlaceholder": "أريد أن يتمكن Munder من…",
+      "prepare": "تجهيز المساهمة",
+      "pipelineSoon": "قريبًا: مسار المساهمات غير متصل بعد.",
+      "noCatalog": "لا يوجد كتالوج متصل بعد. لا شيء هنا يثبّت أو يشغّل أي شيء."
+    }
   }
 }

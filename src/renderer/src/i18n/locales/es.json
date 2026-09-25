@@ -1626,5 +1626,34 @@
     "viaLan": "red de casa ({{ifname}})",
     "noAppUrls": "Esta máquina no tiene dirección de red local ni de Tailscale ahora mismo.",
     "noPhones": "Ningún celular emparejado todavía."
+  },
+  "shell": {
+    "nav": {
+      "label": "Navegación global",
+      "office": "Oficina",
+      "settings": "Configuración",
+      "settingsShort": "Config",
+      "marketplace": "Marketplace"
+    },
+    "marketplace": {
+      "title": "MARKETPLACE",
+      "tagline": "Descubre y construye extensiones para Munder.",
+      "searchPlaceholder": "Buscar plugins, MCPs, providers…",
+      "categories": "Categorías",
+      "category": {
+        "mcp": "MCP",
+        "harness": "Harness",
+        "provider": "Provider",
+        "skill": "Skill",
+        "pack": "Office Pack",
+        "theme": "Tema"
+      },
+      "createTitle": "Crear para Munder",
+      "createBlurb": "Describe qué quieres agregar a Munder.",
+      "intentPlaceholder": "Quiero que Munder pueda…",
+      "prepare": "Preparar contribución",
+      "pipelineSoon": "Próximamente: el flujo de contribuciones todavía no está conectado.",
+      "noCatalog": "Todavía no hay catálogo conectado. Nada aquí instala ni ejecuta nada."
+    }
   }
 }
