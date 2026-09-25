@@ -368,16 +368,13 @@ test('overview of a paired office through this one; an older office still shows 
   assert.deepEqual(r.result.agents.map((x) => x.name).sort(), ['Jim', 'Michael', 'Pam']);
   assert.equal(r.result.questions[0].id, 't-new');
 
-  // An office that predates the op: the link answers bad_op, the phone gets status.
-  const { server: old } = L.createLinkServer({ dir: b.dir, hiveRoot: b.hive, version: 'old' });
-  b.server.close();
+  // An office that predates the op answers bad_op to `overview`; the phone still gets its status.
   const realCall = L.call;
-  t.after(() => { L.call = realCall; old.close(); });
+  t.after(() => { L.call = realCall; });
   L.call = async (q, op, args, opts) => {
     if (op === 'overview') throw new L.LinkError('bad_op', 'operación desconocida: overview', 400);
     return realCall(q, op, args, opts);
   };
-  await new Promise((res) => old.listen(Number(new URL(b.base).port), '127.0.0.1', res));
   const lim = await phone.call('overview', { office: 'michael-ovb' });
   assert.equal(lim.ok, true);
   assert.equal(lim.result.limited, true);
