@@ -140,6 +140,12 @@ test('link-serve.cjs is a working server, the one the tab starts', async (t) => 
   const card = await L.hello(`127.0.0.1:${port}`);
   assert.equal(card.name, 'michael-served');
   child.kill('SIGTERM');
-  const code = await new Promise((r) => child.on('exit', r));
-  assert.equal(code, 0, 'SIGTERM closes it cleanly');
+  const [code, signal] = await new Promise((r) => child.on('exit', (c, s) => r([c, s])));
+  if (process.platform === 'win32') {
+    // Windows has no catchable SIGTERM: kill() terminates the process outright,
+    // which is also what `munder link apagar` does there.
+    assert.equal(signal, 'SIGTERM');
+  } else {
+    assert.equal(code, 0, 'SIGTERM closes it cleanly');
+  }
 });

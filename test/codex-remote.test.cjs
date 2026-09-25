@@ -13,7 +13,11 @@ const {
   CODEX_REMOTE_SOCKET_RELATIVE
 } = loadTs('src/shared/codexRemote.ts');
 
-test('Codex remote uses a short stable per-agent home alias', () => {
+// Codex remote rides a Unix domain socket and enableCodexRemoteForSpawn returns
+// false on win32 before touching any of this, so the socket paths are POSIX-only.
+const POSIX_ONLY = { skip: process.platform === 'win32' ? 'Codex remote is disabled on Windows (Unix socket)' : false };
+
+test('Codex remote uses a short stable per-agent home alias', POSIX_ONLY, () => {
   const first = codexRemoteAliasPath('/very/long/hive/agent/.codex', 'dev-1', '/tmp');
   const again = codexRemoteAliasPath('/very/long/hive/agent/.codex', 'dev-1', '/tmp');
   const other = codexRemoteAliasPath('/very/long/hive/agent/.codex', 'dev-2', '/tmp');

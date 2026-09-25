@@ -53,3 +53,30 @@ export async function unlinkWorktreeDeps(baseDir: string, worktreeDir: string): 
     return { ok: false, error: String(error) };
   }
 }
+
+/**
+ * Drop the worktree's `node_modules` LINK itself — never what it points at —
+ * before the worktree directory is deleted.
+ *
+ * On Windows the link is a directory junction, and `git worktree remove
+ * --force` then walks a tree whose `node_modules` is a reparse point into the
+ * BASE checkout's dependencies. Whether a recursive delete follows it depends
+ * on how that git build classifies junctions; the CI run on windows-2022 left
+ * the worktree behind, so nothing proved the base survived. Removing the link
+ * first takes the question away on every OS: `unlink` on a symlink or junction
+ * removes only the link (libuv uses RemoveDirectoryW for directory junctions).
+ * A real node_modules directory is left alone for git to handle.
+ */
+export async function detachWorktreeDepsLink(worktreeDir: string): Promise<DepUnlink> {
+  const worktreeNodeModules = join(worktreeDir, 'node_modules');
+  try {
+    const stat = await lstat(worktreeNodeModules);
+    if (!stat.isSymbolicLink()) return { ok: true, removed: false };
+    await unlink(worktreeNodeModules);
+    return { ok: true, removed: true };
+  } catch (error) {
+    const code = error instanceof Error && 'code' in error ? error.code : undefined;
+    if (code === 'ENOENT') return { ok: true, removed: false };
+    return { ok: false, error: String(error) };
+  }
+}
