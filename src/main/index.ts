@@ -35,6 +35,9 @@ import { MemoryManager } from './memory';
 import { KnowledgeManager } from './knowledge';
 import { LinkPanel, type LinkLib } from './linkPanel';
 import { createRequire } from 'node:module';
+import { loadBundledPacks, loadImportedPack, packsResourceDir } from './packs';
+import { claudeCliVersion } from './claudeCliVersion';
+import { CLAUDE_MODEL_CLI_FLOOR, modelForCli } from '../shared/modelCliFloor';
 import type { DocExtraction } from './docText';
 import { MemoryReflector, type ReflectSettings } from './reflect';
 import { PersistStore } from './db';
@@ -1869,6 +1872,12 @@ async function startControlChannel(): Promise<void> {
         hive: opts.hive ? { ...opts.hive, provider: opts.hive.provider as AgentProvider } : undefined,
       }, null),
       kill: (id) => killAgentById(id),
+      // Office Packs (from dontbemichael): read fresh per call, the files are tiny.
+      packs: () => ({ packs: loadBundledPacks({ packsDir: () => packsResourceDir(app, process.resourcesPath) }).packs.map((l) => l.pack) }),
+      importPack: (raw) => loadImportedPack(raw, loadBundledPacks({ packsDir: () => packsResourceDir(app, process.resourcesPath) }).core),
+      brief: (agentId, subject, body) => {
+        hive.send({ to: agentId, conversation: `pack-${agentId}`, act: 'request', subject, body }, 'god');
+      },
     });
     const r = await next.start();
     if (!r.ok || r.port === undefined) {
@@ -2978,6 +2987,22 @@ async function spawnAgentCore(opts: AgentSpawnOptions, owner: Electron.WebConten
         ? modelForRole(opts.hive, cfg)
         : cfg.defaultModel ?? modelForRole(opts.hive, cfg);
       if (m) args.push('--model', m);
+    }
+    // A model newer than the installed Claude Code (Opus 5.5 needs 2.1.280+)
+    // would be rejected and the agent would never start. Swap it for the newest
+    // model this CLI knows. Every spawn path (UI, control channel, workers)
+    // goes through this door, so the check lives here.
+    {
+      const at = args.findIndex((a) => a === '--model' || a.startsWith('--model='));
+      const requested = at < 0 ? undefined : args[at] === '--model' ? args[at + 1] : args[at].slice('--model='.length);
+      if (requested && CLAUDE_MODEL_CLI_FLOOR[requested]) {
+        const bin = opts.command.trim().split(/\s+/)[0] || opts.command;
+        const pick = modelForCli(requested, await claudeCliVersion(ptyManager.commandPath(bin)));
+        if (pick.downgraded) {
+          if (args[at] === '--model') args[at + 1] = pick.model; else args[at] = `--model=${pick.model}`;
+          console.warn(`[spawn] ${opts.hive.id}: ${pick.downgraded.from} needs Claude Code ${pick.downgraded.need}+, found ${pick.downgraded.have}; running ${pick.model}`);
+        }
+      }
     }
     // Name the Remote Control session after the agent (Michael, Jim, Dev1…) so it
     // is identifiable in claude.ai / the mobile app. Otherwise Claude defaults the

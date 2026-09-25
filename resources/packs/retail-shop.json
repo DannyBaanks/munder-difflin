@@ -1,0 +1,287 @@
+{
+  "spec": "dontbemichael/office-pack@1",
+  "schemaVersion": 1,
+  "businessType": "retail-shop",
+  "displayName": "Retail Shop",
+  "tagline": "store, online seller",
+  "glyph": "bag",
+  "extends": "core",
+  "agents": [
+    {
+      "schemaVersion": 1,
+      "id": "oscar",
+      "character": "oscar",
+      "role": "Finance",
+      "folder": "Finance",
+      "summary": "Tracks daily sales, margins and supplier invoices, and warns you before sales tax is due.",
+      "does": [
+        "Keep a running tally of daily sales you add",
+        "Watch supplier invoices for price rises",
+        "Flag sales tax and bills due in the next seven days",
+        "Send a weekly money summary"
+      ],
+      "wontDo": [
+        "Pay a supplier or move money",
+        "File a tax return for you"
+      ],
+      "connections": [
+        {
+          "id": "quickbooks",
+          "required": false
+        }
+      ],
+      "tools": [
+        {
+          "capability": "books.read",
+          "level": "auto"
+        },
+        {
+          "capability": "books.write",
+          "level": "ask"
+        }
+      ],
+      "modelTier": "fast",
+      "firstAction": "Oscar sends your first money summary next Monday at 9am"
+    },
+    {
+      "schemaVersion": 1,
+      "id": "pam",
+      "character": "pam",
+      "role": "Executive Admin",
+      "folder": "Admin",
+      "summary": "Keeps an eye on your email (orders, returns, supplier mail) and routes each message to the right person on your team.",
+      "does": [
+        "Sort new mail into orders, returns, suppliers and junk",
+        "Route customer questions to Kelly, shipping problems to Darryl and bills to Oscar",
+        "Flag anything from your landlord or a payment provider",
+        "Keep junk and newsletters out of your way"
+      ],
+      "wontDo": [
+        "Reply on your behalf without asking",
+        "Delete any email"
+      ],
+      "connections": [
+        {
+          "id": "email",
+          "required": true
+        }
+      ],
+      "tools": [
+        {
+          "capability": "email.read",
+          "level": "auto"
+        },
+        {
+          "capability": "email.label",
+          "level": "auto"
+        },
+        {
+          "capability": "email.send",
+          "level": "ask"
+        }
+      ],
+      "modelTier": "fast",
+      "firstAction": "Pam sorts your inbox every morning at 8am"
+    },
+    {
+      "schemaVersion": 1,
+      "id": "kelly",
+      "character": "kelly",
+      "role": "Customer Support",
+      "folder": "Support",
+      "summary": "Answers customer questions about stock, orders and returns, and handles complaints and reviews in your voice.",
+      "does": [
+        "Draft replies about what's in stock and what an item costs",
+        "Draft replies to return and exchange requests, using your policy",
+        "Draft replies to reviews, calmly and without admitting fault",
+        "Ask you before promising a refund or a discount"
+      ],
+      "wontDo": [
+        "Promise a refund without asking",
+        "Change an order or issue a payment"
+      ],
+      "connections": [
+        {
+          "id": "email",
+          "required": true
+        },
+        {
+          "id": "google-business",
+          "required": false
+        }
+      ],
+      "tools": [
+        {
+          "capability": "email.read",
+          "level": "auto"
+        },
+        {
+          "capability": "email.send",
+          "level": "ask"
+        },
+        {
+          "capability": "reviews.read",
+          "level": "auto"
+        },
+        {
+          "capability": "reviews.reply",
+          "level": "ask"
+        }
+      ],
+      "modelTier": "best",
+      "firstAction": "Kelly replies when a customer question arrives"
+    },
+    {
+      "schemaVersion": 1,
+      "id": "darryl",
+      "character": "darryl",
+      "role": "Inventory & Shipping",
+      "folder": "Inventory",
+      "summary": "Keeps your stock counts straight, tells you what to reorder, and gets online orders packed and shipped on time.",
+      "does": [
+        "Track stock counts you add or correct",
+        "Warn you when a line is running low, and keep a reorder list ready",
+        "Keep a list of online orders to pack and ship, and flag any running late",
+        "Flag items that haven't sold in a long time"
+      ],
+      "wontDo": [
+        "Buy stock or pay for shipping without your OK",
+        "Change prices"
+      ],
+      "connections": [
+        {
+          "id": "shopify",
+          "required": false
+        }
+      ],
+      "tools": [],
+      "modelTier": "fast",
+      "firstAction": "Darryl asks for your current stock counts tomorrow at 9am"
+    },
+    {
+      "schemaVersion": 1,
+      "id": "ryan",
+      "character": "ryan",
+      "role": "Marketing",
+      "folder": "Marketing",
+      "summary": "Drafts product posts and promotions, and posts them on your schedule.",
+      "does": [
+        "Draft a post for a new arrival you tell him about",
+        "Draft a promotion for slow days and for stock left at the end of a season",
+        "Write in your shop's voice, not a brochure's"
+      ],
+      "wontDo": [
+        "Post anything before you approve it",
+        "Read your email"
+      ],
+      "connections": [
+        {
+          "id": "meta",
+          "required": false
+        }
+      ],
+      "tools": [
+        {
+          "capability": "social.post",
+          "level": "ask"
+        }
+      ],
+      "modelTier": "best",
+      "firstAction": "Ryan drafts this week's promotion on Monday at 9am"
+    },
+    {
+      "schemaVersion": 1,
+      "id": "meredith",
+      "character": "meredith",
+      "role": "Supply Chain",
+      "folder": "Supply Chain",
+      "summary": "Looks after your suppliers and wholesalers: purchase orders, lead times, and price changes.",
+      "does": [
+        "Keep a list of your suppliers, what you buy from each and how long they take",
+        "Draft purchase orders from Darryl's reorder list",
+        "Flag price rises and late deliveries"
+      ],
+      "wontDo": [
+        "Place an order without your OK",
+        "Switch suppliers on her own"
+      ],
+      "connections": [
+        {
+          "id": "email",
+          "required": true
+        }
+      ],
+      "tools": [
+        {
+          "capability": "email.read",
+          "level": "auto"
+        },
+        {
+          "capability": "email.send",
+          "level": "ask"
+        }
+      ],
+      "modelTier": "fast",
+      "firstAction": "Meredith asks who your suppliers are tomorrow at 9am"
+    },
+    {
+      "schemaVersion": 1,
+      "id": "dwight",
+      "character": "dwight",
+      "role": "Sales Director",
+      "folder": "Sales",
+      "summary": "Grows sales beyond the counter: wholesale and corporate accounts, big orders, and your monthly sales targets.",
+      "does": [
+        "Keep a list of wholesale and corporate buyers, and where each order stands",
+        "Draft reminders for large orders that have gone quiet",
+        "Track sales against your monthly target"
+      ],
+      "wontDo": [
+        "Send a quote or offer a discount without your OK"
+      ],
+      "connections": [
+        {
+          "id": "email",
+          "required": true
+        },
+        {
+          "id": "crm",
+          "required": false
+        }
+      ],
+      "tools": [
+        {
+          "capability": "email.read",
+          "level": "auto"
+        },
+        {
+          "capability": "email.send",
+          "level": "ask"
+        }
+      ],
+      "modelTier": "best",
+      "firstAction": "Dwight asks for your open wholesale orders tomorrow at 9am"
+    }
+  ],
+  "defaultPicks": [
+    "oscar",
+    "pam",
+    "kelly",
+    "darryl"
+  ],
+  "officeHours": {
+    "days": [
+      "mon",
+      "tue",
+      "wed",
+      "thu",
+      "fri",
+      "sat"
+    ],
+    "work": {
+      "start": "10:00",
+      "end": "19:00"
+    },
+    "pauses": []
+  }
+}

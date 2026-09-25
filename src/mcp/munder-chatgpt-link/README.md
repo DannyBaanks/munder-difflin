@@ -6,6 +6,13 @@ Expone una oficina emparejada por Munder Link como 7 tools MCP
 `tools/munder/lib-link.cjs`, así que identidad, firmas, cifrado, anti-replay,
 propiedad de tareas y recibos siguen siendo de Munder Link.
 
+**¿Dónde estoy parado?** `munder_link_peers` devuelve `self` (la oficina donde
+corre este servidor) aparte de `peers` (las enlazadas). `munder_office_status`
+acepta `office: "self"` (o el nombre o id propios) y lee esta máquina directo,
+sin red; cualquier otro valor es un peer verificado por Link. Delegar, leer,
+mandar mensajes o cancelar hacia `self` responde `self_not_a_peer`: esas
+operaciones viajan a otra oficina.
+
 Antes de cada acción remota hace un `status` firmado+cifrado real y verifica
 que la ruta sea loopback, misma subred LAN o Tailscale (`100.64.0.0/10`).
 IPs privadas ruteadas o públicas se rechazan salvo override explícito, y el
@@ -16,7 +23,7 @@ peer debe estar emparejado: IP sola nunca basta.
 ```bash
 cd src/mcp/munder-chatgpt-link
 npm install     # @modelcontextprotocol/sdk + zod (node_modules queda fuera del repo)
-npm test        # gate de red, 5 tests, sin red
+npm test        # gate de red + self (unit y e2e MCP por stdio con dos oficinas locales)
 ```
 
 Requiere en la máquina: `munder link encender` corriendo y al menos una
