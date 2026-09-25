@@ -85,27 +85,109 @@
     return root;
   }
 
+  // Pixel icons: one 12×12 grid each, drawn as whole-pixel rects (crispEdges).
   const ICONS = {
-    office: 'M4 20V8l8-4 8 4v12M9 20v-6h6v6M4 20h16',
-    ask: 'M12 18h.01M9.1 9a3 3 0 1 1 4.2 2.7c-.8.4-1.3 1.1-1.3 2v.3M12 3a9 9 0 1 1 0 18 9 9 0 0 1 0-18z',
-    board: 'M4 5h4v14H4zM10 5h4v9h-4zM16 5h4v6h-4z',
-    link: 'M10 14a4 4 0 0 0 5.7 0l3-3a4 4 0 0 0-5.7-5.7l-1 1M14 10a4 4 0 0 0-5.7 0l-3 3a4 4 0 0 0 5.7 5.7l1-1',
+    office: [
+      '....####....',
+      '...#....#...',
+      '..#......#..',
+      '.#........#.',
+      '############',
+      '#..........#',
+      '#.##....##.#',
+      '#.##....##.#',
+      '#..........#',
+      '#....##....#',
+      '#....##....#',
+      '############',
+    ],
+    ask: [
+      '...######...',
+      '..##....##..',
+      '..##....##..',
+      '........##..',
+      '.......##...',
+      '......##....',
+      '.....##.....',
+      '.....##.....',
+      '............',
+      '.....##.....',
+      '.....##.....',
+      '............',
+    ],
+    board: [
+      '############',
+      '#..........#',
+      '#.##.##.##.#',
+      '#.##.##.##.#',
+      '#..........#',
+      '#.##.##....#',
+      '#.##.##....#',
+      '#..........#',
+      '############',
+      '.#........#.',
+      '.#........#.',
+      '............',
+    ],
+    link: [
+      '............',
+      '.####.......',
+      '#....#......',
+      '#..#####....',
+      '#....#..#...',
+      '.####....#..',
+      '..#....####.',
+      '...#..#....#',
+      '....#####..#',
+      '......#....#',
+      '.......####.',
+      '............',
+    ],
   };
   function icon(name) {
     const ns = 'http://www.w3.org/2000/svg';
     const svg = document.createElementNS(ns, 'svg');
-    svg.setAttribute('viewBox', '0 0 24 24');
-    svg.setAttribute('fill', 'none');
-    svg.setAttribute('stroke', 'currentColor');
-    svg.setAttribute('stroke-width', '1.8');
-    svg.setAttribute('stroke-linecap', 'round');
-    svg.setAttribute('stroke-linejoin', 'round');
+    svg.setAttribute('viewBox', '0 0 12 12');
     svg.setAttribute('aria-hidden', 'true');
-    const p = document.createElementNS(ns, 'path');
-    p.setAttribute('d', ICONS[name]);
-    svg.append(p);
+    ICONS[name].forEach((row, y) => [...row].forEach((ch, x) => {
+      if (ch !== '#') return;
+      const r = document.createElementNS(ns, 'rect');
+      r.setAttribute('x', x); r.setAttribute('y', y); r.setAttribute('width', 1); r.setAttribute('height', 1);
+      r.setAttribute('fill', 'currentColor');
+      svg.append(r);
+    }));
     return svg;
   }
+
+  // ── the cast's pixel portraits (same engine as the app: avatar-engine.js) ──
+  const A = window.MunderAvatar || null;
+  const CAST = A ? Object.keys(A.AVATAR_RECIPES) : [];
+  const portraitCache = new Map();
+  /** Which cast member an agent looks like: its name, its id, Michael for the boss, else a stable pick. */
+  function castOf(agent) {
+    if (!A) return null;
+    if (!agent) return 'michael';
+    if (agent.god) return 'michael';
+    for (const raw of [agent.name, agent.id]) {
+      const k = String(raw || '').toLowerCase().replace(/^worker-/, '').split(/[^a-z]/)[0];
+      if (A.AVATAR_RECIPES[k]) return k;
+    }
+    const pool = CAST.filter((k) => k !== 'michael');
+    let hsh = 0;
+    for (const ch of String(agent.id || agent.name || '')) hsh = (hsh * 31 + ch.charCodeAt(0)) >>> 0;
+    return pool[hsh % pool.length];
+  }
+  function portrait(who, scale = 2) {
+    const c = h('canvas', { class: 'px portrait', width: A ? A.PORTRAIT_W : 18, height: A ? A.PORTRAIT_H : 28, 'aria-hidden': 'true' });
+    c.style.width = `${18 * scale}px`;
+    c.style.height = `${28 * scale}px`;
+    if (A && who) {
+      if (!portraitCache.has(who)) portraitCache.set(who, A.composeAvatar(A.AVATAR_RECIPES[who]));
+      c.getContext('2d').putImageData(new ImageData(new Uint8ClampedArray(portraitCache.get(who)), A.PORTRAIT_W, A.PORTRAIT_H), 0, 0);
+    }
+    return c;
+  }
+  const agentById = (d, id) => (d && id ? d.agents.find((a) => a.id === id || a.name.toLowerCase() === String(id).toLowerCase()) : null);
 
   // ── network ────────────────────────────────────────────────────────────────
   async function postJson(path, body) {
@@ -205,7 +287,10 @@
     }, 'Emparejar con esta oficina');
     return h('main', { class: 'screen bare' },
       h('div', { class: 'top' }, h('h1', null, 'Munder Remote')),
-      h('p', { class: 'sub' }, `Maneja tu oficina desde aquí · ${location.host}`),
+      h('p', { class: 'sub' }, location.host),
+      h('div', { class: 'hero' },
+        portrait('michael', 3),
+        h('div', { class: 'bubble' }, '¡Hola! Empareja este celular y manejas la oficina desde aquí.')),
       h('div', { class: 'card' },
         h('h2', null, 'Emparejar este celular'),
         h('p', { class: 'hint' }, 'La computadora te va a pedir que confirmes un código de 6 dígitos. Hasta que lo aceptes allá, este celular no ve nada.'),
@@ -222,7 +307,10 @@
   function codeScreen() {
     return h('main', { class: 'screen bare' },
       h('div', { class: 'top' }, h('h1', null, 'Confirma el código')),
-      h('p', { class: 'sub' }, `Oficina ${state.office.name}`),
+      h('p', { class: 'sub' }, state.office.name),
+      h('div', { class: 'hero' },
+        portrait('dwight', 3),
+        h('div', { class: 'bubble' }, 'Seguridad primero. Compara este número con el de la computadora.')),
       h('div', { class: 'card' },
         h('div', { class: 'code', 'aria-label': `Código ${state.code.split('').join(' ')}` }, fmtCode(state.code)),
         h('p', { class: 'hint' }, 'Acéptalo en la computadora solo si allá sale este MISMO número:'),
@@ -236,6 +324,7 @@
   // ── main screens ───────────────────────────────────────────────────────────
   const MICHAEL = { idle: 'libre', working: 'trabajando', blocked: 'bloqueado', gone: 'fuera', offline: 'apagado' };
   const AGENT_DOT = { idle: 'on', working: 'busy', blocked: 'off', gone: '' };
+  const CHIP = { idle: 'idle', working: 'working', blocked: 'blocked' };
   const STATUS = { blocked: 'Bloqueadas', doing: 'En curso', todo: 'Por hacer', done: 'Hechas' };
 
   function tile(label, value, extra, alert) {
@@ -289,20 +378,21 @@
           id: 'ask', placeholder: 'Escribe lo que necesitas…', button: 'Enviar a Michael',
           onsend: async (text) => { await call('ask', { text }); toast('Enviado a Michael'); },
         })),
-      h('div', { class: 'section-title' }, `Equipo · ${agents.length}`),
-      h('div', { class: 'card' },
-        god ? agentRow(god) : null,
-        agents.length ? agents.map(agentRow) : (god ? null : h('div', { class: 'empty' }, 'Nadie conectado todavía'))),
+      h('div', { class: 'section-title' }, `Equipo · ${agents.length + (god ? 1 : 0)}`),
+      god || agents.length
+        ? h('div', { class: 'team' }, god ? agentCard(god) : null, agents.map(agentCard))
+        : h('div', { class: 'card empty' }, 'Nadie conectado todavía'),
     ];
   }
 
-  function agentRow(a) {
-    return h('div', { class: 'row' },
-      h('span', { class: `dot ${AGENT_DOT[a.status] || ''}` }),
-      h('div', { class: 'grow' },
-        h('div', { class: 'name' }, a.god && !/michael/i.test(a.name) ? `${a.name} · Michael` : a.name),
-        a.role ? h('div', { class: 'role' }, a.role) : null),
-      h('span', { class: 'chip' }, a.on_hold ? 'contigo' : (MICHAEL[a.status] || a.status)));
+  /** Like the agent cards along the bottom of the app: portrait, name, state. */
+  function agentCard(a) {
+    return h('div', { class: `agent${a.god ? ' boss' : ''}` },
+      portrait(castOf(a), 2),
+      h('div', { class: 'who' },
+        h('div', { class: 'name' }, a.name),
+        h('span', { class: `chip ${CHIP[a.status] || ''}` }, h('span', { class: `dot ${AGENT_DOT[a.status] || ''}` }), a.god ? 'jefe' : a.on_hold ? 'contigo' : (MICHAEL[a.status] || a.status)),
+        a.role ? h('div', { class: 'role' }, a.role) : null));
   }
 
   function questionsTab(d) {
@@ -310,7 +400,9 @@
     return d.questions.map((t) => h('article', { class: 'card question' },
       h('h2', null, t.title),
       h('div', { class: 'meta' }, t.assignee ? h('span', null, t.assignee) : null, t.from_office ? h('span', { class: 'chip' }, `de ${t.from_office}`) : null, t.question.asked_at ? h('span', null, ago(t.question.asked_at)) : null),
-      h('div', { class: 'q-body' }, markdown(t.question.q)),
+      h('div', { class: 'asker' },
+        portrait(t.assignee ? castOf(agentById(d, t.assignee) || { id: t.assignee }) : 'michael', 2),
+        h('div', { class: 'bubble' }, markdown(t.question.q))),
       ...composer({
         id: `qa:${t.id}`, placeholder: 'Tu respuesta…', button: 'Responder',
         onsend: async (text) => {
@@ -326,26 +418,30 @@
     for (const t of d.tasks) (by[t.status] || by.todo).push(t);
     const seg = h('div', { class: 'segments', role: 'group', 'aria-label': 'Estado' },
       Object.keys(STATUS).map((k) => h('button', {
+        class: k,
         'aria-pressed': String(ui.filter === k),
         onclick: () => { ui.filter = k; render(); },
       }, h('span', { class: 'n' }, String(by[k].length)), h('span', null, STATUS[k]))));
     const list = by[ui.filter];
     return [
       seg,
-      list.length ? list.map(taskCard) : h('div', { class: 'empty' }, ui.filter === 'done' ? 'Todavía nada terminado' : 'Vacío'),
+      list.length ? list.map((t) => taskCard(t, d)) : h('div', { class: 'empty' }, ui.filter === 'done' ? 'Todavía nada terminado' : 'Vacío'),
       ui.filter === 'done' && list.length ? h('p', { class: 'hint' }, 'Se muestran las 15 más recientes.') : null,
     ];
   }
 
-  function taskCard(t) {
-    return h('details', { class: 'card task' },
+  function taskCard(t, d) {
+    const who = t.assignee ? agentById(d, t.assignee) || { id: t.assignee } : null;
+    return h('details', { class: `card task s-${t.status}` },
       h('summary', null,
-        h('h2', null, t.title),
-        h('div', { class: 'meta' },
-          h('span', null, t.assignee || 'sin asignar'),
-          t.question ? h('span', { class: 'chip' }, 'pregunta abierta') : null,
-          t.from_office ? h('span', { class: 'chip' }, `de ${t.from_office}`) : null,
-          t.created_at ? h('span', null, ago(t.created_at)) : null)),
+        who ? portrait(castOf(who), 1.5) : null,
+        h('div', { class: 'grow' },
+          h('h2', null, t.title),
+          h('div', { class: 'meta' },
+            h('span', null, t.assignee || 'sin asignar'),
+            t.question ? h('span', { class: 'chip blocked' }, 'pregunta') : null,
+            t.from_office ? h('span', { class: 'chip' }, `de ${t.from_office}`) : null,
+            t.created_at ? h('span', null, ago(t.created_at)) : null))),
       h('div', { class: 'detail' },
         t.description ? [h('b', null, 'Descripción'), t.description] : null,
         t.result ? [h('b', null, 'Resultado'), t.result] : null,
@@ -364,9 +460,9 @@
             : peers.map((p) => {
               const c = p.capacity || {};
               return h('div', { class: 'row' },
-                h('span', { class: `dot ${p.online ? 'on' : 'off'}` }),
+                portrait('michael', 1.5),
                 h('div', { class: 'grow' },
-                  h('div', { class: 'name' }, p.name),
+                  h('div', { class: 'name' }, h('span', { class: `dot ${p.online ? 'on' : 'off'}` }), ' ', p.name),
                   h('div', { class: 'role' }, p.online
                     ? `Michael ${MICHAEL[c.michael_state] || c.michael_state || '—'} · ${c.workers_idle ?? '?'}/${c.workers_total ?? '?'} libres · ${c.ram_free_gb ?? '?'} GB`
                     : 'sin conexión')),
@@ -433,12 +529,26 @@
   }
 
   // ── render + refresh ──────────────────────────────────────────────────────
+  /**
+   * Press Start 2P has no accented capitals, so «PÍDELE» would print a lowercase
+   * «í» mid-word. The small-caps labels drop their accents, as pixel fonts do;
+   * everything read as body text keeps them.
+   */
+  const CAPS = '.section-title, .tile .label, label.field, .task .detail b, .chip, .agent .name, .row .name, .top h1, nav.tabs button, .segments button';
+  function plainCaps(root) {
+    for (const el of root.querySelectorAll(CAPS)) {
+      const walk = document.createTreeWalker(el, NodeFilter.SHOW_TEXT);
+      for (let n = walk.nextNode(); n; n = walk.nextNode()) n.nodeValue = n.nodeValue.normalize('NFD').replace(/[\u0300-\u036f]/g, '').normalize('NFC');
+    }
+  }
+
   function render() {
     // Keep whatever the human is typing: re-rendering must never eat a draft or the focus.
     const focused = document.activeElement && document.activeElement.id;
     const caret = focused && document.activeElement.selectionStart;
     const openCards = new Set([...document.querySelectorAll('details[open] h2')].map((e) => e.textContent));
     $app.replaceChildren(...[].concat(!state ? pairScreen() : !state.paired ? codeScreen() : mainScreen()));
+    plainCaps($app);
     document.querySelectorAll('details').forEach((d) => { if (openCards.has(d.querySelector('h2').textContent)) d.open = true; });
     if (focused) {
       const el = document.getElementById(focused);

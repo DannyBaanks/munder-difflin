@@ -45,9 +45,22 @@ const STATIC = {
   'app.css': 'text/css; charset=utf-8',
   'remote-crypto.js': 'text/javascript; charset=utf-8',
   'manifest.webmanifest': 'application/manifest+json',
-  'icon.svg': 'image/svg+xml',
   'icon-180.png': 'image/png',
   'icon-512.png': 'image/png',
+  // Press Start 2P, the app's display face (SIL OFL 1.1, see src/renderer/src/assets/fonts/LICENSE.txt).
+  'press-start-2p.woff2': 'font/woff2',
+};
+
+/**
+ * Built on request instead of copied: the cast's pixel portraits come from the
+ * SAME generated engine the CLI and the app use (avatar-engine.cjs), wrapped so a
+ * classic <script> exposes it as window.MunderAvatar. One source, no drift.
+ */
+const GENERATED = {
+  'avatar-engine.js': {
+    type: 'text/javascript; charset=utf-8',
+    body: () => Buffer.from(`(function (exports) {\n${fs.readFileSync(path.join(__dirname, 'avatar-engine.cjs'), 'utf8')}\n})(self.MunderAvatar = {});\n`),
+  },
 };
 
 const APP_HEADERS = {
@@ -207,10 +220,11 @@ async function peersView(dir) {
 // ─── HTTP ────────────────────────────────────────────────────────────────────
 
 function serveStatic(res, name) {
-  const type = STATIC[name];
+  const gen = Object.prototype.hasOwnProperty.call(GENERATED, name) ? GENERATED[name] : null;
+  const type = gen ? gen.type : (Object.prototype.hasOwnProperty.call(STATIC, name) ? STATIC[name] : null);
   if (!type) return L.send(res, 404, { ok: false, code: 'not_found' });
   let body;
-  try { body = fs.readFileSync(path.join(APP_DIR, name)); }
+  try { body = gen ? gen.body() : fs.readFileSync(path.join(APP_DIR, name)); }
   catch { return L.send(res, 404, { ok: false, code: 'not_found' }); }
   res.writeHead(200, { ...APP_HEADERS, 'Content-Type': type, 'Content-Length': body.length });
   res.end(body);
@@ -329,6 +343,6 @@ function createRemoteRoutes({ dir = L.stateDir(), hiveRoot = L.localHiveRoot(), 
 }
 
 module.exports = {
-  REMOTE, APP_DIR, STATIC, createRemoteRoutes,
+  REMOTE, APP_DIR, STATIC, GENERATED, createRemoteRoutes,
   deviceIdOf, remoteSas, remoteKey, sealFor, openFrom, openQuestion, overview,
 };

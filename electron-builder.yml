@@ -80,6 +80,9 @@ extraResources:
     to: munder/lib-remote.cjs
   - from: tools/munder/remote-app
     to: munder/remote-app
+  # The phone app draws the cast with the same generated portrait engine.
+  - from: tools/munder/avatar-engine.cjs
+    to: munder/avatar-engine.cjs
   # Office Packs (JSON, no secrets). loadBundledPacks() reads them from
   # <process.resourcesPath>/packs packaged, repo resources/packs in dev.
   - from: resources/packs
