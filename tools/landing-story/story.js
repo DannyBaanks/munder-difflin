@@ -105,7 +105,8 @@
     var t0 = tm(cur), t1 = ci + 1 < chaps.length ? tm(chaps[ci + 1]) : t0;
     var span = ci + 1 < chaps.length ? tops[ci + 1] - tops[ci] : 1, f = Math.max(0, Math.min(1, (mid - tops[ci]) / span));
     var k = y / max, mins = Math.round(t0 + (t1 - t0) * f);
-    dcT.textContent = pad(Math.floor(mins / 60)) + ':' + pad(mins % 60);
+    var hh = Math.floor(mins / 60), h12 = hh % 12 || 12;
+    dcT.textContent = h12 + ':' + pad(mins % 60) + (hh < 12 ? ' AM' : ' PM');
     dcL.textContent = parts[1] || '';
     dcB.style.width = (k * 100).toFixed(1) + '%';
     clock.classList.toggle('on', y > vh * 0.35);
