@@ -35,6 +35,13 @@ STORE="${OPENCODE_PRIVATE_STORE:-$HOME/.local/share/opencode-privado}"
 TARGET_HOME="${OPENCODE_TARGET_HOME:-$HOME}"
 TARGET="$TARGET_HOME/.config/opencode"
 
+# Git Bash / MSYS / Cygwin: sin esto `ln -s` COPIA el archivo en silencio, y la
+# siguiente corrida lo ve como "archivo real ajeno" (--check y --unlink también
+# fallan). nativestrict crea un symlink real de Windows o falla en voz alta.
+case "$(uname -s 2>/dev/null)" in
+  MINGW*|MSYS*|CYGWIN*) export MSYS=winsymlinks:nativestrict CYGWIN=winsymlinks:nativestrict ;;
+esac
+
 # store-subdir -> target-subdir (nombres que OpenISy realmente escanea:
 # {agent,agents} / {command,commands} / {mode,modes} / plugins).
 MAP="agent:agent command:command mode:mode plugin:plugins"
@@ -57,7 +64,10 @@ link_one() { # $1=categoría-store $2=categoría-destino $3=archivo
     warn "salto $dest (archivo real ajeno — no lo toco)"
     conflicts=$((conflicts + 1)); return 0
   fi
-  ln -s "$src" "$dest"
+  if ! ln -s "$src" "$dest"; then
+    warn "no pude crear el symlink $dest. En Windows activa el Modo de desarrollador (Configuración → Sistema → Para desarrolladores) o corre como administrador."
+    exit 1
+  fi
   linked=$((linked + 1))
 }
 
