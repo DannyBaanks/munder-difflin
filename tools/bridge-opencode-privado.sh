@@ -80,13 +80,17 @@ do_link() {
 }
 
 do_unlink() {
-  local pair ssub tsub dest removed=0 kept=0
+  local pair ssub tsub dest removed=0 kept=0 store_real
+  # Compare canonical paths on BOTH sides: readlink -f resolves the link fully,
+  # so a store under a symlinked dir (macOS /var -> /private/var, a symlinked
+  # home) never matched the raw $STORE and --unlink removed nothing, exit 0.
+  store_real="$(cd "$STORE" 2>/dev/null && pwd -P)" || store_real="$STORE"
   for pair in $MAP; do
     ssub="${pair%%:*}"; tsub="${pair##*:}"
     [[ -d "$TARGET/$tsub" ]] || continue
     for dest in "$TARGET/$tsub"/*; do
       [[ -L "$dest" ]] || continue
-      if [[ "$(readlink -f "$dest" 2>/dev/null)" == "$STORE/$ssub/$(basename "$dest")" ]]; then
+      if [[ "$(readlink -f "$dest" 2>/dev/null)" == "$store_real/$ssub/$(basename "$dest")" ]]; then
         rm "$dest"; removed=$((removed + 1))
       else
         kept=$((kept + 1))
