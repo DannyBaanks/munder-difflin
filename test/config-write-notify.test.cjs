@@ -109,3 +109,34 @@ test('subscribers receive the same shape a config read returns', () => {
   assert.deepEqual(seen[seen.length - 1], readConfig());
   off();
 });
+
+// config.json carries the settings, the webhooks and the mission state, and
+// `readConfig`'s catch-all turns a truncated file into a silent reset to
+// defaults. Temp file + rename, so an interrupted save costs the save and not
+// the configuration.
+test('an interrupted config write leaves the previous config.json intact', (t) => {
+  writeConfig({ orchestratorMaySpawn: true });
+  const configPath = path.join(userData, 'config.json');
+  const before = fs.readFileSync(configPath, 'utf8');
+
+  const realWriteFileSync = fs.writeFileSync;
+  fs.writeFileSync = function (target, data, ...rest) {
+    if (typeof target === 'string' && target.includes('config.json')) {
+      const text = String(data);
+      realWriteFileSync.call(fs, target, text.slice(0, Math.floor(text.length / 2)), ...rest);
+      throw Object.assign(new Error('ENOSPC: simulated interrupted write'), { code: 'ENOSPC' });
+    }
+    return realWriteFileSync.call(fs, target, data, ...rest);
+  };
+  t.after(() => { fs.writeFileSync = realWriteFileSync; });
+
+  assert.throws(() => writeConfig({ orchestratorMaySpawn: false }), /ENOSPC/);
+
+  assert.equal(fs.readFileSync(configPath, 'utf8'), before,
+    'the previous config must survive byte-for-byte');
+  assert.deepEqual(fs.readdirSync(userData).filter((name) => name.includes('.tmp-')), [],
+    'an interrupted write must leave no temp file next to config.json');
+
+  fs.writeFileSync = realWriteFileSync;
+  assert.equal(readConfig().orchestratorMaySpawn, true);
+});

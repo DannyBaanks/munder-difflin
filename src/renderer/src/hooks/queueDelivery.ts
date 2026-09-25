@@ -48,8 +48,14 @@ export async function deliverWithAcknowledgement(
 export function canDeliverToAgent(
   status: string,
   ptyQuietMs: number | null,
-  quiesceMs: number
+  quiesceMs: number,
+  onHold?: boolean
 ): boolean {
+  // The operator's hold wins over every other consideration, including a manual
+  // "send now": the agent is in a 1:1 with the human, and anything typed now
+  // lands in the middle of that conversation. The queue is not lost — the item
+  // stays pending and goes out when the hold is released.
+  if (onHold) return false;
   if (status === 'idle') return true;
   if (status !== 'looping') return false;
   return ptyQuietMs !== null && ptyQuietMs >= quiesceMs;

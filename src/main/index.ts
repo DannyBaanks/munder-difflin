@@ -5353,6 +5353,11 @@ ipcMain.handle('workers:stop', (_evt, workerId: string): { ok: boolean; error?: 
 function bootstrapHiveServices(): void {
   if (!hive.enabled()) return;
   hive.ensureHive();
+  // The generated docs (PROTOCOL.md, COMMANDS.md) are refreshed HERE and only
+  // here: app start is the one moment a protocol change can reach an existing
+  // hive, while ensureHive is also on the runtime path (every spawn, every
+  // ledger write) and must not rewrite files an agent reads as the authority.
+  hive.refreshGeneratedDocs();
   // Tell the hive what it is running inside, BEFORE anything spawns: the prompt
   // builder reads this, so an agent spawned earlier would never learn it.
   hive.setRuntimeInfo({ version: app.getVersion(), packaged: app.isPackaged, appPath: app.getAppPath() });
@@ -5472,7 +5477,8 @@ function runWorkerWakeBeat(): void {
       inboxIds: hive.inbox(agentId).map((message) => message.id).filter(Boolean),
       autoDeliveryPaused: snap.autoDeliveryPaused,
       paused: snap.paused,
-      halted: snap.halted
+      halted: snap.halted,
+      onHold: !!a.onHold
     });
   }
   for (const agentId of workerWake.decide(facts, now)) {
