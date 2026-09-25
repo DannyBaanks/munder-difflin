@@ -120,6 +120,14 @@ emparejamiento se confirma con un código de 6 dígitos en ambas pantallas.
 En las dos máquinas: `munder link conectar`. Guía con salida real en
 [`tools/munder/LINK.md`](./tools/munder/LINK.md).
 
+### 11. Fachada ChatGPT sobre Munder Link
+ChatGPT (que vive en la nube) opera tu oficina emparejada sin tocar tu red:
+un servidor MCP local (`src/mcp/munder-chatgpt-link/`) verifica peer + ruta
+(loopback, misma LAN o Tailscale) antes de cada llamada y expone 7 tools
+(`verify/peers/status/submit/get/message/cancel`). Todo lo crypto sigue
+siendo Munder Link. Detalle en
+[`src/mcp/munder-chatgpt-link/README.md`](./src/mcp/munder-chatgpt-link/README.md).
+
 ## Garantías de este fork
 
 * Nada subido al upstream: remoto `fork=DannyBaanks/munder-difflin`.
