@@ -1,7 +1,8 @@
 /**
  * Settings → Munder Link: the same things `munder link` does, without a
  * terminal. This office, the offices linked to it (live), requests waiting for
- * us, and pairing with a new one.
+ * us, pairing with a new one, and the phones that run this office through
+ * Munder Remote (tools/munder/lib-remote.cjs).
  *
  * Trust stays a human act. Pairing shows the 6-digit code and only proceeds
  * when the person confirms the other screen shows the same code; an incoming
@@ -141,6 +142,7 @@ export function LinkSettings() {
             {status.pending.map((p) => (
               <div key={p.office_id} style={card}>
                 <strong style={{ fontSize: 13 }}>{p.name}</strong>
+                {p.phone && <span style={muted}>{t('link.phoneBadge')}</span>}
                 <span style={{ ...mono, color: 'var(--cth-ink-500)' }}>{p.fingerprint}</span>
                 {p.from.length > 0 && <span style={muted}>{t('link.from', { from: p.from.join(' ') })}</span>}
                 <span style={{ flex: 1 }} />
@@ -152,6 +154,7 @@ export function LinkSettings() {
               </div>
             ))}
             <span style={muted}>{t('link.pendingHint', { godName })}</span>
+            {status.pending.some((p) => p.phone) && <span style={muted}>{t('link.pendingPhoneHint', { godName })}</span>}
           </div>
         </section>
       )}
@@ -196,6 +199,41 @@ export function LinkSettings() {
               </div>
             );
           })}
+        </div>
+      </section>
+
+      {/* PHONES (Munder Remote) */}
+      <section>
+        <div style={label}>{t('link.phones')}</div>
+        <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
+          <span style={muted}>{t('link.phonesDesc', { godName })}</span>
+          {!status.daemon.running && <span style={muted}>{t('link.turnOnFirst')}</span>}
+          {status.appUrls.map((u) => (
+            <div key={u.url} style={card}>
+              <span style={{ ...mono, userSelect: 'text' }}>{u.url}</span>
+              <span style={muted}>{u.via === 'tailscale' ? t('link.viaTailscale') : t('link.viaLan', { ifname: u.ifname })}</span>
+            </div>
+          ))}
+          {status.appUrls.length === 0 && <span style={muted}>{t('link.noAppUrls')}</span>}
+          {status.phones.length === 0 && <span style={muted}>{t('link.noPhones')}</span>}
+          {status.phones.map((ph) => (
+            <div key={ph.device_id} style={card}>
+              <strong style={{ fontSize: 13 }}>{ph.name}</strong>
+              <span style={{ ...mono, color: 'var(--cth-ink-500)' }}>{ph.fingerprint}</span>
+              <span style={{ flex: 1 }} />
+              {forgetting === ph.device_id ? (
+                <>
+                  <PixelButton size="sm" variant="destructive" disabled={busy}
+                    onClick={() => run(() => window.cth.link.forgetPhone(ph.device_id), () => setForgetting(null))}>
+                    {t('link.forgetConfirm')}
+                  </PixelButton>
+                  <PixelButton size="sm" variant="ghost" onClick={() => setForgetting(null)}>{t('link.cancel')}</PixelButton>
+                </>
+              ) : (
+                <PixelButton size="sm" variant="ghost" onClick={() => setForgetting(ph.device_id)}>{t('link.forget')}</PixelButton>
+              )}
+            </div>
+          ))}
         </div>
       </section>
 

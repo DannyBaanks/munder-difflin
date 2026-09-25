@@ -75,6 +75,11 @@ extraResources:
     to: munder/lib-link.cjs
   - from: tools/munder/link-serve.cjs
     to: munder/link-serve.cjs
+  # Munder Remote: the phone app the link daemon serves at /app (static files).
+  - from: tools/munder/lib-remote.cjs
+    to: munder/lib-remote.cjs
+  - from: tools/munder/remote-app
+    to: munder/remote-app
   # Office Packs (JSON, no secrets). loadBundledPacks() reads them from
   # <process.resourcesPath>/packs packaged, repo resources/packs in dev.
   - from: resources/packs

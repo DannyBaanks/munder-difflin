@@ -1617,6 +1617,14 @@
     "pairingHint": "En {{name}} abre Configuración → Munder Link (o corre «munder link aceptar») y revisa que muestre este mismo código.",
     "codesMatch": "El código coincide",
     "codesDiffer": "No coincide, cancelar",
-    "paired": "Listo de este lado. Cuando {{name}} acepte, ya pueden delegarse trabajo."
+    "paired": "Listo de este lado. Cuando {{name}} acepte, ya pueden delegarse trabajo.",
+    "phoneBadge": "· celular",
+    "pendingPhoneHint": "Un celular aceptado puede ver el tablero, contestar sus preguntas y escribirle a tu {{godName}}. No es una oficina: nunca recibe trabajo.",
+    "phones": "Celulares",
+    "phonesDesc": "Maneja esta oficina desde el celular: abre una de estas direcciones en Safari, agrégala a la pantalla de inicio y empareja desde el ícono. El código aparece arriba, en solicitudes. Si puedes, empareja por Tailscale: por el Wi-Fi de casa la página en sí no va firmada.",
+    "viaTailscale": "Tailscale (funciona fuera de casa)",
+    "viaLan": "red de casa ({{ifname}})",
+    "noAppUrls": "Esta máquina no tiene dirección de red local ni de Tailscale ahora mismo.",
+    "noPhones": "Ningún celular emparejado todavía."
   }
 }

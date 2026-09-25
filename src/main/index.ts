@@ -3970,6 +3970,7 @@ ipcMain.handle('link:pairRequest', (_evt, address: unknown) => linkCall((p) => p
 ipcMain.handle('link:pairConfirm', (_evt, token: unknown) => linkCall((p) => p.pairConfirm(String(token ?? ''))));
 ipcMain.handle('link:accept', (_evt, code: unknown) => linkCall((p) => p.accept(String(code ?? ''))));
 ipcMain.handle('link:forget', (_evt, officeId: unknown) => linkCall((p) => p.forget(String(officeId ?? ''))));
+ipcMain.handle('link:forgetPhone', (_evt, deviceId: unknown) => linkCall((p) => p.forgetPhone(String(deviceId ?? ''))));
 
 // ─── IPC: composer attachments (images + arbitrary files, attached by PATH) ──
 // The message queue pipes raw text into a Claude CLI PTY, so attachments travel

@@ -13,6 +13,10 @@
  * opaque token; the renderer only ever sends the token back, so it cannot slip
  * in keys of its own.
  *
+ * Phones (Munder Remote, tools/munder/lib-remote.cjs) pair through the same
+ * pending list and the same accept step; they land in remotes.json, never among
+ * the peers, and are listed and revoked here separately.
+ *
  * Electron-free on purpose: the lib and the daemon spawner are injected, so the
  * focused tests drive it against the real lib with temp state dirs.
  */
@@ -29,7 +33,7 @@ export interface LinkLib {
   localHiveRoot(): string | null;
   hostCapacity(): Record<string, unknown>;
   loadPeers(): Record<string, { office_id: string; name: string; addresses?: string[]; paired_at?: string }>;
-  loadPending(): Record<string, { office_id: string; name: string; code: string; addresses?: string[]; expires_at: number }>;
+  loadPending(): Record<string, { office_id: string; name: string; code: string; kind?: 'remote'; addresses?: string[]; expires_at: number }>;
   call(query: string, op: string, args?: object, opts?: { timeoutMs?: number }): Promise<{ result: { capacity?: Record<string, unknown> }; latency_ms: number; address: string }>;
   discoverLan(): Promise<Array<{ office_id: string; name: string; address: string; via: string }>>;
   discoverTailscale(): Promise<{ available: boolean; offices: Array<{ office_id: string; name: string; address: string; via: string }> }>;
@@ -37,6 +41,10 @@ export interface LinkLib {
   trustPeer(peer: unknown): { office_id: string; name: string };
   acceptPending(code: string): { office_id: string; name: string } | null;
   forgetPeer(query: string): { office_id: string; name: string } | null;
+  /** Munder Remote: paired phones and where they reach this office. */
+  loadRemotes(): Record<string, { device_id: string; name: string; paired_at?: string }>;
+  forgetRemote(query: string): { office_id: string; name: string } | null;
+  appUrls(port?: number): Array<{ url: string; via: 'lan' | 'tailscale'; ifname: string }>;
 }
 
 export interface LinkPeerView {
@@ -59,7 +67,11 @@ export interface LinkStatus {
   hive: string | null;
   host: Record<string, unknown>;
   peers: LinkPeerView[];
-  pending: Array<{ office_id: string; name: string; fingerprint: string; code: string; from: string[]; expires_at: number }>;
+  pending: Array<{ office_id: string; name: string; fingerprint: string; code: string; from: string[]; expires_at: number; phone: boolean }>;
+  /** Phones paired through Munder Remote (the /app served by the link daemon). */
+  phones: Array<{ device_id: string; name: string; fingerprint: string; paired_at: string | null }>;
+  /** Addresses to open on the phone, Tailscale first. */
+  appUrls: Array<{ url: string; via: 'lan' | 'tailscale'; ifname: string }>;
 }
 
 const PAIR_TTL_MS = 10 * 60_000;
@@ -98,7 +110,10 @@ export class LinkPanel {
     }));
     const pending = Object.values(this.lib.loadPending()).map((p) => ({
       office_id: p.office_id, name: p.name, fingerprint: this.lib.prettyFingerprint(p.office_id),
-      code: p.code, from: p.addresses ?? [], expires_at: p.expires_at
+      code: p.code, from: p.addresses ?? [], expires_at: p.expires_at, phone: p.kind === 'remote'
+    }));
+    const phones = Object.values(this.lib.loadRemotes()).map((r) => ({
+      device_id: r.device_id, name: r.name, fingerprint: this.lib.prettyFingerprint(r.device_id), paired_at: r.paired_at ?? null
     }));
     return {
       self: { name: me.name, office_id: me.office_id, fingerprint: this.lib.prettyFingerprint(me.office_id) },
@@ -106,7 +121,9 @@ export class LinkPanel {
       hive: this.lib.localHiveRoot(),
       host: this.lib.hostCapacity(),
       peers: live,
-      pending
+      pending,
+      phones,
+      appUrls: this.lib.appUrls(this.lib.DEFAULT_PORT)
     };
   }
 
@@ -173,6 +190,15 @@ export class LinkPanel {
   forget(officeId: string): { office_id: string; name: string } {
     const p = this.lib.forgetPeer(String(officeId ?? ''));
     if (!p) throw new Error('esa oficina no está enlazada');
+    return p;
+  }
+
+  /** Revoke a phone. It stops working on its next call; the phone itself can't undo this. */
+  forgetPhone(deviceId: string): { office_id: string; name: string } {
+    const id = String(deviceId ?? '');
+    if (!this.lib.loadRemotes()[id]) throw new Error('ese celular no está emparejado');
+    const p = this.lib.forgetRemote(id);
+    if (!p) throw new Error('ese celular no está emparejado');
     return p;
   }
 }

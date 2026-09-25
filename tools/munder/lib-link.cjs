@@ -69,6 +69,7 @@ function writePrivate(file, data) {
 const files = (dir = stateDir()) => ({
   identity: path.join(dir, 'identity.json'),
   peers: path.join(dir, 'peers.json'),
+  remotes: path.join(dir, 'remotes.json'),
   pending: path.join(dir, 'pending.json'),
   origins: path.join(dir, 'origins.json'),
   receipts: path.join(dir, 'receipts.jsonl'),
@@ -141,6 +142,39 @@ function loadPending(dir = stateDir()) {
   return Object.fromEntries(Object.entries(all).filter(([, p]) => p.expires_at > now));
 }
 function savePending(pending, dir = stateDir()) { writePrivate(files(dir).pending, pending); }
+
+/**
+ * Paired phones (Munder Remote, lib-remote.cjs). Kept apart from peers.json on
+ * purpose: a phone is the operator's remote control, not an office. It never
+ * appears in `loadPeers()`, so it can't be called, delegated to, or submit work
+ * as a peer; and a peer's keys can never open a remote session.
+ */
+function loadRemotes(dir = stateDir()) { return readJson(files(dir).remotes, {}); }
+function saveRemotes(remotes, dir = stateDir()) { writePrivate(files(dir).remotes, remotes); }
+
+function trustRemote(device, dir = stateDir()) {
+  const remotes = loadRemotes(dir);
+  remotes[device.office_id] = {
+    device_id: device.office_id, name: device.name, box_pub: device.box_pub,
+    paired_at: new Date().toISOString(),
+  };
+  saveRemotes(remotes, dir);
+  return { office_id: device.office_id, name: device.name, kind: 'remote' };
+}
+
+/** By device id, name, or a unique fragment of either (same rules as findPeer). */
+function forgetRemote(query, dir = stateDir()) {
+  const remotes = loadRemotes(dir);
+  const q = String(query).toLowerCase().trim();
+  if (!q) return null;
+  const all = Object.values(remotes);
+  const hit = all.find((r) => r.device_id === q || r.name.toLowerCase() === q)
+    || ((m) => (m.length === 1 ? m[0] : null))(all.filter((r) => r.device_id.startsWith(q) || r.name.toLowerCase().includes(q)));
+  if (!hit) return null;
+  delete remotes[hit.device_id];
+  saveRemotes(remotes, dir);
+  return { office_id: hit.device_id, name: hit.name, kind: 'remote' };
+}
 
 /** Find a trusted peer by office id, name, or a unique prefix of either. */
 function findPeer(query, peers) {
@@ -587,6 +621,9 @@ function createLinkServer({ dir = stateDir(), hiveRoot = localHiveRoot(), versio
     return w.count <= PAIR_RATE;
   };
 
+  // Required here, not at the top: lib-remote.cjs builds on this module.
+  const remote = require('./lib-remote.cjs').createRemoteRoutes({ dir, hiveRoot, identity, version, now, pairAllowed });
+
   const server = http.createServer(async (req, res) => {
     try {
       const url = new URL(req.url, 'http://link');
@@ -623,6 +660,11 @@ function createLinkServer({ dir = stateDir(), hiveRoot = localHiveRoot(), versio
         // `re` binds the reply to the request it answers, so a recorded reply
         // can't be replayed as the answer to a different call.
         return send(res, 200, seal(identity, peer, { ok: true, result, re: env.nonce }, now()));
+      }
+
+      // Munder Remote: the phone app and its sealed API (lib-remote.cjs).
+      if (url.pathname === '/app' || url.pathname.startsWith('/app/') || url.pathname.startsWith('/remote/v1/')) {
+        return await remote.handle(req, res, url);
       }
       send(res, 404, { ok: false, code: 'not_found' });
     } catch (e) {
@@ -742,7 +784,8 @@ function acceptPending(code, dir = stateDir()) {
   if (!hit) return null;
   delete pending[hit.office_id];
   savePending(pending, dir);
-  return trustPeer(hit, dir);
+  // A phone asked (Munder Remote): it becomes a remote control, never a peer.
+  return hit.kind === 'remote' ? trustRemote(hit, dir) : trustPeer(hit, dir);
 }
 
 function forgetPeer(query, dir = stateDir()) {
@@ -896,14 +939,28 @@ async function discoverTailscale({ timeoutMs = 1500, dir = stateDir() } = {}) {
   return { available: true, offices: results.filter(Boolean) };
 }
 
+/** Where a phone reaches Munder Remote (lib-remote.cjs): LAN and Tailscale addresses, Tailscale first. */
+function appUrls(port = DEFAULT_PORT) {
+  const out = [];
+  for (const [ifname, addrs] of Object.entries(os.networkInterfaces())) {
+    for (const a of addrs || []) {
+      if (a.family !== 'IPv4' || a.internal || !isPrivateV4(a.address)) continue;
+      const tailscale = /^100\./.test(a.address);
+      out.push({ url: `http://${a.address}:${port}/app/`, via: tailscale ? 'tailscale' : 'lan', ifname });
+    }
+  }
+  return out.sort((a, b) => (a.via === b.via ? 0 : a.via === 'tailscale' ? -1 : 1));
+}
+
 module.exports = {
   PROTOCOL, DEFAULT_PORT, DISCOVERY_PORT, LinkError, isPrivateV4,
   MAX_DISCOVERY_ATTEMPTS, MAX_PEER_ADDRESSES,
   stateDir, files, loadIdentity, publicCard, prettyFingerprint, officeIdOf,
-  loadPeers, loadPending, findPeer, sas, seal, open,
+  loadPeers, loadPending, savePending, findPeer, sas, seal, open,
+  loadRemotes, trustRemote, forgetRemote, readJson, readBody, send, appendReceipt, MAX_PENDING, PENDING_TTL_MS, MAX_SKEW_MS, NONCE_TTL_MS,
   Office, localHiveRoot, capacity, hostCapacity,
   originKey, checkOriginRef, loadOrigins, saveOrigins, rememberOrigin,
   createLinkServer, createDiscoveryResponder,
   hello, requestPair, trustPeer, acceptPending, forgetPeer, call, delegate, reply,
-  discoverLan, discoverTailscale, hostPort,
+  discoverLan, discoverTailscale, hostPort, appUrls,
 };
