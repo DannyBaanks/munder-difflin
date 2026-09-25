@@ -2,6 +2,8 @@
 
 const test = require('node:test');
 const assert = require('node:assert/strict');
+const fs = require('node:fs');
+const path = require('node:path');
 const loadTs = require('./load-ts.cjs');
 
 const { deliverWithAcknowledgement, canDeliverToAgent, checkPrecondition } =
@@ -37,6 +39,19 @@ test('failed delivery remains unacknowledged for retry', async () => {
 test('an idle agent is deliverable without needing a quiescence reading', () => {
   assert.equal(canDeliverToAgent('idle', null, QUIESCE_MS), true);
   assert.equal(canDeliverToAgent('idle', 0, QUIESCE_MS), true);
+});
+
+test('an agent on hold is never typed into, whatever its status', () => {
+  // The operator's hold outranks every other gate, silence included: the agent is
+  // in a 1:1 and anything typed lands in that conversation. The queue item stays
+  // pending and goes out when the hold is released.
+  for (const status of ['idle', 'looping', 'working', 'waiting', 'blocked', 'thinking']) {
+    assert.equal(canDeliverToAgent(status, QUIESCE_MS * 100, QUIESCE_MS, true), false, status);
+  }
+  assert.equal(canDeliverToAgent('idle', null, QUIESCE_MS, false), true,
+    'a released hold must not leave the agent undeliverable');
+  assert.equal(canDeliverToAgent('idle', null, QUIESCE_MS), true,
+    'an absent hold flag is the ordinary path');
 });
 
 test('a breaker-pinned agent drains once its terminal has genuinely gone quiet', () => {
@@ -104,4 +119,23 @@ test('messages without a precondition never consult the inbox', async () => {
   });
   assert.equal(verdict, 'send');
   assert.equal(consulted, false);
+});
+
+// A gate nobody calls is not a gate. useHive.ts is a React hook whose import
+// graph cannot load under node:test, so its wiring is asserted against the
+// source text — the house pattern (same as compact-latch.test.cjs). Every
+// delivery decision must carry the hold: the queue drain, its pre-filter, and
+// the compaction trigger, or a held agent is still typed into through the one
+// path that forgot.
+test('every delivery gate in useHive.ts passes the operator hold', () => {
+  const source = fs.readFileSync(
+    path.resolve(__dirname, '..', 'src/renderer/src/hooks/useHive.ts'), 'utf8'
+  );
+  // One nested paren level, so the ptyQuietMs(...) argument does not truncate
+  // the match at its own closing bracket.
+  const calls = source.match(/canDeliverToAgent\((?:[^()]|\([^()]*\))*\)/g) ?? [];
+  assert.equal(calls.length, 3, 'the three delivery gates found by the wiring audit');
+  for (const call of calls) {
+    assert.match(call, /onHold\)$/, `hold flag missing from: ${call}`);
+  }
 });

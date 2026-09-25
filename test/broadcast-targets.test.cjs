@@ -12,7 +12,9 @@ const roster = {
   // A worker on a hookless provider (`custom`): no hook bridge, no proxy.
   toby: {},
   prep: { isAssistant: true },
-  creed: { archived: true }
+  creed: { archived: true },
+  // The operator has this one 1:1 with the human right now.
+  holds: { onHold: true }
 };
 
 test('a broadcast reaches every live agent except the sender', () => {
@@ -42,4 +44,12 @@ test('the sender is excluded even when it is the only other agent', () => {
 test('a missing registry entry is not a target', () => {
   const holes = { dev1: {}, ghost: undefined };
   assert.deepEqual(selectBroadcastTargets(holes, 'michael'), ['dev1']);
+});
+
+test('an agent the operator put on hold is skipped', () => {
+  // A held agent is in a 1:1 with the human; a floor-wide broadcast landing in
+  // that conversation is the interruption the hold exists to prevent.
+  assert.ok(!selectBroadcastTargets(roster, 'michael').includes('holds'));
+  assert.deepEqual(selectBroadcastTargets({ holds: { onHold: false }, other: {} }, 'michael'), ['holds', 'other'],
+    'only a TRUE hold excludes — an absent or false flag must not');
 });

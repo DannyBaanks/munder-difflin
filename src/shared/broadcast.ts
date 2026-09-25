@@ -11,13 +11,19 @@ export interface BroadcastCandidate {
   isAssistant?: boolean;
   /** PTY tab closed; the record is retained but the agent is not live. */
   archived?: boolean;
+  /** The operator has this agent 1:1 — do not fan out to it. */
+  onHold?: boolean;
 }
 
 /**
  * The agents a `to: 'broadcast'` message fans out to.
  *
  * Excluded: the sender itself, the send-only prep assistant (direct mail to it
- * would rot unread), and archived agents (no live PTY).
+ * would rot unread), archived agents (no live PTY), and agents the operator has
+ * put ON HOLD — a held agent is in a 1:1 with the human, and a broadcast is
+ * exactly the kind of thing that must not land in that conversation. Held
+ * agents still get DIRECT mail: the hold silences the floor-wide fan-out, not
+ * the human's own message to one agent.
  *
  * NOT excluded: providers without a hook/proxy bridge. Fan-out used to gate on
  * `canReceiveInbox`, which meant an agent on a hookless provider — `custom`,
@@ -43,6 +49,7 @@ export function selectBroadcastTargets(
     if (id === fromId) return false;
     if (agent.isAssistant) return false;
     if (agent.archived) return false;
+    if (agent.onHold) return false;
     return true;
   });
 }

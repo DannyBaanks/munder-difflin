@@ -5472,7 +5472,8 @@ function runWorkerWakeBeat(): void {
       inboxIds: hive.inbox(agentId).map((message) => message.id).filter(Boolean),
       autoDeliveryPaused: snap.autoDeliveryPaused,
       paused: snap.paused,
-      halted: snap.halted
+      halted: snap.halted,
+      onHold: !!a.onHold
     });
   }
   for (const agentId of workerWake.decide(facts, now)) {
