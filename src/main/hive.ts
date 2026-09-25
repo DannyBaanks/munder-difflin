@@ -586,19 +586,39 @@ export class HiveManager {
 
   // — bootstrap —
 
-  /** Create the hive skeleton + git repo if missing. Idempotent. */
+  /** Write the two GENERATED docs the agents are pointed at as the authority:
+   *  the protocol and the bundled Claude Code command reference. Separate from
+   *  `ensureHive` so that refreshing them is an explicit act of bootstrap
+   *  instead of a side effect of ordinary runtime work.
+   *
+   *  Both are generated, never user-authored, and a stale copy is worse than a
+   *  rewrite — which is why this runs on every app start, the one moment a
+   *  protocol change can reach an existing hive. It used to run inside
+   *  `ensureHive`, and `ensureHive` is also called by `ensureAgent` and
+   *  `writeTasks`: a single card mutation silently rewrote both files, so a
+   *  local edit an agent had made to them was reverted with no way to tell. */
+  refreshGeneratedDocs(): void {
+    const root = this.root();
+    if (!root) return;
+    writeFileSync(join(root, 'PROTOCOL.md'), PROTOCOL_MD, 'utf8');
+    // The Claude Code command reference Michael consults (tracks the bundled list).
+    writeFileSync(join(root, 'COMMANDS.md'), COMMANDS_MD, 'utf8');
+  }
+
+  /** Create the hive skeleton + git repo if missing. Idempotent.
+   *
+   *  The generated docs are created here only when ABSENT, so a fresh hive has
+   *  them and an existing one keeps its copy until the next explicit
+   *  `refreshGeneratedDocs()`. This method is on the runtime path (every spawned
+   *  agent, every ledger write), and it must not take a file an agent reads as
+   *  the authority out from under it. */
   ensureHive(): void {
     const root = this.root();
     if (!root) return;
     mkdirSync(join(root, 'agents'), { recursive: true });
 
-    // Refreshed each bootstrap, like COMMANDS.md just below. It used to be
-    // written only when absent, which meant a hive created once never saw a
-    // protocol change again: this repo's own hive still carried the file from
-    // the day it was initialised, so every protocol addition since had reached
-    // new hives only. The file is generated, not user-authored, and agents are
-    // pointed at it as the authority, so a stale copy is worse than a rewrite.
-    writeFileSync(join(root, 'PROTOCOL.md'), PROTOCOL_MD, 'utf8');
+    const protocol = join(root, 'PROTOCOL.md');
+    if (!existsSync(protocol)) writeFileSync(protocol, PROTOCOL_MD, 'utf8');
 
     const registry = join(root, 'registry.json');
     if (!existsSync(registry)) {
@@ -620,9 +640,8 @@ export class HiveManager {
     const log = join(root, 'log.jsonl');
     if (!existsSync(log)) writeFileSync(log, '', 'utf8');
 
-    // The Claude Code command reference Michael consults (refreshed each bootstrap
-    // so it tracks the bundled list).
-    writeFileSync(join(root, 'COMMANDS.md'), COMMANDS_MD, 'utf8');
+    const commands = join(root, 'COMMANDS.md');
+    if (!existsSync(commands)) writeFileSync(commands, COMMANDS_MD, 'utf8');
 
     // Keep the churny/ephemeral live files out of the hive git repo.
     const gitignore = join(root, '.gitignore');
