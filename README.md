@@ -153,6 +153,26 @@ Cada mensaje entre oficinas va firmado y cifrado, y el emparejamiento se confirm
 
 Conecta ChatGPT a tu oficina y pídele cosas como «que la oficina del Xeon corra las pruebas». ChatGPT habla con un servidor local y ese servidor usa Munder Link, así que tu red no queda expuesta. ChatGPT sabe cuál es la oficina donde está conectado (`self`) y cuáles son las enlazadas. Cómo levantarlo: [`src/mcp/munder-chatgpt-link/README.md`](./src/mcp/munder-chatgpt-link/README.md).
 
+### 🤖 Munder GPT: ChatGPT como un usuario más de tu oficina
+
+- **Qué hace:** `munder gpt` le da a ChatGPT su propio usuario en Munder, el principal `gpt`, con el perfil que tú eliges: `lectura`, `operador` o `full`.
+- **Cómo entra:** por OAuth, y cada conexión la apruebas tú en la terminal con un código de 6 dígitos. Saber la URL no da nada.
+- **Qué puede hacer:**
+  - ver la oficina y la bitácora;
+  - escribirle a Michael y leer lo que Michael le manda (`"to": "gpt"`);
+  - contestar preguntas y delegar por Link;
+  - contratar y despedir agentes.
+- **Queda registrado:** cada acción tiene recibo y auditoría a nombre de `gpt`.
+- **Se quita en un comando:** `munder gpt revocar todo`.
+
+```bash
+munder gpt perfil full
+munder gpt encender --transporte ngrok --dominio tu-dominio.ngrok-free.dev   # URL fija
+munder gpt aprobar 123456
+```
+
+Guía: [`tools/munder/GPT.md`](./tools/munder/GPT.md).
+
 ### 🛟 Munder Reviver: si Munder se cae, se vuelve a levantar
 
 Un proceso chiquito y aparte que vive junto a Munder y sabe hacer solo cuatro cosas: `status`, `start`, `restart` y `stop`.
@@ -215,6 +235,7 @@ Una herramienta sin dependencias para manejar todo desde la terminal. Instálala
 | Elegir CLIs y modelos | `munder sesion proveedor` |
 | Enlazar otra computadora | `munder link conectar` |
 | Que Munder se levante solo si se cae | `munder reviver init` · `munder reviver instalar` |
+| Conectar ChatGPT con URL fija | `munder gpt perfil full` · `munder gpt encender` · `munder gpt aprobar` |
 | Usar la oficina en el celular | `munder link celular` |
 | Crear un avatar | `munder avatar compilar "descripción"` |
 
@@ -339,6 +360,19 @@ Cada push compila y corre la suite en los tres sistemas. Encontró un bug real: 
 - **Instalación:** systemd `--user` con `KillMode=process`; en Windows, tarea al iniciar sesión con `RestartOnFailure`.
 - **ChatGPT:** un conector MCP aparte (`reviver-mcp.cjs`, `chatgpt-tunnel.sh --reviver`) con el mismo filtro de red que `munder-chatgpt-link`.
 
+### 19. Munder GPT (principal `gpt`)
+- **Autoridad:** ChatGPT es un principal de Munder con perfil `lectura`, `operador` o `full`. Cada permiso tiene el perfil actual como tope, caduca y se puede revocar.
+- **OAuth 2.1 con builtins de Node:**
+  - registro dinámico;
+  - PKCE S256;
+  - aprobación del operador en la terminal con un código de 6 dígitos;
+  - tokens guardados solo como hash;
+  - refresh que rota.
+- **Probado contra el cliente OAuth oficial del SDK de MCP.**
+- **Buzón:** `"to": "gpt"` se entrega en `<hive>/gpt/inbox` solo si `munder gpt` lo creó; si no, rebota como antes.
+- **Inventario:** clasifica cada operación de Remote, Link, el canal de control y el Reviver. Un test lee esas fuentes y falla si aparece una sin clasificar.
+- **Link intacto:** por Link, GPT es un peer y solo ve lo que esta oficina delegó.
+
 </details>
 
 ## Garantías de este fork
@@ -348,7 +382,7 @@ Cada push compila y corre la suite en los tres sistemas. Encontró un bug real: 
 * **`avatar-engine.cjs` no se edita a mano.** Se genera desde `portraitArt.ts` con `node tools/munder/sync-avatar-engine.cjs`, y la suite verifica su hash.
 * **Tests:**
   * `npm run test:focused` (los mismos en los tres sistemas)
-  * `node --test tools/munder/link.test.cjs tools/munder/remote.test.cjs tools/munder/avatar.test.cjs tools/munder/reviver.test.cjs`
+  * `node --test tools/munder/link.test.cjs tools/munder/remote.test.cjs tools/munder/avatar.test.cjs tools/munder/reviver.test.cjs tools/munder/gpt.test.cjs`
   * `npm run typecheck`
 * **Gate de release:** `node tools/check-release-links.cjs --live` comprueba que cada descarga anunciada exista de verdad.
 
