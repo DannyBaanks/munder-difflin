@@ -300,3 +300,21 @@ test('the app: served from /app with a strict CSP; nothing else in the folder le
     assert.equal((await fetch(o.base + p)).status, 404, p);
   }
 });
+
+test('the app draws the cast with the same engine as the app: avatar-engine.js is served from avatar-engine.cjs and runs', async (t) => {
+  const o = await serve(office('cast'));
+  t.after(() => o.server.close());
+  const r = await fetch(`${o.base}/app/avatar-engine.js`);
+  assert.equal(r.status, 200);
+  assert.match(r.headers.get('content-type'), /javascript/);
+  const self = {};
+  new Function('self', await r.text())(self);
+  const A = self.MunderAvatar;
+  const engine = require('./avatar-engine.cjs');
+  assert.deepEqual(Object.keys(A.AVATAR_RECIPES), Object.keys(engine.AVATAR_RECIPES));
+  assert.deepEqual(Buffer.from(A.composeAvatar(A.AVATAR_RECIPES.pam)), Buffer.from(engine.composeAvatar(engine.AVATAR_RECIPES.pam)), 'same pixels as the CLI and the app');
+  const font = await fetch(`${o.base}/app/press-start-2p.woff2`);
+  assert.equal(font.status, 200);
+  assert.equal(font.headers.get('content-type'), 'font/woff2');
+  for (const p of ['/app/constructor', '/app/__proto__', '/app/avatar-engine.cjs']) assert.equal((await fetch(o.base + p)).status, 404, p);
+});
