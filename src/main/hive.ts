@@ -2411,11 +2411,13 @@ export class HiveManager {
       // tui.json (current builds) and opencode.json (older builds read `theme`
       // there and migrate it; the migration skips when tui.json already exists).
       // Per-agent dir only, the user's ~/.config/opencode is never touched.
+      // MERGED into what is there: these files are the agent's own OpenCode
+      // config, and rewriting them whole on every spawn threw away whatever was
+      // set in them (model, agents, MCP servers…) at each restart.
       if (theme) {
         mkdirSync(home, { recursive: true });
-        const choice = { theme: 'system' };
-        writeFileSync(join(home, 'tui.json'), JSON.stringify({ $schema: 'https://opencode.ai/tui.json', ...choice }, null, 2), 'utf8');
-        writeFileSync(join(home, 'opencode.json'), JSON.stringify({ $schema: 'https://opencode.ai/config.json', ...choice }, null, 2), 'utf8');
+        mergeJsonFile(join(home, 'tui.json'), { $schema: 'https://opencode.ai/tui.json', theme: 'system' });
+        mergeJsonFile(join(home, 'opencode.json'), { $schema: 'https://opencode.ai/config.json', theme: 'system' });
       }
       // BOTH `plugin/` and `plugins/`. OpenCode's current docs specify `plugins/`
       // (plural); older builds — and the shape this bridge was originally written
@@ -3215,13 +3217,31 @@ module.exports.activate = function (pi) { return register(pi); };
 module.exports.default = module.exports;
 `;
 
+/** Set `patch`'s keys in a JSON file, keeping every other key. A missing or
+ *  unreadable file starts from `{}`; a file that is not a JSON object is left
+ *  alone rather than clobbered. */
+export function mergeJsonFile(file: string, patch: Record<string, unknown>): void {
+  let current: Record<string, unknown> = {};
+  if (existsSync(file)) {
+    let parsed: unknown;
+    try { parsed = JSON.parse(readFileSync(file, 'utf8').replace(/^\uFEFF/, '')); } catch { return; }
+    if (!parsed || typeof parsed !== 'object' || Array.isArray(parsed)) return;
+    current = parsed as Record<string, unknown>;
+  }
+  const next = { ...current, ...patch };
+  if (JSON.stringify(next) === JSON.stringify(current)) return;
+  writeFileSync(file, JSON.stringify(next, null, 2), 'utf8');
+}
+
 // ─── opencode bridge plugin (written to <agentDir>/.opencode/plugin/) ────────
 // A bundled plugin for OpenCode (anomalyco/opencode) — god Decision 1. OpenCode
 // has no Claude-shaped Stop hook but its plugin API exposes a real session.idle
 // event; this posts cth-hook-shaped payloads to HIVE_SOCK on tool.execute.before/
 // after + session.idle. The session.idle→Stop keeps status in step (→ idle) so the
 // renderer idle inbox-wake nudge delivers mail. ESM (OpenCode runs on Bun). Fully
-// wrapped. LIVE-UNVERIFIED (plugin auto-load + session.idle firing need BYOK keys).
+// wrapped. Each payload carries the agent's ROOT session id, which the hooks
+// server records (hive.recordSession) so a restart reopens the same
+// conversation with `opencode --session <id>` instead of starting a new one.
 const OPENCODE_PLUGIN = `import { createConnection } from 'node:net';
 const SOCK = process.env.HIVE_SOCK;
 const AGENT = process.env.AGENT_ID || null;
@@ -3233,16 +3253,30 @@ function post(payload) {
     c.on('error', () => {});
   } catch (e) {}
 }
+// Root sessions only: a subagent (task tool) runs in a CHILD session with a
+// parentID, and resuming that on restart would drop the agent into a
+// subagent's thread. session.created/updated carry info.parentID; the ids
+// seen without one are this agent's own conversation.
+const ROOTS = new Set();
+function withSession(payload, id) {
+  if (typeof id === 'string' && ROOTS.has(id)) payload.session_id = id;
+  return payload;
+}
 export const HiveBridge = async () => {
   return {
     event: async (input) => {
-      try { if (input && input.event && input.event.type === 'session.idle') post({ hook_event_name: 'Stop' }); } catch (e) {}
+      try {
+        const ev = input && input.event;
+        const props = (ev && ev.properties) || {};
+        if (ev && (ev.type === 'session.created' || ev.type === 'session.updated') && props.info && props.info.id && !props.info.parentID) ROOTS.add(props.info.id);
+        if (ev && ev.type === 'session.idle') post(withSession({ hook_event_name: 'Stop' }, props.sessionID));
+      } catch (e) {}
     },
     'tool.execute.before': async (input) => {
-      try { post({ hook_event_name: 'PreToolUse', tool_name: input && (input.tool || input.name) }); } catch (e) {}
+      try { post(withSession({ hook_event_name: 'PreToolUse', tool_name: input && (input.tool || input.name) }, input && input.sessionID)); } catch (e) {}
     },
     'tool.execute.after': async (input) => {
-      try { post({ hook_event_name: 'PostToolUse', tool_name: input && (input.tool || input.name) }); } catch (e) {}
+      try { post(withSession({ hook_event_name: 'PostToolUse', tool_name: input && (input.tool || input.name) }, input && input.sessionID)); } catch (e) {}
     }
   };
 };
