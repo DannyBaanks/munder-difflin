@@ -123,11 +123,14 @@ ENLAZADAS
 
 ## Trampas
 
-1. **El código es la seguridad.** Si alguien en tu red intercepta el emparejamiento, los dos códigos no coinciden. Por eso nunca se acepta sin mirar las dos pantallas.
+1. **El código es la seguridad.** Si alguien en tu red intercepta el emparejamiento, los dos códigos no coinciden. Por eso nunca se acepta sin mirar las dos pantallas. El código cubre las llaves de firma **y** las de cifrado de las dos oficinas (sas@2): antes solo cubría las de firma, y quien cambiara únicamente la llave de cifrado veía el mismo código en las dos pantallas y podía leer las llamadas.
 2. **Firewall.** Si `buscar` no encuentra la otra máquina en la misma red, abre 47831/tcp y 47832/udp en la que recibe. Con Tailscale el descubrimiento no usa broadcast: pregunta directo a cada nodo en línea por el 47831.
 3. **Tailscale tiene que estar en línea en las dos.** Hoy (2026-09-25) `tailscale status` mostraba el nodo Windows `danny` «offline, last seen 4d ago»: así no aparece en `buscar`.
 4. **Olvidar es de un solo lado.** `munder link olvidar xeon` quita tu confianza en xeon, pero xeon te sigue conociendo hasta que ella también te olvide.
 5. **Las llaves viven en `~/.local/state/munder/link/`** (en Windows, bajo tu carpeta de usuario), con permisos privados. Si las borras, esta oficina es «otra» para todas y hay que emparejar de nuevo.
+6. **Emparejar entre versiones.** Una máquina con sas@2 y otra sin él calculan códigos distintos: actualiza las dos antes de emparejar. Los enlaces que ya existen siguen funcionando.
+7. **Qué ve quien no está emparejado.** `hello` y el descubrimiento solo dicen nombre, huella y versión (ya no la RAM ni la carga). El descubrimiento UDP solo contesta a IPs privadas, locales o de Tailscale. `/pair` acepta 5 solicitudes por dirección cada 10 minutos, y una solicitud pendiente no se puede reemplazar con otras llaves.
+8. **Las tareas que llegan son externas.** Se marcan `link.external` y el mensaje a Michael le pide confirmación humana antes de enviar, publicar, pagar o borrar algo fuera de la máquina. Es una instrucción en el prompt, no un permiso aplicado: la guardia del hive sí es real, pero solo cubre las herramientas de archivos.
 
 ## NO PROBADO
 
