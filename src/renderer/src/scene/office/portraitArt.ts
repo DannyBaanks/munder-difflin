@@ -512,7 +512,7 @@ const RECIPES: Record<OfficeCharacterName, Recipe> = {
  * External avatar-compiler surface (munder CLI `avatar compilar`).
  *
  * Purely additive: nothing above changes behavior. The CLI transpiles this
- * module to dependency-free CJS (see tools/munder-cli/sync-avatar-engine)
+ * module to dependency-free CJS (see tools/munder/sync-avatar-engine)
  * and calls composeAvatar with recipes built from Spanish text — the SAME
  * composer the app uses, so CLI avatars and in-app portraits cannot drift.
  */
@@ -602,6 +602,21 @@ export function sceneFrameBufs(name: OfficeCharacterName): SceneFrames {
     sceneCache.set(name, frames);
   }
   return frames;
+}
+
+/**
+ * Placeholder de worker con avatar custom ("cuerpo prestado").
+ *
+ * Sobrescribe la receta visual de un slot del cast (típicamente uno libre)
+ * e invalida sus cachés para que el próximo `sceneFrameBufs` / `paintPortrait`
+ * re-componga con la receta nueva. Aditivo: sin override todo sigue igual.
+ * El comportamiento/hitbox no cambian (la clase Character es genérica) y las
+ * líneas de diálogo siguen siendo las del slot prestado.
+ */
+export function registerAvatarOverride(name: OfficeCharacterName, r: Recipe): void {
+  RECIPES[name] = r;
+  bufCache.delete(name);
+  sceneCache.delete(name);
 }
 
 /** Paint a character's procedural portrait onto `ctx`, nearest-neighbor at `scale`. */

@@ -1,0 +1,198 @@
+#!/bin/bash
+# munder — CLI de control dev para Munder Difflin (v2 fusionado)
+#
+# Fuente de verdad: tools/munder/munder (dentro de este repo).
+# Uso: munder {start|stop|restart|status|logs|ps|check|help}
+#
+# HEREDADO del launcher 2026-09-21 (este archivo es la copia conservada):
+# FIX freeze "Detenido": lanzar `npm run dev` adjunto al job control del shell
+# hace que, al arrancar node-pty los agentes, el arbol reciba SIGTSTP y la app
+# se congele (state T, "[N]+ Detenido", ventana freezada). Fix probado:
+# setsid + stdio a archivo + despegado del tty. No usar --fg salvo debug.
+# NOTA singleton: userData (~/.config/munder-difflin) COMPARTIDO entre dev y
+# build compilado. No ambos a la vez: la 2da instancia muere (second-instance).
+#
+# CAMBIO vs el launcher viejo: sin args o con un comando desconocido YA NO se
+# lanza nada (el viejo caia al lanzamiento: `munder --help` arrancaba el dev).
+# Solo `start` lanza.
+set -u
+
+MUNDER_DIR="${MUNDER_DIR:-$(cd "$(dirname "$0")/../.." && pwd)}"
+STATE_DIR="${MUNDER_STATE_DIR:-${XDG_STATE_HOME:-$HOME/.local/state}/munder}"
+PID_FILE="$STATE_DIR/munder-dev.pid"
+LATEST_LOG="$STATE_DIR/latest.log"
+# Patron estricto: solo el dev de ESTE checkout (nunca los agentes hive en bun)
+PATTERN="$(basename "$MUNDER_DIR")/node_modules"
+
+die() { echo "munder: $*" >&2; exit 1; }
+say() { printf 'munder: %s\n' "$*"; }
+
+pids() { pgrep -f "$PATTERN" 2>/dev/null || true; }
+
+cmd_help() {
+  cat <<'EOF'
+Uso: munder <comando> [opciones]
+
+Comandos:
+  start [--fg]    Arranca `npm run dev` despegado (setsid, anti-freeze).
+                  --fg = adjunto a esta terminal, SOLO debug (puede congelarse)
+  stop            Para el dev (TERM, espera 5s, KILL a lo que quede)
+  restart         stop + start
+  status          PIDs, uptime, puerto 5173 y ultimas 20 lineas del log
+  logs [N] [-f]   Ultimas N lineas del log (def. 100); -f para seguir
+  ps              Lista PIDs del dev (sin matar nada)
+  check           Verifica checkout: package.json + node_modules
+  help            Esta ayuda
+
+Compat con el launcher anterior: --stop = stop, --check = check, --fg = start --fg.
+Sin args se muestra esta ayuda (no se lanza nada).
+
+Env:
+  MUNDER_DIR        Ruta del app (def. .../munder-difflin-local-state)
+  MUNDER_STATE_DIR  Estado/logs/pid (def. ~/.local/state/munder)
+
+Ejemplos:
+  munder status
+  munder logs -f
+  munder restart
+EOF
+}
+
+cmd_check() {
+  [[ -d "$MUNDER_DIR" ]] || die "no existe MUNDER_DIR=$MUNDER_DIR"
+  [[ -f "$MUNDER_DIR/package.json" ]] || die "package.json no encontrado en $MUNDER_DIR"
+  [[ -d "$MUNDER_DIR/node_modules" ]] || die "node_modules no encontrado. Ejecuta npm install en $MUNDER_DIR"
+  printf 'munder: OK\nroot: %s\n' "$MUNDER_DIR"
+}
+
+cmd_ps() {
+  local p
+  p="$(pids)"
+  if [[ -z "$p" ]]; then
+    echo "munder: parado (sin procesos)"
+    return 1
+  fi
+  ps -o pid,ppid,etime,cmd -p "$(echo "$p" | tr '\n' ',' | sed 's/,$//')" 2>&1
+}
+
+cmd_status() {
+  echo "dir: $MUNDER_DIR"
+  echo "state: $STATE_DIR"
+  if ! cmd_ps; then
+    echo "--- puerto ---"
+    (ss -ltn 2>/dev/null | grep ':5173 ' || echo "(5173 libre)")
+    echo "--- log (tail 20) ---"
+    tail -n 20 "$LATEST_LOG" 2>&1 || echo "(sin log todavia en $LATEST_LOG)"
+    return 1
+  fi
+  echo "--- puerto ---"
+  (ss -ltnp 2>/dev/null | grep ':5173 ' || echo "(5173 libre o sin permiso para ver proceso)")
+  echo "--- log (tail 20) ---"
+  tail -n 20 "$LATEST_LOG" 2>&1 || echo "(sin log todavia en $LATEST_LOG)"
+}
+
+cmd_start() {
+  local fg=0
+  if [[ "${1:-}" == "--fg" ]]; then fg=1; fi
+  cmd_check >/dev/null
+  if [[ -n "$(pids)" ]]; then
+    die "ya esta corriendo. Usa 'munder status' o 'munder stop' primero."
+  fi
+  if [[ -f "$PID_FILE" ]] && kill -0 "$(cat "$PID_FILE")" 2>/dev/null; then
+    die "el pid file dice que ya corre (pid $(cat "$PID_FILE")). Si es huerfano, borra $PID_FILE."
+  fi
+  mkdir -p "$STATE_DIR"
+  if [[ $fg -eq 1 ]]; then
+    say "modo adjunto (--fg): ADVERTENCIA — puede congelarse (SIGTSTP del job control). Solo debug."
+    cd "$MUNDER_DIR" && exec npm run dev
+  fi
+  local run_log="$STATE_DIR/run-$(date +%Y%m%dT%H%M%S).log"
+  ln -sfn "$run_log" "$LATEST_LOG"
+  # Rotacion minima: conserva las ultimas 20 corridas
+  ls -t "$STATE_DIR"/run-*.log 2>/dev/null | tail -n +21 | xargs -r rm -f
+  say "lanzando npm run dev despegado (sin terminal de control)"
+  say "log de esta corrida: $run_log"
+  cd "$MUNDER_DIR"
+  setsid npm run dev </dev/null >>"$run_log" 2>&1 &
+  local dev_pid=$!
+  echo "$dev_pid" > "$PID_FILE"
+  disown || true
+  sleep 2
+  if ! kill -0 "$dev_pid" 2>/dev/null; then
+    say "el proceso dev murio al arrancar; ultimas lineas del log:"
+    tail -n 30 "$run_log" >&2
+    rm -f "$PID_FILE"
+    return 1
+  fi
+  say "en marcha (pid $dev_pid)"
+  say "log: munder logs -f | parar: munder stop"
+}
+
+cmd_stop() {
+  local p waited
+  if [[ -f "$PID_FILE" ]]; then
+    local lp
+    lp="$(cat "$PID_FILE" 2>/dev/null || true)"
+    if [[ -n "$lp" ]] && kill -0 "$lp" 2>/dev/null; then
+      echo "munder: TERM a launcher $lp"
+      kill "$lp" 2>/dev/null || true
+    fi
+  fi
+  p="$(pids)"
+  if [[ -z "$p" ]]; then
+    echo "munder: ya estaba parado."
+    rm -f "$PID_FILE"
+    return 0
+  fi
+  echo "munder: TERM a: $(echo "$p" | tr '\n' ' ')"
+  # shellcheck disable=SC2086
+  kill $p 2>/dev/null || true
+  waited=0
+  while [[ -n "$(pids)" && $waited -lt 5 ]]; do sleep 1; waited=$((waited+1)); done
+  p="$(pids)"
+  if [[ -n "$p" ]]; then
+    echo "munder: KILL a: $(echo "$p" | tr '\n' ' ')"
+    # shellcheck disable=SC2086
+    kill -9 $p 2>/dev/null || true
+    sleep 2
+  fi
+  p="$(pids)"
+  if [[ -n "$p" ]]; then
+    echo "munder: ATENCION, siguen vivos: $(echo "$p" | tr '\n' ' ')" >&2
+    return 1
+  fi
+  rm -f "$PID_FILE"
+  echo "munder: parado."
+}
+
+cmd_logs() {
+  local n=100 follow=0 a
+  for a in "$@"; do
+    case "$a" in
+      -f|--follow) follow=1 ;;
+      ''|*[!0-9]*) die "logs: '$a' no es numero. Uso: munder logs [N] [-f]" ;;
+      *) n="$a" ;;
+    esac
+  done
+  [[ -f "$LATEST_LOG" ]] || die "sin log en $LATEST_LOG (¿nunca se arranco?)"
+  if [[ $follow -eq 1 ]]; then
+    tail -n "$n" -f "$LATEST_LOG"
+  else
+    tail -n "$n" "$LATEST_LOG"
+  fi
+}
+
+case "${1:-help}" in
+  start) shift; cmd_start "$@" ;;
+  stop) shift; cmd_stop "$@" ;;
+  restart) shift; cmd_stop; cmd_start "$@" ;;
+  status) shift; cmd_status "$@" ;;
+  logs|log) shift; cmd_logs "$@" ;;
+  ps) shift; cmd_ps "$@" ;;
+  check) shift; cmd_check "$@" ;;
+  --stop) shift; cmd_stop "$@" ;;
+  --check) shift; cmd_check "$@" ;;
+  --fg) shift; cmd_start --fg "$@" ;;
+  help|--help|-h) cmd_help ;;
+  *) die "comando desconocido '${1:-}'. Usa: munder {start|stop|restart|status|logs|ps|check|help}" ;;
+esac

@@ -1,0 +1,82 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "avatar-spec/1",
+  "title": "avatar-spec v1 (normativo: AVATAR_SPEC.md)",
+  "type": "object",
+  "required": ["spec", "body", "skin", "hair", "eyes", "shirt", "pants", "shoes"],
+  "additionalProperties": false,
+  "properties": {
+    "spec": {"const": "avatar-spec/1"},
+    "body": {
+      "type": "object",
+      "required": ["template"],
+      "additionalProperties": false,
+      "properties": {
+        "template": {"enum": ["standard_01"]},
+        "heavy": {"type": "boolean"}
+      }
+    },
+    "skin": {"$ref": "#/$defs/color"},
+    "hair": {
+      "type": "object",
+      "required": ["style", "color"],
+      "additionalProperties": false,
+      "properties": {
+        "style": {"enum": ["short_01", "floppy_01", "frame_01", "bun_01", "curly_01", "messy_01", "recede_01", "spiky_01", "bald_01"]},
+        "color": {"$ref": "#/$defs/color"},
+        "args": {"type": "object"}
+      }
+    },
+    "eyes": {
+      "type": "object",
+      "required": ["style", "color"],
+      "additionalProperties": false,
+      "properties": {
+        "style": {"enum": ["round_01"]},
+        "color": {"$ref": "#/$defs/color"}
+      }
+    },
+    "eyebrows": {"enum": ["flat", "angry", "raised", "soft"]},
+    "mouth": {"enum": ["neutral", "smile", "frown", "grin"]},
+    "facial": {"enum": ["mustache", "mustacheSm", "stubble", "goatee"]},
+    "glasses": {"type": "boolean"},
+    "blush": {"type": "boolean"},
+    "lashes": {"type": "boolean"},
+    "shirt": {
+      "type": "object",
+      "required": ["style", "color"],
+      "additionalProperties": false,
+      "properties": {
+        "style": {"enum": ["suit", "dressshirt", "polo", "blouse", "cardigan", "sweater"]},
+        "color": {"$ref": "#/$defs/color"},
+        "tie": {"$ref": "#/$defs/color"}
+      }
+    },
+    "pants": {
+      "type": "object",
+      "required": ["template", "color"],
+      "additionalProperties": false,
+      "properties": {
+        "template": {"enum": ["standard_01"]},
+        "color": {"$ref": "#/$defs/color"}
+      }
+    },
+    "shoes": {
+      "type": "object",
+      "required": ["template", "color"],
+      "additionalProperties": false,
+      "properties": {
+        "template": {"enum": ["standard_01"]},
+        "color": {"$ref": "#/$defs/color"}
+      }
+    },
+    "accessory_1": {"enum": ["none"]},
+    "custom": {"type": "object", "description": "PANTONE: verbatim passthrough (clave libre -> texto)"}
+  },
+  "$defs": {
+    "color": {
+      "type": "string",
+      "pattern": "^(SKIN_0[1-4]|HAIR_0[1-7]|EYE_0[1-5]|CLOTH_[A-Z]+|#[0-9A-Fa-f]{6}|PANTONE:.+)$"
+    }
+  }
+}

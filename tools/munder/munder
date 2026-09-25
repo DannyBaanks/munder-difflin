@@ -1,0 +1,1793 @@
+#!/usr/bin/env node
+'use strict';
+/**
+ * munder — CLI de control dev para Munder Difflin (v3 interactivo).
+ *
+ * Fuente de verdad: tools/munder/munder (dentro de este repo).
+ * Instala: ln -sf "$PWD/tools/munder/munder" ~/.local/bin/munder
+ * Uso: munder [comando] · sin args abre el menú interactivo (si hay TTY).
+ *
+ * HEREDADO del launcher bash 2026-09-21 (conservado en munder.bash-legacy):
+ * FIX freeze "Detenido": lanzar `npm run dev` adjunto al job control del shell
+ * hace que, al arrancar node-pty los agentes, el árbol reciba SIGTSTP y la app
+ * se congela (state T, "[N]+ Detenido", ventana freezada). Fix probado:
+ * setsid + stdio a archivo + despegado del tty. No usar --fg salvo debug.
+ * NOTA singleton: userData (~/.config/munder-difflin) COMPARTIDO entre dev y
+ * build compilado. No ambos a la vez: la 2da instancia muere (second-instance).
+ * NOTA sandbox: el chrome-sandbox del checkout no es root:root 4755, así que
+ * el dev corre con ELECTRON_DISABLE_SANDBOX=1 (igual que el launcher viejo).
+ *
+ * Sin dependencias (solo builtins de node) para correr en máquina recién
+ * instalada. Linux-first (setsid, pgrep, ss); el menú interactivo exige TTY
+ * en stdin+stdout — sin TTY se imprime la ayuda y no se cuelga nada.
+ */
+
+const { spawn, spawnSync, execFileSync } = require('node:child_process');
+const fs = require('node:fs');
+const os = require('node:os');
+const path = require('node:path');
+const readline = require('node:readline');
+const { chatearPersonaje } = require('./lib-personaje.cjs');
+const { blankCanvas, decodePNG, verifyAvatar, editImageEndpoint } = require('./lib-avatar.cjs');
+
+// ─── config ────────────────────────────────────────────────────────────────
+const MUNDER_DIR = process.env.MUNDER_DIR || path.resolve(__dirname, '..', '..');
+const STATE_DIR = process.env.MUNDER_STATE_DIR || path.join(process.env.XDG_STATE_HOME || path.join(os.homedir(), '.local', 'state'), 'munder');
+const PID_FILE = path.join(STATE_DIR, 'munder-dev.pid');
+const LATEST_LOG = path.join(STATE_DIR, 'latest.log');
+// Patrón estricto: solo el dev de ESTE checkout (nunca los agentes hive en bun).
+const PATTERN = path.basename(MUNDER_DIR) + '/node_modules';
+const IS_TTY = !!process.stdin.isTTY && !!process.stdout.isTTY;
+const USE_COLOR = IS_TTY && !process.env.NO_COLOR;
+
+// ─── estilo (ANSI mínimo, solo con TTY) ─────────────────────────────────────
+const C = {
+  reset: '\x1b[0m', bold: '\x1b[1m', dim: '\x1b[2m',
+  cyan: '\x1b[36m', green: '\x1b[32m', yellow: '\x1b[33m',
+  red: '\x1b[31m', inverse: '\x1b[7m', hide: '\x1b[?25l', show: '\x1b[?25l'.replace('?25l', '?25h'),
+};
+const st = (s, ...codes) => (USE_COLOR && codes.length ? codes.join('') + s + C.reset : s);
+const say = (m) => console.log(`munder: ${m}`);
+const die = (m) => { console.error(`munder: ${m}`); process.exit(1); };
+
+const BANNER = st('▚ MUNDER', C.bold, C.cyan) + st('  dev control', C.dim);
+
+// ─── procesos ──────────────────────────────────────────────────────────────
+function pids() {
+  try {
+    const r = spawnSync('pgrep', ['-f', PATTERN], { encoding: 'utf8' });
+    return (r.stdout || '').split('\n').map((s) => s.trim()).filter(Boolean);
+  } catch { return []; }
+}
+function alive(pid) {
+  try { process.kill(Number(pid), 0); return true; } catch { return false; }
+}
+function which(bin) {
+  const dirs = (process.env.PATH || '').split(path.delimiter).filter(Boolean);
+  for (const d of dirs) {
+    const p = path.join(d, bin);
+    try { fs.accessSync(p, fs.constants.X_OK); return p; } catch { /* sigue */ }
+  }
+  return null;
+}
+function portListening(port) {
+  try {
+    const r = spawnSync('ss', ['-ltn'], { encoding: 'utf8', timeout: 3000 });
+    return (r.stdout || '').split('\n').some((l) => l.includes(`:${port} `));
+  } catch { return false; }
+}
+
+// ─── spinner (una línea, se limpia solo) ────────────────────────────────────
+async function spin(msg, ms, doneEarly) {
+  if (!IS_TTY) { await new Promise((r) => setTimeout(r, ms)); return; }
+  const frames = ['⠋', '⠙', '⠹', '⠸', '⠼', '⠴', '⠦', '⠧', '⠇', '⠏'];
+  let i = 0;
+  const t0 = Date.now();
+  process.stdout.write(C.hide);
+  try {
+    for (;;) {
+      const el = Date.now() - t0;
+      if (el >= ms || (doneEarly && doneEarly())) break;
+      process.stdout.write(`\r${st(frames[i++ % frames.length], C.cyan)} ${msg}`);
+      await new Promise((r) => setTimeout(r, 120));
+    }
+  } finally {
+    process.stdout.write('\r\x1b[0K' + C.show);
+  }
+}
+
+// ─── selector interactivo (flechas + Enter, sin ser TUI) ────────────────────
+function select(message, choices) {
+  // choices: [{ label, hint?, value }]. Resuelve índice o -1 (Esc/q/Ctrl-C sale 130).
+  return new Promise((resolve) => {
+    const stdin = process.stdin;
+    let idx = 0, done = false, buf = '', escTimer = null;
+    const lines = () => choices.length + 2; // opciones + pie de ayuda
+    const cleanup = () => {
+      stdin.removeListener('data', onData);
+      try { if (stdin.isTTY) stdin.setRawMode(false); } catch { /* noop */ }
+      try { stdin.pause(); } catch { /* noop */ }
+      process.stdout.write(C.show);
+      if (escTimer) clearTimeout(escTimer);
+    };
+    const finish = (v, code) => {
+      if (done) return; done = true;
+      // Los bytes que llegaron en el mismo chunk DESPUÉS de la tecla decisiva
+      // pertenecen al SIGUIENTE prompt: se devuelven al stream para que los
+      // lea quien sigue (otro select, readline o askHidden). Sin esto, una
+      // ráfaga (pegar texto, tests por pty) pierde todo menos la primera tecla.
+      const rest = buf;
+      buf = '';
+      cleanup();
+      if (rest.length) { try { stdin.unshift(Buffer.from(rest, 'utf8')); } catch { /* noop */ } }
+      if (typeof code === 'number') process.exitCode = code;
+      resolve(v);
+    };
+    const render = (first) => {
+      let out = '';
+      if (!first) out += `\x1b[${lines()}A`;
+      out += `${st(message, C.bold)}\n`;
+      choices.forEach((c, i) => {
+        const mark = i === idx ? st('❯', C.cyan, C.bold) : ' ';
+        const lab = i === idx ? st(c.label, C.inverse) : c.label;
+        const hint = c.hint ? st(`  ${c.hint}`, C.dim) : '';
+        out += `${mark} ${lab}${hint}\n`;
+      });
+      out += st('↑↓ navegar · Enter elegir · Esc salir', C.dim) + '\n';
+      out += '\x1b[0J';
+      process.stdout.write(out);
+    };
+    const move = (d) => { idx = (idx + d + choices.length) % choices.length; render(false); };
+    const flushEsc = () => { escTimer = null; finish(-1); };
+    const onData = (chunk) => {
+      buf += chunk.toString('utf8');
+      for (;;) {
+        if (buf.length === 0) return;
+        if (buf[0] === '\u0003') { finish(-1, 130); process.exit(130); return; } // Ctrl-C
+        if (buf.startsWith('\x1b[')) {
+          if (buf.length < 3) return; // secuencia incompleta: espera más bytes
+          const code = buf[2];
+          buf = buf.slice(3);
+          if (code === 'A') move(-1);
+          else if (code === 'B') move(1);
+          continue;
+        }
+        if (buf[0] === '\x1b') { buf = buf.slice(1); if (escTimer) clearTimeout(escTimer); escTimer = setTimeout(flushEsc, 60); continue; }
+        const ch = buf[0]; buf = buf.slice(1);
+        if (ch === '\r' || ch === '\n') { finish(idx); return; }
+        if (ch === 'q' || ch === 'Q') { finish(-1); return; }
+        const n = parseInt(ch, 10);
+        if (n >= 1 && n <= choices.length) { finish(n - 1); return; }
+      }
+    };
+    try { stdin.setRawMode(true); } catch { resolve(-1); return; }
+    stdin.resume();
+    stdin.on('data', onData);
+    process.stdout.write(C.hide);
+    render(true);
+  });
+}
+
+function ask(question) {
+  return new Promise((resolve) => {
+    const rl = readline.createInterface({ input: process.stdin, output: process.stdout });
+    rl.question(question, (a) => { rl.close(); resolve(a); });
+  });
+}
+
+// ─── carpetas: SIEMPRE ventana nativa primero ─────────────────────────────────
+// Regla del dueño: nunca pedir que escriban rutas a mano si se puede invocar
+// una ventana. zenity (GTK) si hay DISPLAY; si no, prompt terminal (último
+// recurso, avisado). Devuelve path, null si cancela, o 'UNAVAILABLE' si no hay
+// cómo mostrar ventana (el llamador cae a prompt avisando).
+function pickFolderWindow(title, initialDir) {
+  if (!process.env.DISPLAY || !which('zenity')) return 'UNAVAILABLE';
+  try {
+    const args = ['--file-selection', '--directory', `--title=${title}`];
+    if (initialDir) args.push(`--filename=${initialDir.replace(/\/+$/, '')}/`);
+    const r = spawnSync('zenity', args, { encoding: 'utf8', timeout: 120000 });
+    if (r.status !== 0) return null;
+    const p = (r.stdout || '').trim();
+    return p || null;
+  } catch { return null; }
+}
+
+/** Pide una carpeta EXISTENTE: ventana nativa primero, prompt solo sin GUI.
+ *  Expande ~, valida que exista y sea dir. null = el usuario canceló. */
+async function pedirCarpeta(titulo, preguntaPrompt, dirInicial) {
+  const win = pickFolderWindow(titulo, dirInicial);
+  if (win !== 'UNAVAILABLE') return win; // path o null (canceló)
+  console.log(st('  (sin ventana disponible: escribe la ruta a mano)', C.dim));
+  const raw = (await ask(`  ${preguntaPrompt}: `)).trim();
+  if (!raw) return null;
+  const p = expandTilde(raw);
+  if (!fs.existsSync(p) || !fs.statSync(p).isDirectory()) {
+    console.log(st(`  no existe o no es carpeta: ${p}`, C.yellow));
+    return null;
+  }
+  return p;
+}
+
+// ─── validación nombre harness (misma regla que isValidHarnessFolderName) ────
+const HARNESS_NAME_MAX = 128;
+function validHarnessName(name) {
+  if (typeof name !== 'string') return { ok: false, error: 'nombre inválido' };
+  const t = name.trim();
+  if (!t) return { ok: false, error: 'escribe un nombre de carpeta' };
+  if (t.length > HARNESS_NAME_MAX) return { ok: false, error: `máximo ${HARNESS_NAME_MAX} caracteres` };
+  if (t === '.' || t === '..') return { ok: false, error: 'nombre reservado' };
+  if (/[/\\\0]/.test(t)) return { ok: false, error: 'el nombre no puede llevar slashes' };
+  if (/^(con|prn|aux|nul|com[1-9]|lpt[1-9])(\.|$)/i.test(t)) return { ok: false, error: 'reservado por Windows' };
+  return { ok: true, name: t };
+}
+function expandTilde(p) {
+  return p === '~' ? os.homedir() : p.startsWith('~/') ? path.join(os.homedir(), p.slice(2)) : p;
+}
+
+// ─── .gitignore del harness (misma lista que ensureHarnessGitignore) ─────────
+const HARNESS_GITIGNORE = ['hive/', 'palace/', 'roster.json', 'roster-backups/'];
+const GITIGNORE_MARK = '# munder-difflin harness runtime (auto-generated — safe to edit)';
+function ensureHarnessGitignore(dir) {
+  const p = path.join(dir, '.gitignore');
+  let cur = '';
+  try { if (fs.existsSync(p)) cur = fs.readFileSync(p, 'utf8'); } catch { /* sigue */ }
+  const have = new Set(cur.split('\n').map((l) => l.trim().replace(/\/+$/, '')).filter(Boolean));
+  const missing = HARNESS_GITIGNORE.filter((e) => !have.has(e.replace(/\/+$/, '')));
+  if (!missing.length) return;
+  const block = ['', GITIGNORE_MARK, ...missing, ''].join('\n');
+  fs.writeFileSync(p, cur + (cur && !cur.endsWith('\n') ? '\n' : '') + block, 'utf8');
+}
+
+// ─── comandos ────────────────────────────────────────────────────────────────
+function cmdCheck() {
+  if (!fs.existsSync(MUNDER_DIR)) die(`no existe MUNDER_DIR=${MUNDER_DIR}`);
+  if (!fs.existsSync(path.join(MUNDER_DIR, 'package.json'))) die(`package.json no encontrado en ${MUNDER_DIR}`);
+  if (!fs.existsSync(path.join(MUNDER_DIR, 'node_modules'))) die(`node_modules no encontrado. Ejecuta npm install en ${MUNDER_DIR}`);
+  console.log('munder: OK');
+  console.log(`root: ${MUNDER_DIR}`);
+}
+
+// Canal de control de la app viva (M0+): loopback + token por boot.
+// Lee {port,token} de munder-control.json en el userData de la app.
+// La app lo borra al cerrarse limpio; si muere antes queda HUÉRFANO
+// (puerto cerrado + sin procesos): se detecta y se poda, nunca en caliente.
+function userDataDir() {
+  return process.env.MUNDER_USER_DATA || path.join(os.homedir(), '.config', 'munder-difflin');
+}
+function channelCfgFile() {
+  return path.join(userDataDir(), 'munder-control.json');
+}
+function readChannelCfg() {
+  // null = sin archivo; {corrupt} | {cfg}. Nunca muere.
+  let cfg;
+  try {
+    cfg = JSON.parse(fs.readFileSync(channelCfgFile(), 'utf8'));
+  } catch {
+    return null;
+  }
+  if (!cfg || typeof cfg.port !== 'number' || typeof cfg.token !== 'string') {
+    return { corrupt: true };
+  }
+  return { cfg };
+}
+function readChannel() {
+  const r = readChannelCfg();
+  if (!r) die(`sin canal (no se lee ${channelCfgFile()}): ¿la app está corriendo con build que lo trae?`);
+  if (r.corrupt) die(`${channelCfgFile()} corrupto (se esperaba {port, token}). Prueba: munder ctl limpiar`);
+  return r.cfg;
+}
+async function probeChannel(cfg, ms = 5000) {
+  // {alive} | {down, detail}. Nunca muere.
+  try {
+    const res = await fetch(`http://127.0.0.1:${cfg.port}/salud`, {
+      headers: { authorization: `Bearer ${cfg.token}` },
+      signal: AbortSignal.timeout(ms),
+    });
+    const body = await res.json().catch(() => ({}));
+    if (res.status === 200 && body && body.ok === true) return { alive: true };
+    return { down: true, detail: `respondió ${res.status}` };
+  } catch (e) {
+    return { down: true, detail: (e && e.cause && (e.cause.code || e.cause)) || (e && e.message) || String(e) };
+  }
+}
+// 'viva' | 'huerfana' | 'caida' | 'ausente' | 'corrupta'. Nunca muere.
+// Huérfana = archivo + puerto cerrado + ningún proceso del checkout
+// (con procesos vivos puede ser arranque en curso: no se toca).
+async function channelState() {
+  const r = readChannelCfg();
+  if (!r) return { state: 'ausente' };
+  if (r.corrupt) return { state: 'corrupta', file: channelCfgFile() };
+  const p = await probeChannel(r.cfg);
+  if (p.alive) return { state: 'viva', port: r.cfg.port };
+  if (pids().length) return { state: 'caida', port: r.cfg.port, detail: p.detail };
+  return { state: 'huerfana', port: r.cfg.port, file: channelCfgFile(), detail: p.detail };
+}
+// Poda el huérfano si lo hay. true = se eliminó algo.
+async function pruneChannelOrphan() {
+  const r = readChannelCfg();
+  if (!r) return false;
+  if (r.corrupt) {
+    try { fs.unlinkSync(channelCfgFile()); } catch { return false; }
+    console.log('munder: archivo de canal corrupto eliminado.');
+    return true;
+  }
+  const p = await probeChannel(r.cfg, 3000);
+  if (p.alive) return false;
+  if (pids().length) return false;
+  try { fs.unlinkSync(channelCfgFile()); } catch { return false; }
+  console.log(`munder: canal huérfano eliminado (puerto ${r.cfg.port}). Arranca con munder start.`);
+  return true;
+}
+
+async function channelCall(method, p, body, token) {
+  const r = await fetch(`http://127.0.0.1:${p.port}${p.path}`, {
+    method,
+    headers: {
+      authorization: `Bearer ${token}`,
+      ...(body !== undefined ? { 'content-type': 'application/json' } : {}),
+    },
+    ...(body !== undefined ? { body: JSON.stringify(body) } : {}),
+    signal: AbortSignal.timeout(15000),
+  });
+  return { status: r.status, body: await r.json().catch(() => ({})) };
+}
+
+// M1: ver la sesión viva (registry + PTYs vía buildSessionView en main).
+async function cmdSesionVer() {
+  const ch = readChannel();
+  const r = await channelCall('GET', { port: ch.port, path: '/sesion' }, undefined, ch.token)
+    .catch((e) => die(`sin respuesta del canal (${e && e.message ? e.message : e})`));
+  if (r.status !== 200 || !r.body || r.body.ok !== true || !Array.isArray(r.body.agents)) {
+    die(`no se pudo leer la sesión (${r.status}): ${(r.body && r.body.error) || 'sin detalle'}`);
+  }
+  const agents = r.body.agents;
+  if (!agents.length) {
+    console.log('munder: sesión vacía (0 agentes).');
+    return;
+  }
+  const rows = agents.map((a) => ({
+    id: String(a.id ?? '?'),
+    nombre: String(a.name ?? a.id ?? '?'),
+    proveedor: String(a.provider ?? '—'),
+    rol: String(a.role ?? '—'),
+    estado: a.live ? st('vivo', C.green) : st('apagado', C.dim),
+    pid: a.pid != null ? String(a.pid) : '—',
+  }));
+  const w = {};
+  for (const k of Object.keys(rows[0])) w[k] = Math.max(k.length, ...rows.map((r) => r[k].replace(/\x1b\[[0-9;]*m/g, '').length));
+  const line = (r) => Object.keys(w).map((k) => r[k].padEnd(w[k])).join('  ');
+  console.log('  ' + st(line({ id: 'ID', nombre: 'NOMBRE', proveedor: 'PROVEEDOR', rol: 'ROL', estado: 'ESTADO', pid: 'PID' }), C.bold, C.dim));
+  for (const r of rows) console.log('  ' + line(r));
+  console.log(st(`  ${agents.length} agente(s), ${agents.filter((a) => a.live).length} vivo(s).`, C.dim));
+}
+
+// M2: armar/quitar agentes contra la instancia viva (vía spawnAgentCore,
+// mismo contrato que pty:spawn; el main valida e infiere proveedor).
+async function cmdSesion(args) {
+  const [sub, ...rest] = args;
+  if (sub === 'ver') return await cmdSesionVer();
+  if (sub === 'proveedor') return await cmdSesionProveedor(rest);
+  if (sub === 'armar') return await cmdSesionArmar(rest);
+  if (sub === 'quitar') {
+    const id = rest[0];
+    if (!id) die("uso: munder sesion quitar <id>  (id de agente o de pty)");
+    const ch = readChannel();
+    const r = await channelCall('DELETE', { port: ch.port, path: `/sesion/agentes/${encodeURIComponent(id)}` }, undefined, ch.token)
+      .catch((e) => die(`sin respuesta del canal (${e && e.message ? e.message : e})`));
+    if (r.status === 200 && r.body && r.body.ok === true) {
+      console.log(`munder: agente ${r.body.id} eliminado.`);
+      return;
+    }
+    die(`no se pudo quitar (${r.status}): ${(r.body && r.body.error) || 'sin detalle'}`);
+  }
+  die("uso: munder sesion ver | munder sesion proveedor [--cli X --endpoint Y --model Z] | munder sesion armar [--nombre X --comando \"...\" --cwd ...] | munder sesion quitar <id>");
+}
+
+// Adaptadores IO reales para chatearPersonaje (lib-personaje.cjs).
+const chatIO = {
+  ask: (q) => ask(q),
+  select: async (message, labels) => select(message, labels.map((label) => ({ label, value: label }))),
+  print: (text, inline) => { if (inline) process.stdout.write(text); else console.log(text); },
+};
+
+// Wizard proveedor/modelo/connect-style. Flujo:
+// CLI instalado -> endpoint (top-10, con ●/○ por key detectada) -> modelo
+// (del catálogo; ●/○ por key) -> si falta key: sudo+disclaimer+pegar (solo
+// al auth propio del CLI) o instrucciones -> chat IA opcional -> review ->
+// armar (confirmado) o comando.
+async function cmdSesionProveedor(args) {
+  const getFlag = (ns) => flagVal(args, ns);
+  const catalog = readModelCatalog();
+  if (!IS_TTY && !getFlag(['--cli', '--comando'])) {
+    die('sin TTY: usa flags. Uso: munder sesion proveedor --cli <id> [--endpoint <id>] [--model <slug>]');
+  }
+  // 1) CLI.
+  const detected = detectCLIs();
+  let cliId = getFlag(['--cli']);
+  if (!cliId) {
+    if (!detected.length) die('no detecté ningún CLI instalado (¿están en tu PATH?). Revisa con: which claude codex gemini');
+    const i = await select('¿Con qué CLI trabajamos?', [
+      ...detected.map((d) => ({
+        label: d.id,
+        hint: `${d.path}${d.keysPresent.length || d.authPresent.length ? '  ● key' : '  ○ sin key'}`,
+        value: d.id,
+      })),
+      { label: 'Comando manual…', hint: 'como hasta ahora', value: '__manual__' },
+    ]);
+    if (i < 0) { say('cancelado.'); return; }
+    const picked = [ ...detected.map((d) => d.id), '__manual__'][i];
+    if (picked === '__manual__') return await cmdSesionArmar([]);
+    cliId = picked;
+  }
+  const cli = CLI_DETECT.find((c) => c.id === cliId) || { id: cliId, bins: [cliId], keyEnvs: [], authFiles: [], login: 'login propio del CLI' };
+  // 2) Endpoint (top-10 OpenAI-compatibles; el CLI fijo trae el suyo).
+  let endpointId = getFlag(['--endpoint']);
+  let endpoint = endpointId ? ENDPOINTS.find((e) => e.id === endpointId) : null;
+  if (endpointId && !endpoint) die(`endpoint desconocido '${endpointId}'. Opciones: ${ENDPOINTS.map((e) => e.id).join(', ')}`);
+  if (!endpoint) {
+    const i = await select(`¿Contra qué endpoint corre ${cliId}?`, [
+      { label: 'El CLI trae el suyo', hint: 'login/auth propio', value: '__propio__' },
+      ...ENDPOINTS.map((e) => ({
+        label: e.label,
+        hint: `${process.env[e.keyEnv] ? '●' : '○'} ${e.keyEnv} · ${e.wire}`,
+        value: e.id,
+      })),
+    ]);
+    if (i < 0) { say('cancelado.'); return; }
+    const ids = ['__propio__', ...ENDPOINTS.map((e) => e.id)];
+    endpoint = ids[i] === '__propio__' ? null : ENDPOINTS.find((e) => e.id === ids[i]);
+  }
+  // 3) Modelo (del catálogo del checkout; ●/○ por key del endpoint o del CLI).
+  const catalogModels = modelsForCli(catalog, cliId);
+  let model = getFlag(['--model', '--modelo', '-m']);
+  const keyFor = (m) => {
+    if (endpoint) return endpoint.keyEnv;
+    const slugKey = m && keyForModelSlug(m);
+    if (slugKey) return slugKey;
+    const ce = (cli.keyEnvs || [])[0] || null;
+    return ce;
+  };
+  if (!model) {
+    const choices = catalogModels.map((m) => {
+      const k = keyFor(m.id);
+      const has = k ? !!process.env[k] : false;
+      return { label: m.label, hint: `${m.id}${has ? '  ● ' + k : k ? '  ○ ' + k : ''}`, value: m.id };
+    });
+    choices.push({ label: 'Escribir modelo a mano…', hint: '', value: '__free__' });
+    const i = await select(`¿Qué modelo usa ${cliId}?`, choices);
+    if (i < 0) { say('cancelado.'); return; }
+    model = i < catalogModels.length ? catalogModels[i].id : null;
+    if (!model) model = (await ask('  Slug del modelo: ')).trim();
+    if (!model) die('sin modelo, cancelado.');
+  }
+  const needKey = keyFor(model) || (endpoint ? endpoint.keyEnv : (cli.keyEnvs || [])[0] || null);
+  const hasKey = needKey ? !!process.env[needKey] : true;
+  // 4) Si falta key: sudo + disclaimer + pegar (solo al auth del CLI) o instrucciones.
+  // Sin TTY no se puede pedir sudo ni leer en oculto: se avisa y se sigue (el
+  // agente fallará al correr por auth, pero armar no exige key presente).
+  let linkedWhere = null;
+  let pastedKey = null; // solo memoria de esta corrida: alimenta el chat IA si lo pides
+  if (!hasKey && needKey) {
+    console.log('');
+    console.log(st(`  Falta ${needKey}. Para vincularla sin guardar nada en munder:`, C.bold));
+    printDisclaimer();
+    if (!IS_TTY) {
+      console.log(st('  Sin TTY no puedo pedir sudo ni leer la key: sigo sin vincular (expórtala tú).', C.yellow));
+    } else {
+      console.log('  Verificando que eres tú (sudo, no ejecuta nada como root)…');
+      if (!sudoGate()) {
+        console.log(st('  sudo no autorizado: sigo sin vincular. Nada se tocó.', C.yellow));
+      } else {
+        const key = await askHidden(`  Pega ${needKey} (no se muestra): `);
+        if (!key) { say('vacía: sigo sin vincular.'); }
+        else {
+          pastedKey = key; // memoria volátil: solo se usa si abres el chat abajo
+          const r = linkKeyToCli(cliId, key);
+          if (r.ok) { linkedWhere = r.where; console.log(st(`  ✓ vinculada en ${r.where} (+ .bak-munder de respaldo)`, C.green)); }
+          else if (r.manual) console.log(st(`  No la guardé en ningún lado. Hazlo así: ${r.manual}`, C.yellow));
+          else console.log(st(`  No se pudo vincular (${r.error}). Nada quedó a medias: la key no está en ningún archivo de munder.`, C.yellow));
+        }
+      }
+    }
+  }
+  // 4b) Chat IA para crear el personaje (opcional). Solo con endpoint
+  // openai-compatible + key en memoria (pegada arriba o de env; jamás de
+  // archivos) + modelo resuelto. Sin TTY no se ofrece (es conversacional).
+  let personaje = null;
+  const chatKey = pastedKey || ((needKey && process.env[needKey]) || null);
+  const chatOk = endpoint && endpoint.wire === 'openai-compatible' && chatKey && model;
+  if (IS_TTY && chatOk) {
+    const wc = await select('¿Creamos el personaje chateando con IA?', [
+      { label: 'Sí, abrir chat', value: 'go' },
+      { label: 'No, seguir normal', value: 'no' },
+    ]);
+    if (wc === 0) personaje = await chatearPersonaje(endpoint, model, chatKey, chatIO);
+    else if (wc < 0) { say('seguimos sin chat.'); }
+  } else if (IS_TTY && endpoint && endpoint.wire !== 'openai-compatible') {
+    console.log(st('  (chat IA disponible solo para endpoints openai-compatibles por ahora)', C.dim));
+  }
+  let personajeAvatar = null;
+  const slugAvatar = (s) => String(s || '').toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-+|-+$/g, '') || 'sin-nombre';
+  if (personaje) {
+    // Pendiente para el pipeline de avatares (M8): JSON en el state local
+    // (fuera de repos y de roster; la persona/avatar aún no tienen canal).
+    try {
+      const dir = path.join(STATE_DIR, 'personajes');
+      fs.mkdirSync(dir, { recursive: true });
+      const slug = slugAvatar(personaje.nombre);
+      const pjPath = path.join(dir, `${slug}.json`);
+      fs.writeFileSync(pjPath, JSON.stringify({ ...personaje, endpoint: endpoint.id, model, creado: new Date().toISOString() }, null, 2));
+      console.log(st(`  personaje guardado en ${pjPath} (pendiente para avatares)`, C.dim));
+    } catch (e) {
+      console.log(st(`  no se pudo guardar el personaje (${e.message}); sigo sin él en disco.`, C.yellow));
+      personaje = null;
+    }
+    // Compilar su avatar con el engine local (texto -> píxeles, sin IA).
+    if (personaje && personaje.avatar_desc) {
+      const ac = await select('¿Compilo su avatar ahora mismo (engine local)?', [
+        { label: 'Sí, compilar avatar', value: 'go' },
+        { label: 'No, después', value: 'no' },
+      ]);
+      if (ac === 0) {
+        try {
+          const { parseAvatarDesc } = require('./lib-avatar.cjs');
+          const engine = loadAvatarEngine();
+          const { compileAvatar } = require('./lib-avatar.cjs');
+          const c = compileAvatar(engine, personaje.avatar_desc);
+          for (const w of c.warnings) console.log(st(`  ~ ${w}`, C.yellow));
+          const ap = path.join(STATE_DIR, 'personajes', `${slugAvatar(personaje.nombre)}.png`);
+          fs.writeFileSync(ap, c.png);
+          personajeAvatar = ap;
+          console.log(st(`  ✓ avatar compilado: ${ap} (${c.w}x${c.h})`, C.green));
+        } catch (e) {
+          console.log(st(`  no se pudo compilar (${e.message}); el personaje sigue sin avatar.`, C.yellow));
+        }
+      }
+    }
+  }
+  // 5) Review: comando armado igual que el modal (binario + --model universal).
+  // Explícito a propósito: "armar" crea un agente VIVO; "solo mostrar" no crea nada.
+  const bin = (cli.bins || [cliId])[0];
+  const assembled = `${bin} --model ${/\s/.test(model) ? `"${model}"` : model}`;
+  console.log('');
+  console.log(st('  Revisa antes de armar:', C.bold));
+  console.log(`    cli:      ${cliId}`);
+  console.log(`    endpoint: ${endpoint ? `${endpoint.label} (${endpoint.baseURL})` : 'el propio del CLI'}`);
+  console.log(`    modelo:   ${model}`);
+  console.log(`    key:      ${needKey ? (hasKey || linkedWhere ? `● ${needKey}${linkedWhere ? ` (vinculada en ${linkedWhere})` : ' (detectada)'}` : `○ ${needKey} (pendiente: expórtala o vincúlala)`) : 'no requiere'}`);
+  if (personaje) {
+    console.log(`    personaje: ${personaje.nombre}${personaje.rol ? ` (${personaje.rol})` : ''}`);
+    if (personaje.persona) console.log(`    persona:   ${personaje.persona.slice(0, 90)}${personaje.persona.length > 90 ? '…' : ''}`);
+    if (personajeAvatar) console.log(`    avatar:    ${personajeAvatar}`);
+  }
+  console.log(`    comando:  ${assembled}`);
+  console.log(st('  OJO: "armar" crea un agente VIVO con PTY en tu sesión de munder. "Solo mostrar" únicamente imprime el comando y no crea nada.', C.yellow));
+  const i = await select('¿Armamos el agente con esto?', [
+    { label: 'Sí, armar ahora (crea el agente vivo)', value: 'go' },
+    { label: 'Solo mostrar el comando (no crea nada)', value: 'show' },
+    { label: 'Cancelar', value: 'no' },
+  ]);
+  if (i < 0 || i === 2) { say('cancelado: nada se creó.'); return; }
+  if (i === 1) { console.log(`\n  ${assembled}\n`); say('(solo mostrado: ningún agente creado)'); return; }
+  // El id de preset difiere del binario solo en cursor (cursor-agent).
+  const provider = cliId === 'cursor-agent' ? 'cursor' : cliId;
+  const armarArgs = ['--comando', assembled, '--proveedor', provider];
+  if (personaje) {
+    armarArgs.push('--nombre', personaje.nombre);
+    if (personaje.rol) armarArgs.push('--rol', personaje.rol);
+  }
+  await cmdSesionArmar(armarArgs);
+}
+
+function flagVal(args, names) {
+  for (let i = 0; i < args.length; i++) {
+    for (const n of names) {
+      if (args[i] === n) return args[i + 1] ?? null;
+      if (args[i].startsWith(n + '=')) return args[i].slice(n.length + 1);
+    }
+  }
+  return null;
+}
+
+async function cmdSesionArmar(args) {
+  let nombre = flagVal(args, ['--nombre', '-n']);
+  let comando = flagVal(args, ['--comando', '-c']);
+  let cwd = flagVal(args, ['--cwd', '--carpeta', '-d']);
+  const proveedor = flagVal(args, ['--proveedor', '--provider', '-p']);
+  const rol = flagVal(args, ['--rol', '--role', '-r']);
+  const interactivo = !nombre || !comando || !cwd;
+  if (interactivo && !IS_TTY) {
+    die('faltan --nombre/--comando/--cwd y no hay TTY para preguntar. Uso: munder sesion armar --nombre X --comando "..." --cwd ...');
+  }
+  if (!nombre) nombre = (await ask('  Nombre del agente (p. ej. jim): ')).trim();
+  if (!comando) comando = (await ask('  Comando (p. ej. claude --model opus): ')).trim();
+  if (!cwd) {
+    const pick = await pedirCarpeta(
+      'Munder — carpeta de trabajo del agente',
+      'Carpeta de trabajo', os.homedir());
+    if (!pick) die('sin carpeta, cancelado.');
+    cwd = pick;
+  }
+  if (cwd.startsWith('~/')) cwd = path.join(os.homedir(), cwd.slice(2));
+  const spec = { name: nombre, cwd, command: comando };
+  if (proveedor) spec.provider = proveedor;
+  if (rol) spec.role = rol;
+  const ch = readChannel();
+  const r = await channelCall('POST', { port: ch.port, path: '/sesion/agentes' }, spec, ch.token)
+    .catch((e) => die(`sin respuesta del canal (${e && e.message ? e.message : e})`));
+  if (r.status === 200 && r.body && r.body.ok === true) {
+    console.log(st('  ✓ agente creado:', C.green, C.bold));
+    console.log(`    id:       ${r.body.id}`);
+    console.log(`    pty:      ${r.body.ptyId}`);
+    if (r.body.provider) console.log(`    proveedor: ${r.body.provider}`);
+    if (r.body.cwd) console.log(`    cwd:      ${r.body.cwd}`);
+    if (r.body.worktreePath) console.log(`    worktree: ${r.body.worktreePath}`);
+    return;
+  }
+  die(`no se pudo crear (${r.status}): ${(r.body && r.body.error) || 'sin detalle'}`);
+}
+async function cmdCtl(args) {
+  const [sub, ...rest] = args;
+  if (sub === 'limpiar' && !rest.length) {
+    if (await pruneChannelOrphan()) return;
+    const cs = await channelState();
+    if (cs.state === 'viva') die('el canal está vivo, no se toca.');
+    if (cs.state === 'caida') die('hay procesos del checkout: puede ser arranque en curso, no se toca.');
+    console.log('munder: sin archivo de canal, nada que limpiar.');
+    return;
+  }
+  if (sub !== 'ping' || rest.length) die("uso: munder ctl ping | munder ctl limpiar");
+  const cfg = readChannel();
+  const p = await probeChannel(cfg);
+  if (p.alive) {
+    console.log(`munder: pong (canal en puerto ${cfg.port})`);
+    return;
+  }
+  if (!pids().length) {
+    die(`sin respuesta del canal en puerto ${cfg.port} (${p.detail}). La app murió dejando el archivo: munder ctl limpiar`);
+  }
+  die(`sin respuesta del canal en puerto ${cfg.port} (${p.detail}). Hay procesos: ¿arranque en curso?`);
+}
+
+function cmdPs() {
+  const list = pids();
+  if (!list.length) { console.log('munder: parado (sin procesos)'); return false; }
+  try {
+    const out = execFileSync('ps', ['-o', 'pid,ppid,etime,cmd', '-p', list.join(',')], { encoding: 'utf8' });
+    console.log(out.trimEnd());
+  } catch (e) { console.log((e.stdout || '').trimEnd() || list.join('\n')); }
+  return true;
+}
+
+async function cmdStatus() {
+  console.log(`dir: ${MUNDER_DIR}`);
+  console.log(`state: ${STATE_DIR}`);
+  const running = cmdPs();
+  console.log('--- puerto ---');
+  console.log(portListening(5173) ? '5173 escuchando' : '(5173 libre)');
+  console.log('--- canal ---');
+  const cs = await channelState();
+  if (cs.state === 'viva') console.log(`canal vivo (puerto ${cs.port})`);
+  else if (cs.state === 'huerfana') console.log(`canal HUÉRFANO (puerto ${cs.port}, ${cs.detail}): munder ctl limpiar`);
+  else if (cs.state === 'caida') console.log(`canal caído con procesos vivos (puerto ${cs.port}, ${cs.detail})`);
+  else if (cs.state === 'corrupta') console.log(`canal corrupto (${cs.file}): munder ctl limpiar`);
+  else console.log('(sin canal)');
+  console.log('--- log (tail 20) ---');
+  try {
+    const log = fs.readFileSync(LATEST_LOG, 'utf8').trimEnd().split('\n').slice(-20).join('\n');
+    console.log(log || '(log vacío)');
+  } catch { console.log(`(sin log todavía en ${LATEST_LOG})`); }
+  if (!running) process.exitCode = 1;
+}
+
+function cmdLogs(args) {
+  let n = 100, follow = false;
+  for (const a of args) {
+    if (a === '-f' || a === '--follow') follow = true;
+    else if (/^\d+$/.test(a)) n = Number(a);
+    else die(`logs: '${a}' no es número. Uso: munder logs [N] [-f]`);
+  }
+  if (!fs.existsSync(LATEST_LOG)) die(`sin log en ${LATEST_LOG} (¿nunca se arrancó?)`);
+  if (!follow) {
+    console.log(fs.readFileSync(LATEST_LOG, 'utf8').trimEnd().split('\n').slice(-n).join('\n'));
+    return;
+  }
+  const tail = spawn('tail', ['-n', String(n), '-f', LATEST_LOG], { stdio: 'inherit' });
+  tail.on('exit', (c) => process.exit(c ?? 0));
+}
+
+function startDev() {
+  // Lanza y verifica vivo a los 2s (igual que el launcher bash).
+  const runLog = path.join(STATE_DIR, `run-${new Date().toISOString().slice(0, 19).replace(/[-:]/g, '').replace('T', 'T')}.log`);
+  fs.mkdirSync(STATE_DIR, { recursive: true });
+  fs.symlinkSync(runLog, LATEST_LOG + '.tmp');
+  fs.renameSync(LATEST_LOG + '.tmp', LATEST_LOG);
+  // Rotación mínima: conserva las últimas 20 corridas.
+  try {
+    const runs = fs.readdirSync(STATE_DIR).filter((f) => /^run-.*\.log$/.test(f))
+      .map((f) => path.join(STATE_DIR, f))
+      .sort((a, b) => fs.statSync(b).mtimeMs - fs.statSync(a).mtimeMs);
+    for (const old of runs.slice(20)) fs.unlinkSync(old);
+  } catch { /* mejor esfuerzo */ }
+  say('lanzando npm run dev despegado (sin terminal de control)');
+  say(`log de esta corrida: ${runLog}`);
+  const logFd = fs.openSync(runLog, 'a');
+  const child = spawn('npm', ['run', 'dev'], {
+    cwd: MUNDER_DIR, detached: true, stdio: ['ignore', logFd, logFd],
+    env: { ...process.env, ELECTRON_DISABLE_SANDBOX: '1' },
+  });
+  child.unref();
+  try { fs.closeSync(logFd); } catch { /* el hijo la heredó */ }
+  fs.writeFileSync(PID_FILE, String(child.pid));
+  return child.pid;
+}
+
+async function cmdStart(fg) {
+  cmdCheckSilent();
+  if (pids().length) die("ya está corriendo. Usa 'munder status' o 'munder stop' primero.");
+  try {
+    const old = fs.existsSync(PID_FILE) ? fs.readFileSync(PID_FILE, 'utf8').trim() : '';
+    if (old && alive(old)) die(`el pid file dice que ya corre (pid ${old}). Si es huérfano, borra ${PID_FILE}.`);
+  } catch (e) { if (e.code !== 'ENOENT') { /* pid ilegible: se sigue */ } }
+  try { if (fs.existsSync(PID_FILE)) fs.unlinkSync(PID_FILE); } catch { /* noop */ }
+  fs.mkdirSync(STATE_DIR, { recursive: true });
+  if (fg) {
+    say('modo adjunto (--fg): ADVERTENCIA — puede congelarse (SIGTSTP del job control). Solo debug.');
+    process.env.ELECTRON_DISABLE_SANDBOX = '1';
+    const { spawnSync: ss } = require('node:child_process');
+    const r = ss('npm', ['run', 'dev'], { cwd: MUNDER_DIR, stdio: 'inherit', env: process.env });
+    process.exit(r.status ?? 1);
+  }
+  const pid = startDev();
+  await spin('arrancando dev…', 2000);
+  if (!alive(pid) && !pids().length) {
+    say('el proceso dev murió al arrancar; últimas líneas del log:');
+    try {
+      console.error(fs.readFileSync(LATEST_LOG, 'utf8').trimEnd().split('\n').slice(-30).join('\n'));
+    } catch { /* sin log */ }
+    try { fs.unlinkSync(PID_FILE); } catch { /* noop */ }
+    process.exit(1);
+  }
+  say(`en marcha (pid ${pid})`);
+  say('log: munder logs -f | parar: munder stop');
+}
+
+function cmdCheckSilent() {
+  if (!fs.existsSync(MUNDER_DIR)) die(`no existe MUNDER_DIR=${MUNDER_DIR}`);
+  if (!fs.existsSync(path.join(MUNDER_DIR, 'package.json'))) die(`package.json no encontrado en ${MUNDER_DIR}`);
+  if (!fs.existsSync(path.join(MUNDER_DIR, 'node_modules'))) die(`node_modules no encontrado. Ejecuta npm install en ${MUNDER_DIR}`);
+}
+
+async function cmdStop() {
+  try {
+    if (fs.existsSync(PID_FILE)) {
+      const lp = fs.readFileSync(PID_FILE, 'utf8').trim();
+      if (lp && alive(lp)) { console.log(`munder: TERM a launcher ${lp}`); try { process.kill(Number(lp)); } catch { /* noop */ } }
+    }
+  } catch { /* noop */ }
+  let list = pids();
+  if (!list.length) {
+    console.log('munder: ya estaba parado.');
+    try { fs.unlinkSync(PID_FILE); } catch { /* noop */ }
+    await pruneChannelOrphan();
+    return;
+  }
+  console.log(`munder: TERM a: ${list.join(' ')}`);
+  for (const p of list) { try { process.kill(Number(p)); } catch { /* noop */ } }
+  const t0 = Date.now();
+  while (pids().length && Date.now() - t0 < 5000) await new Promise((r) => setTimeout(r, 250));
+  list = pids();
+  if (list.length) {
+    console.log(`munder: KILL a: ${list.join(' ')}`);
+    for (const p of list) { try { process.kill(Number(p), 9); } catch { /* noop */ } }
+    await new Promise((r) => setTimeout(r, 1500));
+  }
+  list = pids();
+  if (list.length) { console.error(`munder: ATENCION, siguen vivos: ${list.join(' ')}`); process.exit(1); }
+  try { fs.unlinkSync(PID_FILE); } catch { /* noop */ }
+  await pruneChannelOrphan();
+  console.log('munder: parado.');
+}
+
+async function cmdCreateHarness(parentArg, nameArg) {
+  // 1) carpeta padre: arg → ventana nativa → prompt.
+  let parent = parentArg || null;
+  if (!parent) {
+    const pick = await pedirCarpeta(
+      'Munder — elige la carpeta PADRE del harness nuevo',
+      'Carpeta padre', os.homedir());
+    if (!pick) { say('cancelado por el usuario.'); return; }
+    parent = pick;
+  }
+  parent = expandTilde((parent || '').trim());
+  if (!parent) die('sin carpeta padre, cancelado.');
+  if (!fs.existsSync(parent) || !fs.statSync(parent).isDirectory()) die(`la carpeta padre no existe: ${parent}`);
+  // 2) nombre: arg → prompt. Misma regla que isValidHarnessFolderName.
+  let rawName = nameArg ?? null;
+  if (rawName === null || rawName === undefined) rawName = await ask('  Nombre de la carpeta: ');
+  const check = validHarnessName(rawName);
+  if (!check.ok) die(check.error);
+  const target = path.join(path.resolve(parent), check.name);
+  if (fs.existsSync(target)) die('esa carpeta ya existe — ábrela desde el HivePicker (open existing config…).');
+  // 3) crear + gitignore (misma lista que ensureHarnessHome).
+  fs.mkdirSync(target, { recursive: true });
+  ensureHarnessGitignore(target);
+  console.log(st('  ✓ harness creado:', C.green, C.bold));
+  console.log(`    ${target}`);
+  console.log(st('  ábrelo desde la app: HivePicker → open existing config…', C.dim));
+  console.log(st('  (.gitignore runtime incluido: hive/, palace/, roster.json, roster-backups/)', C.dim));
+}
+
+async function cmdRepaint() {
+  const ch = readChannel();
+  const r = await channelCall('POST', { port: ch.port, path: '/repaint' }, undefined, ch.token)
+    .catch((e) => die(`sin respuesta del canal (${e && e.message ? e.message : e})`));
+  if (r.status === 200 && r.body && r.body.ok === true) {
+    console.log(`munder: repintado pedido a ${r.body.windows ?? 0} ventana(s). Sin reinicio.`);
+    return;
+  }
+  die(`no se pudo pedir repintado (${r.status}): ${(r.body && r.body.error) || 'sin detalle'}`);
+}
+
+// ─── avatares: lienzo en blanco + edición por modelo ────────────────────────
+// Spec medida (portraitArt.ts): 18×28 RGBA. El lienzo es un PNG válido y
+// editable: el modelo edita ENCIMA en vez de generar desde cero (los modelos
+// de difusión odian el 18×28 con alpha exacto).
+const AVATAR_W = 18;
+const AVATAR_H = 28;
+// Semilla de restricciones M10 para la edición (compacta, en inglés: los
+// modelos de imagen entrenan mayormente en inglés).
+const AVATAR_EDIT_SUFFIX = 'Pixel art, exactly 18x28 pixels, transparent background, no background, no text, facing forward, sharp pixels, office worker portrait';
+// Límite sano para un PNG de avatar (un 18×28 real pesa <10KB).
+const AVATAR_MAX_BYTES = 512 * 1024;
+
+function avatarPendingDir() {
+  // Pendientes fuera de repos y de roster (input futuro de M8, no canónicos).
+  const d = path.join(STATE_DIR, 'avatars');
+  fs.mkdirSync(d, { recursive: true });
+  return d;
+}
+
+function loadAvatarEngine() {
+  // Lazy: el engine solo se necesita para compilar (no para lienzo/editar).
+  try {
+    return require('./avatar-engine.cjs');
+  } catch (e) {
+    die(`falta el engine (tools/munder/avatar-engine.cjs). Genéralo: node tools/munder/sync-avatar-engine.cjs (${e && e.code ? e.code : 'ver error'})`);
+  }
+}
+
+const AVATAR_MOTORS = ['local', 'modelo', 'flow', 'spec'];
+
+function cmdAvatarCompilar(desc, opts) {
+  opts = opts || {};
+  const partFlags = ['piel', 'pelo', 'ojos', 'ropa', 'pantalon', 'zapatos'].filter((k) => opts[k]);
+  if ((!desc || !String(desc).trim()) && !(opts.motor === 'spec' && (partFlags.length || opts.dsl))) {
+    if (!IS_TTY) die('uso: munder avatar compilar "piel morena, pelo negro corto..." [--motor local|modelo|flow|spec] [--salida x.png]');
+    die('sin descripción, cancelado.');
+  }
+  const motor = opts.motor || 'local';
+  if (!AVATAR_MOTORS.includes(motor)) die(`motor desconocido '${motor}'. Opciones: ${AVATAR_MOTORS.join(', ')}`);
+  if (motor === 'spec') return cmdAvatarCompilarSpec(desc, resolveAvatarOut(opts), opts);
+  const { parseAvatarDesc, compileAvatar } = require('./lib-avatar.cjs');
+  const parsed = parseAvatarDesc(String(desc));
+  for (const w of parsed.warnings) console.log(st(`  ~ ${w}`, C.yellow));
+  const out = resolveAvatarOut(opts);
+  if (motor === 'modelo') return cmdAvatarCompilarModelo(desc, parsed, out, opts);
+  if (motor === 'flow') return cmdAvatarCompilarFlow(desc, parsed, out, opts);
+  // local: engine procedural (sin red, determinista).
+  const engine = loadAvatarEngine();
+  let compiled;
+  try {
+    compiled = compileAvatar(engine, String(desc));
+  } catch (e) {
+    die(`no se pudo compilar: ${e.message}`);
+  }
+  fs.writeFileSync(out, compiled.png);
+  return finishAvatarCompilar(out, compiled.recipe, parsed.warnings);
+}
+
+function resolveAvatarOut(opts) {
+  const stamp = Date.now().toString(36);
+  const out = opts.salida
+    ? path.resolve(expandTilde(opts.salida))
+    : path.resolve(`./avatar-18x28-${stamp}.png`);
+  if (fs.existsSync(out)) die(`ya existe ${out} (bórralo o pasa --salida).`);
+  return out;
+}
+
+function finishAvatarCompilar(out, recipe, warnings) {
+  // Bloque de éxito ÚNICO para los tres motores (contrato para agentes:
+  // misma forma salga de donde salga el PNG).
+  const { verifyAvatar, decodePNG } = require('./lib-avatar.cjs');
+  const v = verifyAvatar(fs.readFileSync(out), { w: 18, h: 28, needAlpha: true, maxBytes: 512 * 1024 });
+  const d = decodePNG(fs.readFileSync(out));
+  let opaque = 0;
+  for (let i = 3; i < d.rgba.length; i += 4) if (d.rgba[i] === 255) opaque++;
+  console.log(st('  ✓ avatar compilado:', C.green, C.bold));
+  console.log(`    ${out} (${d.w}x${d.h}, ${opaque} px opacos)`);
+  console.log(`    receta: piel=${recipe.skin} pelo=${recipe.hair} ropa=${recipe.cloth}`);
+  if (!v.ok) console.log(st(`  (aviso verify: ${v.reason})`, C.yellow));
+  return { path: out, recipe, warnings };
+}
+
+async function cmdAvatarCompilarModelo(desc, parsed, out, opts) {
+  // Texto -> píxeles con el motor del MODELO (images/edits sobre lienzo en
+  // blanco: el endpoint devuelve el mismo tamaño que recibe). Para modelos
+  // CON engine de imagen (GPT/gpt-image y wires openai-compatibles que
+  // editen). Sin red o sin clave no hay modelo: usa --motor local o --motor flow.
+  const endpoint = getEndpoint(opts.endpoint);
+  if (endpoint.wire !== 'openai-compatible') {
+    die(`${endpoint.label} es wire '${endpoint.wire}': edición de imágenes solo para endpoints openai-compatibles por ahora.`);
+  }
+  if (!opts.model) die('falta --model (¿qué modelo edita?).');
+  let baseURL = endpoint.baseURL;
+  if (opts.baseUrl) {
+    if (!/^https?:\/\//.test(opts.baseUrl)) die('--base-url debe empezar con http:// o https://');
+    baseURL = opts.baseUrl;
+  }
+  const keyName = opts.keyEnv || endpoint.keyEnv;
+  const key = process.env[keyName];
+  if (!key) die(`falta ${keyName} en el entorno. Expórtala (export ${keyName}=...) e inténtalo de nuevo.`);
+  const prompt = (opts.prompt || desc).trim();
+  const fullPrompt = `${prompt} ${AVATAR_EDIT_SUFFIX}`;
+  const { blankCanvas, editImageEndpoint } = require('./lib-avatar.cjs');
+  console.log('');
+  console.log(st('  Revisa antes de enviar (llamada con costo potencial):', C.bold));
+  console.log(`    endpoint: ${endpoint.label} (${baseURL})`);
+  console.log(`    modelo:   ${opts.model}`);
+  console.log(`    receta:   piel=${parsed.recipe.skin} pelo=${parsed.recipe.hair} ropa=${parsed.recipe.cloth}`);
+  console.log(`    key:      ● ${keyName} (en memoria, no se guarda ni se muestra)`);
+  if (!opts.si) {
+    const i = await select('¿Enviar a edición?', [
+      { label: 'Sí, enviar', value: 'go' },
+      { label: 'Cancelar', value: 'no' },
+    ]);
+    if (i !== 0) { say('cancelado: nada se envió.'); return; }
+  }
+  const imageBuf = blankCanvas(18, 28);
+  let outBuf = null;
+  try {
+    outBuf = await editImageEndpoint({ baseURL, key, model: opts.model, imageBuf, prompt: fullPrompt });
+  } catch (e) {
+    if (e && e.code === 'ENDPOINT_NO_EDITA') return dieNoEdita();
+    die(e.message);
+  }
+  fs.writeFileSync(out, outBuf);
+  return finishAvatarCompilar(out, parsed.recipe, parsed.warnings);
+}
+
+function cmdAvatarCompilarFlow(desc, parsed, out, opts) {
+  // Texto -> píxeles con el pincel FLOW (determinista, sin red, sin clave).
+  // Para TODOS los modelos sin engine propio: la receta se emite como
+  // programa .flowpaint (estilo-flow) y `flow paint` lo ejecuta.
+  void desc; void opts;
+  const { emitFlowProgram, runFlowProgram } = require('./flow-emit.cjs');
+  let program;
+  try {
+    program = emitFlowProgram(parsed.recipe);
+  } catch (e) {
+    die(`no se pudo compilar: ${e.message}`);
+  }
+  try {
+    runFlowProgram(program, out);
+  } catch (e) {
+    die(`motor flow: ${e.message}`);
+  }
+  // M11 sobre lo pintado (debe pasar: el emisor pinta alfa real; si falla
+  // es bug del emisor y se muere en voz alta, no en aviso).
+  const { verifyAvatar } = require('./lib-avatar.cjs');
+  const v = verifyAvatar(fs.readFileSync(out), { w: 18, h: 28, needAlpha: true, maxBytes: 512 * 1024 });
+  if (!v.ok) die(`motor flow: el pincel devolvió algo inválido (${v.reason}). Repórtalo.`);
+  return finishAvatarCompilar(out, parsed.recipe, parsed.warnings);
+}
+
+function dieInvalidSpec(err) {
+  // Bucle de corrección en forma CLI: motivo + qué sí vale.
+  const avail = (err.error.available || []).join(', ');
+  die(`INVALID_ENUM ${err.error.field}: '${err.error.value}'. Opciones: ${avail}`);
+}
+
+// Partes seleccionables por flag (M3): cada valor se normaliza con una frase
+// sintética de su categoría y solo aporta su parte (el resto lo pone --motor
+// spec desde la descripción o la base neutra).
+const SPEC_PART_FLAGS = [
+  ['piel', (v) => `piel ${v}`, (spec, r) => { spec.skin = r.spec.skin; }],
+  ['pelo', (v) => `pelo ${v}`, (spec, r) => { spec.hair = r.spec.hair; }],
+  ['ojos', (v) => `ojos ${v}`, (spec, r) => { spec.eyes = r.spec.eyes; }],
+  ['ropa', (v) => v, (spec, r) => { spec.shirt = r.spec.shirt; }],
+  ['pantalon', (v) => `pantalon ${v}`, (spec, r) => { spec.pants = r.spec.pants; }],
+  ['zapatos', (v) => `zapatos ${v}`, (spec, r) => { spec.shoes = r.spec.shoes; }],
+];
+
+function cmdAvatarCompilarSpec(desc, out, opts) {
+  // Texto/DSL -> spec v1 -> cuerpo 18×32. 100% offline y determinista: el
+  // LLM traduce intención, el normalizador valida, el renderer pinta.
+  const { normalizeAvatarDesc, parseAvatarDSL, validateAvatarSpec } = require('./avatar-spec.cjs');
+  const { emitFullBodyProgram, runFlowProgram } = require('./flow-emit.cjs');
+  let spec, warnings = [];
+  if (opts.dsl) {
+    // DSL directo (el formato que el pack enseña a los LLMs a escribir).
+    let raw;
+    try {
+      raw = fs.readFileSync(path.resolve(expandTilde(opts.dsl)), 'utf8');
+    } catch (e) {
+      die(`no se lee --dsl ${opts.dsl} (${e && e.code ? e.code : 'ver error'})`);
+    }
+    const r = parseAvatarDSL(raw);
+    if (!r.ok) {
+      if (r.error.code === 'INVALID_ENUM') return dieInvalidSpec(r);
+      die(`spec inválido: ${r.error.code} ${r.error.field}`);
+    }
+    spec = r.spec;
+  } else if (desc && String(desc).trim()) {
+    const r = normalizeAvatarDesc(String(desc));
+    if (!r.ok) return dieInvalidSpec(r);
+    spec = r.spec;
+    warnings = r.warnings;
+  } else {
+    spec = normalizeAvatarDesc('').spec;
+  }
+  for (const [flag, synth, apply] of SPEC_PART_FLAGS) {
+    if (!opts[flag]) continue;
+    const r = normalizeAvatarDesc(synth(opts[flag]));
+    if (!r.ok) return dieInvalidSpec(r);
+    apply(spec, r);
+    for (const w of r.warnings) warnings.push(`(${flag}) ${w}`);
+  }
+  const v = validateAvatarSpec(spec);
+  if (!v.ok) {
+    if (v.error.code === 'INVALID_ENUM') return dieInvalidSpec({ error: v.error });
+    die(`spec inválido: ${v.error.code} ${v.error.field}`);
+  }
+  for (const w of warnings) console.log(st(`  ~ ${w}`, C.yellow));
+  let program;
+  try {
+    program = emitFullBodyProgram(spec);
+  } catch (e) {
+    die(`no se pudo compilar: ${e.message}`);
+  }
+  try {
+    runFlowProgram(program, out);
+  } catch (e) {
+    die(`motor spec: ${e.message}`);
+  }
+  // M11 18×32 sobre lo pintado (debe pasar; si falla es bug del emisor).
+  const { verifyAvatar, decodePNG } = require('./lib-avatar.cjs');
+  const vv = verifyAvatar(fs.readFileSync(out), { w: 18, h: 32, needAlpha: true, maxBytes: 512 * 1024 });
+  if (!vv.ok) die(`motor spec: el pincel devolvió algo inválido (${vv.reason}). Repórtalo.`);
+  const d = decodePNG(fs.readFileSync(out));
+  let opaque = 0;
+  for (let i = 3; i < d.rgba.length; i += 4) if (d.rgba[i] === 255) opaque++;
+  console.log(st('  ✓ avatar compilado:', C.green, C.bold));
+  console.log(`    ${out} (${d.w}x${d.h}, ${opaque} px opacos)`);
+  console.log(`    receta: piel=${spec.skin} pelo=${spec.hair.style} ropa=${spec.shirt.style}`);
+  return { path: out, recipe: spec, warnings };
+}
+
+// Regiones medidas en portraitArt.ts (NO copiar el sketch ilustrativo:
+// ojos en y=9 por drawFace, cabeza x=4..13 por HX0/HX1, torso y>=19 por
+// drawClothing). Un modelo que calcule "gafas en ojos" necesita estos.
+const AVATAR_REGIONS = [
+  'head    x=4..13 y=2..18',
+  'eyes    x=5..6,10..11 y=9',
+  'torso   x=4..13 y=19..27',
+];
+
+function cmdAvatarInspect(target) {
+  if (!target) die('uso: munder avatar inspect <personaje|ruta.png>  (p. ej. pam, ./avatar.png)');
+  const engine = loadAvatarEngine();
+  let buf, w = 18, h = 28, title = target;
+  const names = Object.keys(engine.AVATAR_RECIPES || {});
+  if (names.includes(String(target).toLowerCase())) {
+    const b = engine.composeAvatar(engine.AVATAR_RECIPES[String(target).toLowerCase()]);
+    buf = Buffer.from(b);
+    title = `${target} (receta del cast)`;
+  } else {
+    const p = path.resolve(expandTilde(target));
+    if (!fs.existsSync(p)) {
+      die(`ni personaje conocido ni archivo: ${target}. Personajes: ${names.join(', ') || 'engine sin cast?'}`);
+    }
+    const { decodePNG } = require('./lib-avatar.cjs');
+    const d = decodePNG(fs.readFileSync(p));
+    buf = Buffer.from(d.rgba);
+    w = d.w; h = d.h;
+    title = p;
+  }
+  // Leyenda: colores opacos distintos por frecuencia (máx 16), '.' = transparente.
+  // Letras genéricas + hex (sin nombres inventados: el modelo ve estructura + regiones).
+  const freq = new Map();
+  for (let i = 0; i < buf.length; i += 4) {
+    if (buf[i + 3] === 0) continue;
+    const k = `${buf[i]},${buf[i + 1]},${buf[i + 2]}`;
+    freq.set(k, (freq.get(k) || 0) + 1);
+  }
+  const LETTERS = 'ABCDEFGHJKLMNPQRSTUVWXYZ';
+  const legend = new Map();
+  [...freq.entries()].sort((a, b) => b[1] - a[1]).slice(0, 16).forEach(([k], i) => {
+    legend.set(k, LETTERS[i] || '?');
+  });
+  const hex = (k) => '#' + k.split(',').map((n) => Number(n).toString(16).padStart(2, '0')).join('');
+  console.log(`CANVAS ${w}x${h}  (${title})`);
+  console.log('');
+  for (let y = 0; y < h; y++) {
+    let row = '';
+    for (let x = 0; x < w; x++) {
+      const o = (y * w + x) * 4;
+      if (buf[o + 3] === 0) { row += '.'; continue; }
+      const k = `${buf[o]},${buf[o + 1]},${buf[o + 2]}`;
+      row += legend.get(k) || '?';
+    }
+    console.log(String(y).padStart(2, '0') + ' ' + row);
+  }
+  console.log('');
+  for (const [k, L] of legend) console.log(`${L} = ${hex(k)}`);
+  console.log('');
+  for (const r of AVATAR_REGIONS) console.log(r);
+}
+
+function getEndpoint(id) {
+  // Lookup compartido editar/modelo: mensaje idéntico en ambos (fijado por tests).
+  const ep = ENDPOINTS.find((e) => e.id === id);
+  if (!ep) die(`endpoint desconocido '${id || ''}'. Opciones: ${ENDPOINTS.map((e) => e.id).join(', ')}`);
+  return ep;
+}
+
+function dieNoEdita() {
+  // 404 honesto compartido editar/modelo: este endpoint no edita imágenes.
+  die(`el endpoint respondió 404: ESTE endpoint no edita imágenes. Prueba con otro (p. ej. OpenAI) o genera por otra vía (FLOW/manual). Nada se cobró en vano: no se reintentó.`);
+}
+
+// ─── avatar inyectar: placeholder persistente ("cuerpo prestado") ────────────
+// Espejo de OFFICE_CAST (src/renderer/src/scene/office/cast.ts). Si el roster
+// cambia, actualizar. Guarda en userData/avatar-overrides.json; la app lo lee
+// al montar el piso (avatar:getOverrides) y le inyecta tu receta al slot.
+const OFFICE_CAST_SLOTS = ['michael', 'jim', 'pam', 'dwight', 'kevin', 'angela',
+  'oscar', 'stanley', 'phyllis', 'andy', 'kelly', 'ryan', 'toby', 'creed', 'meredith'];
+function overridesFile() { return path.join(userDataDir(), 'avatar-overrides.json'); }
+function readOverrides() {
+  try {
+    const raw = JSON.parse(fs.readFileSync(overridesFile(), 'utf8'));
+    const o = raw && typeof raw === 'object' ? (raw.overrides ?? {}) : {};
+    if (!o || typeof o !== 'object' || Array.isArray(o)) return {};
+    return o;
+  } catch { return {}; }
+}
+function writeOverrides(o) {
+  fs.mkdirSync(userDataDir(), { recursive: true });
+  fs.writeFileSync(overridesFile(),
+    JSON.stringify({ version: 1, actualizado: new Date().toISOString(), overrides: o }, null, 2));
+}
+// Primer slot libre según el canal vivo. Misma inferencia que el renderer
+// (useHive: nombre→cast, resto→jim) + lo ya guardado en overrides.
+async function firstFreeSlot() {
+  const used = new Set(Object.keys(readOverrides()));
+  const r = readChannelCfg();
+  if (r && !r.corrupt) {
+    const resp = await channelCall('GET', { port: r.cfg.port, path: '/sesion' }, undefined, r.cfg.token)
+      .catch(() => null);
+    const agents = resp && resp.status === 200 && resp.body && Array.isArray(resp.body.agents)
+      ? resp.body.agents : null;
+    if (!agents) return null;
+    for (const a of agents) {
+      // Inferencia exacta del renderer (useHive): nombre→cast, resto→jim.
+      const nm = String((a && a.name) || (a && a.id) || '').trim().toLowerCase();
+      used.add(OFFICE_CAST_SLOTS.includes(nm) ? nm : 'jim');
+    }
+  } else if (!r) {
+    return null;
+  }
+  for (const s of OFFICE_CAST_SLOTS) {
+    if (s === 'michael' || used.has(s)) continue;
+    return s;
+  }
+  return null;
+}
+async function cmdAvatarInyectar(desc, opts) {
+  if (opts.ver) {
+    const o = readOverrides();
+    const keys = Object.keys(o);
+    if (!keys.length) { console.log('munder: sin overrides (munder avatar inyectar "desc" --slot <nombre|auto>).'); return; }
+    for (const k of keys) console.log(`  ${k}: ${(o[k] && o[k].desc) || '(sin desc)'}`);
+    return;
+  }
+  const slotArg = String(opts.slot || '').trim().toLowerCase();
+  if (opts.quitar) {
+    if (!slotArg) die('uso: munder avatar inyectar --quitar --slot <nombre>');
+    const o = readOverrides();
+    if (!o[slotArg]) die(`no hay override en '${slotArg}'.`);
+    delete o[slotArg];
+    writeOverrides(o);
+    console.log(`munder: override de '${slotArg}' eliminado. Reinicia la app para verlo.`);
+    return;
+  }
+  if (!desc || !desc.trim()) die('uso: munder avatar inyectar "piel morena, ..." --slot <nombre|auto>');
+  const engine = loadAvatarEngine();
+  const { compileAvatar } = require('./lib-avatar.cjs');
+  let compiled;
+  try {
+    compiled = compileAvatar(engine, String(desc));
+  } catch (e) {
+    die(`no se pudo compilar: ${e.message}`);
+  }
+  for (const w of compiled.warnings) console.log(st(`  ~ ${w}`, C.yellow));
+  let slot = slotArg;
+  if (!slot || slot === 'auto') {
+    slot = await firstFreeSlot();
+    if (!slot) die('sin canal para auto (¿la app está corriendo?) o piso lleno: pasa --slot <nombre>.');
+    console.log(`  slot auto: ${slot}`);
+  }
+  if (slot === 'michael') die("michael es del GOD, no se presta. Usa otro slot o 'auto'.");
+  if (!OFFICE_CAST_SLOTS.includes(slot)) {
+    die(`slot desconocido '${slot}'. Opciones: ${OFFICE_CAST_SLOTS.filter((s) => s !== 'michael').join(', ')}`);
+  }
+  const recipe = JSON.parse(JSON.stringify(compiled.recipe));
+  const o = readOverrides();
+  o[slot] = { recipe, desc: String(desc).trim(), actualizado: new Date().toISOString() };
+  writeOverrides(o);
+  console.log(st(`  ✓ inyectado en '${slot}':`, C.green, C.bold));
+  console.log(`    receta: piel=${recipe.skin} pelo=${recipe.hair} ropa=${recipe.cloth}`);
+  console.log(st('  Reinicia la app para verlo (el override aplica al montar el piso).', C.dim));
+  console.log(st(`  Arma su worker con character='${slot}' (munder sesion armar o Add agent).`, C.dim));
+}
+
+function cmdAvatarLienzo(salidaArg) {
+  const out = salidaArg
+    ? path.resolve(expandTilde(salidaArg))
+    : path.resolve(`./avatar-lienzo-${AVATAR_W}x${AVATAR_H}.png`);
+  if (fs.existsSync(out)) die(`ya existe ${out} (bórralo o pasa otra salida).`);
+  fs.writeFileSync(out, blankCanvas(AVATAR_W, AVATAR_H));
+  const info = decodePNG(fs.readFileSync(out));
+  console.log(st('  ✓ lienzo en blanco:', C.green, C.bold));
+  console.log(`    ${out} (${info.w}x${info.h} RGBA transparente)`);
+  console.log(st('  Úsalo con: munder avatar editar <png> --endpoint <id> --model <id>', C.dim));
+}
+
+async function cmdAvatarEditar(pngPath, opts) {
+  if (!pngPath) die('uso: munder avatar editar <png> --endpoint <id> --model <id> [--key-env VAR] [--prompt "..."] [--si]');
+  const abs = path.resolve(expandTilde(pngPath));
+  if (!fs.existsSync(abs)) die(`no existe: ${abs}`);
+  const endpoint = getEndpoint(opts.endpoint);
+  if (endpoint.wire !== 'openai-compatible') {
+    die(`${endpoint.label} es wire '${endpoint.wire}': edición de imágenes solo para endpoints openai-compatibles por ahora.`);
+  }
+  if (!opts.model) die('falta --model (¿qué modelo edita?).');
+  // --base-url: override para gateways propios/proxies/self-hosted
+  // (llama.cpp, text-generation-webui con /v1 OpenAI-compatible). Sin esto se
+  // usa el baseURL del catálogo del endpoint.
+  let baseURL = endpoint.baseURL;
+  if (opts.baseUrl) {
+    if (!/^https?:\/\//.test(opts.baseUrl)) die('--base-url debe empezar con http:// o https://');
+    baseURL = opts.baseUrl;
+  }
+  // Key SOLO por nombre de variable de entorno (jamás por flag: quedaría en
+  // historial/ps). Nunca se imprime, loguea ni escribe.
+  const keyName = opts.keyEnv || endpoint.keyEnv;
+  const key = process.env[keyName];
+  if (!key) die(`falta ${keyName} en el entorno. Expórtala (export ${keyName}=...) e inténtalo de nuevo.`);
+  let prompt = opts.prompt || null;
+  if (!prompt) {
+    if (!IS_TTY) die('falta --prompt y no hay TTY para pedirlo.');
+    prompt = (await ask('  Describe la edición (qué pintar sobre el lienzo): ')).trim();
+    if (!prompt) die('sin prompt, cancelado.');
+  }
+  const fullPrompt = `${prompt} ${AVATAR_EDIT_SUFFIX}`;
+  console.log('');
+  console.log(st('  Revisa antes de enviar (llamada con costo potencial):', C.bold));
+  console.log(`    endpoint: ${endpoint.label} (${baseURL})`);
+  console.log(`    modelo:   ${opts.model}`);
+  console.log(`    imagen:   ${abs} (${fs.statSync(abs).size} bytes)`);
+  console.log(`    key:      ● ${keyName} (en memoria, no se guarda ni se muestra)`);
+  if (!opts.si) {
+    const i = await select('¿Enviar a edición?', [
+      { label: 'Sí, enviar', value: 'go' },
+      { label: 'Cancelar', value: 'no' },
+    ]);
+    if (i !== 0) { say('cancelado: nada se envió.'); return; }
+  }
+  const imageBuf = fs.readFileSync(abs);
+  let outBuf = null;
+  try {
+    outBuf = await editImageEndpoint({
+      baseURL, key, model: opts.model, imageBuf, prompt: fullPrompt,
+    });
+  } catch (e) {
+    if (e && e.code === 'ENDPOINT_NO_EDITA') return dieNoEdita();
+    die(e.message);
+  }
+  // M11: verificar antes de instalar. Sin reescalados mágicos: lo que no
+  // cumple se rechaza con motivo (AVATAR_REJECTED).
+  const v = verifyAvatar(outBuf, { w: AVATAR_W, h: AVATAR_H, needAlpha: true, maxBytes: AVATAR_MAX_BYTES });
+  if (!v.ok) {
+    console.log(st(`  AVATAR_REJECTED: ${v.reason}`, C.red, C.bold));
+    console.log(st('  (la salida no se instaló en ningún lado)', C.dim));
+    process.exitCode = 2;
+    return;
+  }
+  const dest = path.join(avatarPendingDir(), `avatar-${Date.now().toString(36)}.png`);
+  fs.writeFileSync(dest, outBuf);
+  console.log(st(`  ✓ avatar válido instalado en pendientes:`, C.green, C.bold));
+  console.log(`    ${dest} (${v.info.w}x${v.info.h}, ${v.info.bytes} bytes, con alpha)`);
+}
+
+async function cmdAvatar(args) {
+  const [sub, ...rest] = args;
+  if (sub === 'lienzo' || sub === 'canvas' || sub === 'blank') {
+    return cmdAvatarLienzo(rest[0] ?? null);
+  }
+  if (sub === 'inspect' || sub === 'inspeccionar') {
+    return cmdAvatarInspect(rest.find((a) => !a.startsWith('--')) ?? null);
+  }
+  if (sub === 'compilar' || sub === 'compile') {
+    // Descripción = posicionales que NO sean flags ni valores de flags con valor.
+    const VAL_FLAGS = new Set(['--salida', '--out', '-o', '--motor', '--endpoint', '--model', '--key-env', '--prompt', '--base-url', '--piel', '--pelo', '--ojos', '--ropa', '--pantalon', '--zapatos', '--dsl']);
+    const descParts = [];
+    for (let i = 0; i < rest.length; i++) {
+      const a = rest[i];
+      const eq = a.indexOf('=');
+      const head = eq > 0 ? a.slice(0, eq) : a;
+      if (VAL_FLAGS.has(head)) { if (eq < 0) i++; continue; }
+      if (a.startsWith('-')) continue;
+      descParts.push(a);
+    }
+    const desc = descParts.join(' ').trim();
+    const getV = (name) => {
+      const i = rest.indexOf(name);
+      if (i >= 0) return rest[i + 1] ?? '';
+      const eq = rest.find((a) => a.startsWith(name + '='));
+      return eq ? eq.slice(name.length + 1) : null;
+    };
+    const cflags = rest.filter((a) => a.startsWith('--'));
+    const dsl = getV('--dsl');
+    let motor = getV('--motor');
+    if (dsl && motor && motor !== 'spec') die(`--dsl solo vale con --motor spec (viene '${motor}').`);
+    if (dsl) motor = 'spec';
+    return cmdAvatarCompilar(desc || null, {
+      salida: getV('--salida') || getV('--out') || getV('-o'),
+      motor,
+      endpoint: getV('--endpoint'),
+      model: getV('--model'),
+      keyEnv: getV('--key-env'),
+      prompt: getV('--prompt'),
+      baseUrl: getV('--base-url'),
+      piel: getV('--piel'),
+      pelo: getV('--pelo'),
+      ojos: getV('--ojos'),
+      ropa: getV('--ropa'),
+      pantalon: getV('--pantalon'),
+      zapatos: getV('--zapatos'),
+      dsl,
+      si: cflags.includes('--si') || cflags.includes('--yes'),
+    });
+  }
+  if (sub === 'inyectar' || sub === 'inject') {
+    const descParts = [];
+    let slot = null, quitar = false, ver = false;
+    for (let i = 0; i < rest.length; i++) {
+      const a = rest[i];
+      if (a === '--slot' || a.startsWith('--slot=')) {
+        slot = a.startsWith('--slot=') ? a.slice('--slot='.length) : (rest[++i] ?? '');
+      }
+      else if (a === '--quitar') quitar = true;
+      else if (a === '--ver') ver = true;
+      else if (a.startsWith('-')) continue;
+      else descParts.push(a);
+    }
+    return cmdAvatarInyectar(descParts.join(' ').trim() || null, { slot, quitar, ver });
+  }
+  if (sub === 'editar' || sub === 'edit') {
+    const png = rest.find((a) => !a.startsWith('--')) ?? null;
+    const flags = rest.filter((a) => a.startsWith('--'));
+    const val = (name) => {
+      const i = rest.indexOf(name);
+      if (i >= 0) return rest[i + 1] ?? '';
+      const eq = rest.find((a) => a.startsWith(name + '='));
+      return eq ? eq.slice(name.length + 1) : null;
+    };
+    return cmdAvatarEditar(png, {
+      endpoint: val('--endpoint'),
+      model: val('--model'),
+      keyEnv: val('--key-env'),
+      prompt: val('--prompt'),
+      baseUrl: val('--base-url'),
+      si: flags.includes('--si') || flags.includes('--yes'),
+    });
+  }
+  // Sin subcomando (o en menú): selector lienzo/compilar/inyectar/inspect/editar.
+  if (!IS_TTY) die('uso: munder avatar lienzo [salida] | munder avatar compilar "desc" [--motor local|modelo|flow|spec] [--salida] [--piel|--pelo|--ojos|--ropa|--pantalon|--zapatos <valor>] [--dsl <spec.txt>] | munder avatar inyectar "desc" --slot <nombre|auto> [--quitar|--ver] | munder avatar editar <png> --endpoint <id> --model <id> [--prompt "..."]');
+  const i = await select('¿Avatar qué hacemos?', [
+    { label: 'Lienzo en blanco (18×28 transparente)', value: 'lienzo' },
+    { label: 'Compilar desde texto (local/modelo/flow/spec)', value: 'compilar' },
+    { label: 'Inyectar al piso (placeholder persistente)', value: 'inyectar' },
+    { label: 'Inspeccionar (matriz para LLMs)', value: 'inspect' },
+    { label: 'Editar un PNG con el modelo', value: 'editar' },
+  ]);
+  if (i < 0) { say('cancelado.'); return; }
+  if (i === 0) {
+    const out = (await ask('  Salida (vacío = ./avatar-lienzo-18x28.png): ')).trim() || null;
+    return cmdAvatarLienzo(out);
+  }
+  if (i === 1) {
+    const mi = await select('¿Con qué motor compilamos?', [
+      { label: 'local (engine procedural, sin red)', value: 'local' },
+      { label: 'modelo (GPT con engine, images/edits)', value: 'modelo' },
+      { label: 'flow (pincel determinista, sin clave)', value: 'flow' },
+      { label: 'spec (paramétrico texto→spec→18×32, sin clave)', value: 'spec' },
+    ]);
+    if (mi < 0) { say('cancelado.'); return; }
+    const motor = ['local', 'modelo', 'flow', 'spec'][mi];
+    const mo = { salida: null, motor };
+    let desc = '';
+    if (motor === 'spec') {
+      // Selector guiado por partes: básicos ligados a pantones + PANTONE:
+      // libre. Vacío = se queda lo de la descripción o la base.
+      desc = (await ask('  Describe (vacío si vas a elegir por partes): ')).trim();
+      for (const [flag, ejemplo] of [
+        ['piel', 'clara/morena/marrón/oscura o PANTONE: …'],
+        ['pelo', 'corto castaño, largo rubio, …'],
+        ['ojos', 'verdes, cafés, …'],
+        ['ropa', 'traje azul, blusa rosa, …'],
+        ['pantalon', 'azul, negro, …'],
+        ['zapatos', 'negros, blancos, …'],
+      ]) {
+        const v = (await ask(`  ${flag} (${ejemplo}) [vacío=saltar]: `)).trim();
+        if (v) mo[flag] = v;
+      }
+      if (!desc && !['piel', 'pelo', 'ojos', 'ropa', 'pantalon', 'zapatos'].some((k) => mo[k])) {
+        say('cancelado: sin descripción ni partes.'); return;
+      }
+    } else {
+      desc = (await ask('  Describe (p. ej. piel morena, pelo negro corto, camisa azul, gafas): ')).trim();
+      if (!desc) { say('cancelado.'); return; }
+    }
+    const out = (await ask('  Salida (vacío = ./avatar-18x28-<fecha>.png): ')).trim() || null;
+    mo.salida = out;
+    if (motor === 'modelo') {
+      const ei = await select('¿Contra qué endpoint edita?', ENDPOINTS.map((e) => ({
+        label: e.label, hint: `${e.keyEnv} · ${e.wire}`, value: e.id,
+      })));
+      if (ei < 0) { say('cancelado.'); return; }
+      mo.endpoint = ENDPOINTS[ei].id;
+      mo.model = (await ask(`  Modelo de imagen en ${ENDPOINTS[ei].label}: `)).trim();
+      if (!mo.model) { say('sin modelo, cancelado.'); return; }
+    }
+    return cmdAvatarCompilar(desc || null, mo);
+  }
+  if (i === 2) {
+    const desc = (await ask('  Describe (p. ej. piel morena, pelo castaño largo, blusa rosa): ')).trim();
+    if (!desc) { say('cancelado.'); return; }
+    const slot = (await ask("  Slot (nombre del cast, 'auto' o vacío=auto): ")).trim() || 'auto';
+    return cmdAvatarInyectar(desc, { slot, quitar: false, ver: false });
+  }
+  if (i === 3) {
+    const target = (await ask('  Personaje o PNG (p. ej. pam, ./avatar.png): ')).trim();
+    if (!target) { say('cancelado.'); return; }
+    return cmdAvatarInspect(target);
+  }
+  const png = (await ask('  PNG a editar: ')).trim();
+  if (!png) { say('cancelado.'); return; }
+  const ei = await select('¿Contra qué endpoint edita?', ENDPOINTS.map((e) => ({
+    label: e.label, hint: `${e.keyEnv} · ${e.wire}`, value: e.id,
+  })));
+  if (ei < 0) { say('cancelado.'); return; }
+  const ep = ENDPOINTS[ei];
+  const model = (await ask(`  Modelo de imagen en ${ep.label}: `)).trim();
+  if (!model) { say('sin modelo, cancelado.'); return; }
+  return cmdAvatarEditar(png, { endpoint: ep.id, model });
+}
+
+// ─── proveedores, endpoints y modelos (connect-style) ───────────────────────
+// Fuentes (nada inventado):
+// - baseURLs OpenAI-compatibles: OpenAICompatibleProfiles del fork OpenISy
+//   (packages/llm/.../openai-compatible-profile.ts) + NVIDIA NIM documentado.
+// - keyEnv: BACKEND_KEY_ENV (main/index.ts) + ossModels keyEnv + providers del
+//   fork (anthropic/ANTHROPIC_API_KEY, openai/OPENAI_API_KEY,
+//   google/GOOGLE_GENERATIVE_AI_API_KEY). NVIDIA/MISTRAL/XAI/TOGETHER son
+//   nombres estándar públicos de esos endpoints.
+// - binarios: defaultCommand de los presets (shared/agentProvider.ts).
+// - modelos por CLI: modelCatalog.json del checkout (MUNDER_DIR), sin duplicar.
+// - auth files verificados en repo: ~/.codex/auth.json (hive.ts),
+//   ~/.claude.json (main/config.ts). Lo demás: login propio del CLI.
+const ENDPOINTS = [
+  { id: 'openai', label: 'OpenAI', baseURL: 'https://api.openai.com/v1', keyEnv: 'OPENAI_API_KEY', wire: 'openai-compatible' },
+  { id: 'anthropic', label: 'Anthropic', baseURL: 'https://api.anthropic.com', keyEnv: 'ANTHROPIC_API_KEY', wire: 'nativo' },
+  { id: 'google', label: 'Google (Gemini)', baseURL: 'https://generativelanguage.googleapis.com', keyEnv: 'GEMINI_API_KEY', wire: 'nativo' },
+  { id: 'nvidia', label: 'NVIDIA NIM', baseURL: 'https://integrate.api.nvidia.com/v1', keyEnv: 'NVIDIA_API_KEY', wire: 'openai-compatible' },
+  { id: 'groq', label: 'Groq', baseURL: 'https://api.groq.com/openai/v1', keyEnv: 'GROQ_API_KEY', wire: 'openai-compatible' },
+  { id: 'openrouter', label: 'OpenRouter', baseURL: 'https://openrouter.ai/api/v1', keyEnv: 'OPENROUTER_API_KEY', wire: 'openai-compatible' },
+  { id: 'deepseek', label: 'DeepSeek', baseURL: 'https://api.deepseek.com/v1', keyEnv: 'DEEPSEEK_API_KEY', wire: 'openai-compatible' },
+  { id: 'mistral', label: 'Mistral', baseURL: 'https://api.mistral.ai/v1', keyEnv: 'MISTRAL_API_KEY', wire: 'openai-compatible' },
+  { id: 'xai', label: 'xAI', baseURL: 'https://api.x.ai/v1', keyEnv: 'XAI_API_KEY', wire: 'openai-compatible' },
+  { id: 'together', label: 'Together AI', baseURL: 'https://api.together.xyz/v1', keyEnv: 'TOGETHER_API_KEY', wire: 'openai-compatible' },
+];
+
+// CLI id -> binarios + de dónde puede venir su key. keyEnvs SOLO con evidencia
+// en repo; authFiles SOLO rutas verificadas (existencia, nunca contenido).
+// Lo demás: 'login' = OAuth/login propio del CLI (el linker imprime cómo).
+const CLI_DETECT = [
+  { id: 'claude', bins: ['claude'], keyEnvs: ['ANTHROPIC_API_KEY'], authFiles: ['.claude.json'], login: null },
+  { id: 'codex', bins: ['codex'], keyEnvs: ['OPENAI_API_KEY'], authFiles: ['.codex/auth.json'], login: null, writableAuth: '.codex/auth.json' },
+  { id: 'gemini', bins: ['gemini'], keyEnvs: ['GEMINI_API_KEY', 'GOOGLE_GENERATIVE_AI_API_KEY'], authFiles: [], login: 'gcloud auth login (OAuth propio)' },
+  { id: 'opencode', bins: ['opencode'], keyEnvs: [], authFiles: [], login: 'opencode auth login (OAuth propio)' },
+  { id: 'openisy', bins: ['openisy'], keyEnvs: [], authFiles: [], login: 'login propio del CLI (revisa openisy --help)' },
+  { id: 'crush', bins: ['crush'], keyEnvs: ['ANTHROPIC_API_KEY', 'OPENAI_API_KEY'], authFiles: [], login: null },
+  { id: 'grok', bins: ['grok'], keyEnvs: [], authFiles: [], login: 'login propio del CLI' },
+  { id: 'kimi', bins: ['kimi'], keyEnvs: [], authFiles: [], login: 'login propio del CLI' },
+  { id: 'antigravity', bins: ['agy'], keyEnvs: [], authFiles: [], login: 'OAuth de Google en el propio CLI' },
+  { id: 'qwen', bins: ['qwen'], keyEnvs: [], authFiles: [], login: 'login propio del CLI' },
+  { id: 'pi', bins: ['pi'], keyEnvs: [], authFiles: [], login: 'login propio del CLI' },
+  { id: 'copilot', bins: ['copilot'], keyEnvs: [], authFiles: [], login: 'OAuth de GitHub en el propio CLI' },
+  { id: 'cursor-agent', bins: ['cursor-agent'], keyEnvs: [], authFiles: [], login: 'login de Cursor en el propio CLI' },
+];
+const CANDIDATE_DIRS = ['/opt/homebrew/bin', '/usr/local/bin'];
+const HOME_CANDIDATE_DIRS = ['.local/bin', '.opencode/bin', '.claude/local', '.volta/bin'];
+
+function detectCLIs() {
+  // Solo instalados: binario resoluble por PATH o dirs candidatos del repo.
+  const pathDirs = (process.env.PATH || '').split(path.delimiter).filter(Boolean);
+  const home = os.homedir();
+  const extra = [...CANDIDATE_DIRS, ...HOME_CANDIDATE_DIRS.map((d) => path.join(home, d))];
+  const out = [];
+  for (const c of CLI_DETECT) {
+    let found = null;
+    outer:
+    for (const b of c.bins) {
+      for (const d of [...pathDirs, ...extra]) {
+        const p = path.join(d, b);
+        try { fs.accessSync(p, fs.constants.X_OK); found = p; break outer; } catch { /* sigue */ }
+      }
+    }
+    if (!found) continue;
+    const keys = (c.keyEnvs || []).filter((e) => !!process.env[e]);
+    const auths = (c.authFiles || []).filter((f) => { try { return fs.existsSync(path.join(home, f)); } catch { return false; } });
+    out.push({ ...c, path: found, keysPresent: keys, authPresent: auths });
+  }
+  return out;
+}
+
+function readModelCatalog() {
+  // Modelos por CLI id desde el checkout (sin duplicar listas aquí).
+  try {
+    const d = JSON.parse(fs.readFileSync(path.join(MUNDER_DIR, 'src', 'shared', 'modelCatalog.json'), 'utf8'));
+    return (d && d.providers) || {};
+  } catch { return {}; }
+}
+function modelsForCli(catalog, cliId) {
+  const list = (catalog && catalog[cliId]) || [];
+  return list.filter((m) => m && typeof m.id === 'string' && m.id).map((m) => ({ id: m.id, label: m.label || m.id }));
+}
+
+// Mapeo slug-prefijo -> env (espejo mínimo de PREFIX_BACKEND del main, que
+// arma modelFlag; aquí solo sirve para marcar ●/○ por modelo).
+const PREFIX_KEY_ENV = {
+  anthropic: 'ANTHROPIC_API_KEY', openai: 'OPENAI_API_KEY',
+  google: 'GEMINI_API_KEY', gemini: 'GEMINI_API_KEY', groq: 'GROQ_API_KEY',
+  openrouter: 'OPENROUTER_API_KEY', deepseek: 'DEEPSEEK_API_KEY',
+};
+function keyForModelSlug(slug) {
+  const prefix = String(slug || '').split('/')[0].toLowerCase();
+  return PREFIX_KEY_ENV[prefix] || null;
+}
+
+// ─── puerta sudo + disclaimer (vincular keys) ───────────────────────────────
+// sudo -v NO ejecuta nada como root: solo valida la contraseña ante PAM
+// (prueba de presencia humana). Sin TTY o sin sudo, el flujo de keys se niega.
+function sudoGate() {
+  try {
+    const r = spawnSync('sudo', ['-v'], { stdio: 'inherit', timeout: 120000 });
+    return r.status === 0;
+  } catch { return false; }
+}
+
+function printDisclaimer() {
+  console.log(st('  ┌ AVISO — lee antes de pegar ninguna key ────────────────', C.bold, C.yellow));
+  console.log('  · sudo solo prueba que eres tú (no cifra ni protege nada por sí solo).');
+  console.log('  · munder NUNCA guarda keys: ni en sus archivos, ni logs, ni roster, ni git.');
+  console.log('  · Lo que pegues va SOLO al auth propio del CLI que elegiste (te digo cuál archivo exacto).');
+  console.log('  · Todo sigue en tu PC. Esto es un puente hacia tu CLI, no un almacén.');
+  console.log(st('  └────────────────────────────────────────────────────────', C.bold, C.yellow));
+}
+
+function askHidden(question) {
+  // Entrada oculta 100% en proceso (sin eco, muestra *). A propósito NO usa
+  // `read -s` externo: los bytes sobrantes de selects previos viven en el
+  // buffer de Node (unshift) y un proceso hijo leyendo el pty no los vería —
+  // se colgaría esperando una línea que ya consumimos nosotros.
+  return new Promise((resolve) => {
+    const stdin = process.stdin;
+    let acc = '', done = false;
+    process.stdout.write(question + C.hide);
+    const cleanup = () => {
+      stdin.removeListener('data', onData);
+      try { if (stdin.isTTY) stdin.setRawMode(false); } catch { /* noop */ }
+      try { stdin.pause(); } catch { /* noop */ }
+      process.stdout.write('\n' + C.show);
+    };
+    const onData = (chunk) => {
+      if (done) return;
+      const text = chunk.toString('utf8');
+      for (let k = 0; k < text.length; k++) {
+        const ch = text[k];
+        if (ch === '\u0003') { cleanup(); done = true; process.exitCode = 130; process.exit(130); return; }
+        if (ch === '\r' || ch === '\n') {
+          const v = acc; acc = '';
+          // Lo que venga después en este chunk pertenece al siguiente prompt.
+          const rest = text.slice(k + 1);
+          cleanup();
+          if (rest.length) { try { stdin.unshift(Buffer.from(rest, 'utf8')); } catch { /* noop */ } }
+          done = true;
+          resolve(v.trim());
+          return;
+        }
+        if (ch === '\u007f' || ch === '\b') {
+          if (acc.length) { acc = acc.slice(0, -1); process.stdout.write('\b \b'); }
+          continue;
+        }
+        if (ch >= ' ' || ch === '\t') { acc += ch; process.stdout.write('*'); }
+      }
+    };
+    try { stdin.setRawMode(true); } catch { resolve(''); return; }
+    stdin.resume();
+    stdin.on('data', onData);
+  });
+}
+
+// Solo estas rutas puede escribir el linker. Todo lo demás son instrucciones.
+function writableAuthPath(cliId) {
+  const c = CLI_DETECT.find((x) => x.id === cliId);
+  if (!c || !c.writableAuth) return null;
+  return path.join(os.homedir(), c.writableAuth);
+}
+
+function linkKeyToCli(cliId, keyValue) {
+  // Devuelve {ok, where} o {ok:false, manual}. NUNCA escribe fuera del allowlist.
+  const dest = writableAuthPath(cliId);
+  if (!dest) {
+    const c = CLI_DETECT.find((x) => x.id === cliId);
+    return { ok: false, manual: c && c.login ? `usa el login propio: ${c.login}` : 'revisa el login propio del CLI' };
+  }
+  let current = {};
+  try {
+    if (fs.existsSync(dest)) current = JSON.parse(fs.readFileSync(dest, 'utf8'));
+    if (typeof current !== 'object' || current === null || Array.isArray(current)) current = {};
+  } catch {
+    return { ok: false, manual: `${dest} existe pero no es JSON válido — edítalo a mano` };
+  }
+  try {
+    fs.mkdirSync(path.dirname(dest), { recursive: true });
+    if (fs.existsSync(dest)) fs.copyFileSync(dest, dest + '.bak-munder');
+    current.OPENAI_API_KEY = keyValue;
+    fs.writeFileSync(dest, JSON.stringify(current, null, 2) + '\n', { mode: 0o600 });
+    return { ok: true, where: dest };
+  } catch (e) {
+    return { ok: false, error: `no se pudo escribir ${dest}: ${e && e.message ? e.message : e}` };
+  }
+}
+
+// ─── menú interactivo ──────────────────────────────────────────────────────
+async function interactiveMenu() {
+  console.log('');
+  console.log(BANNER);
+  console.log(st(`  dir: ${MUNDER_DIR}`, C.dim));
+  for (;;) {
+    const running = pids().length > 0;
+    const i = await select('¿Qué hacemos?', [
+      { label: `${running ? '● En marcha — ver estado' : '▶ Iniciar dev (despegado)'}`, value: 'go' },
+      { label: '■ Detener', value: 'stop' },
+      { label: '↻ Reiniciar', value: 'restart' },
+      { label: '≣ Ver logs (40)', value: 'logs' },
+      { label: '＋ Crear harness…', value: 'create' },
+      { label: '◉ Sesión (ver agentes)', value: 'sesion' },
+      { label: '＋ Agente (crear)…', value: 'armar' },
+      { label: '◈ Proveedores y modelos…', value: 'proveedor' },
+      { label: '◍ Avatar (lienzo/editar)…', value: 'avatar' },
+      { label: '✦ Repintar interfaz', value: 'repaint' },
+      { label: 'Salir', value: 'quit' },
+    ]);
+    console.log('');
+    if (i < 0 || i === 10) { console.log(st('  nos vemos :p', C.dim)); return; }
+    if (i === 0) { if (running) await cmdStatus(); else await cmdStart(false); }
+    else if (i === 1) await cmdStop();
+    else if (i === 2) { await cmdStop(); await cmdStart(false); }
+    else if (i === 3) {
+      try {
+        console.log(fs.readFileSync(LATEST_LOG, 'utf8').trimEnd().split('\n').slice(-40).join('\n'));
+      } catch { console.log('(sin log todavía)'); }
+    }
+    else if (i === 4) await cmdCreateHarness(null, null);
+    else if (i === 5) await cmdSesion(['ver']);
+    else if (i === 6) await cmdSesionArmar([]);
+    else if (i === 7) await cmdSesionProveedor([]);
+    else if (i === 8) await cmdAvatar([]);
+    else if (i === 9) await cmdRepaint();
+    console.log('');
+  }
+}
+
+function printHelp() {
+  console.log(`Uso: munder <comando> [opciones]
+
+Comandos:
+  start [--fg]    Arranca \`npm run dev\` despegado (setsid, anti-freeze).
+                  --fg = adjunto a esta terminal, SOLO debug (puede congelarse)
+  stop            Para el dev (TERM, espera 5s, KILL a lo que quede; poda canal huérfano)
+  restart         stop + start
+  status          PIDs, uptime, puerto 5173, estado del canal y últimas 20 líneas del log
+  logs [N] [-f]   Últimas N líneas del log (def. 100); -f para seguir
+  create-harness [padre] [nombre]
+                  Crea una carpeta de harness completa (.gitignore incluido).
+                  Sin args: ventana para la carpeta + prompt para el nombre.
+  sesion armar [--nombre X --comando "..." --cwd ...]
+                  Crea un agente en la sesión viva (pregunta lo que falte).
+  sesion quitar <id>
+                  Elimina un agente (id de agente o de pty).
+  sesion ver        Muestra los agentes de la sesión viva (tabla).
+  avatar lienzo [salida]
+                  Genera el lienzo en blanco 18×28 RGBA (editable).
+  avatar inspect <personaje|png>
+                  Matriz ASCII + leyenda + regiones (ojos textuales para LLMs).
+  avatar inyectar "desc" --slot <nombre|auto>
+                  Guarda tu avatar en un slot del cast (cuerpo prestado).
+                  La app lo aplica al arrancar. --ver lista, --quitar libera.
+  avatar editar <png> --endpoint <id> --model <id> [--key-env VAR] [--prompt "..."] [--base-url URL] [--si]
+                  El modelo edita ENCIMA del PNG (images/edits). La key solo
+                  por variable de entorno (nunca por flag). Verifica 18×28 +
+                  alpha; si no cumple: AVATAR_REJECTED con motivo.
+                  --base-url override para gateways/self-hosted.
+  sesion proveedor [--cli X --endpoint Y --model Z]
+                  Estilo connect: detecta tus CLIs, lista endpoints top-10 y
+                  modelos por key. Solo vincula keys al auth propio del CLI.
+  repaint           Pide a la app viva repintar su interfaz (sin reiniciar).
+  repaint           Pide a la app viva repintar su interfaz (sin reiniciar).
+  ctl ping          Prueba el canal de control de la app viva (M0).
+  ctl limpiar       Borra munder-control.json huérfano (puerto cerrado + sin procesos).
+  ps              Lista PIDs del dev (sin matar nada)
+  check           Verifica checkout: package.json + node_modules
+  help            Esta ayuda
+
+Sin args (con TTY) abre el menú interactivo ↑↓ + Enter.
+Sin TTY se muestra esta ayuda (no se lanza nada).
+
+Compat: --stop = stop, --check = check, --fg = start --fg.
+
+Env:
+  MUNDER_DIR        Ruta del app (def. la raíz de este repo)
+  MUNDER_STATE_DIR  Estado/logs/pid (def. ~/.local/state/munder)
+
+Ejemplos:
+  munder                 # menú interactivo
+  munder status
+  munder logs -f
+  munder restart
+  munder create-harness ~/Development harness-isYco`);
+}
+
+// ─── dispatch ──────────────────────────────────────────────────────────────
+async function main() {
+  const [cmd, ...rest] = process.argv.slice(2);
+  if (!cmd) {
+    if (IS_TTY) { await interactiveMenu(); return; }
+    printHelp(); return;
+  }
+  switch (cmd) {
+    case 'start': await cmdStart(rest.includes('--fg')); break;
+    case 'stop': await cmdStop(); break;
+    case 'restart': await cmdStop(); await cmdStart(rest.includes('--fg')); break;
+    case 'status': await cmdStatus(); break;
+    case 'logs': case 'log': cmdLogs(rest); break;
+    case 'create-harness': case 'create': case 'new-harness': await cmdCreateHarness(rest[0] ?? null, rest[1] ?? null); break;
+    case 'sesion': case 'session': await cmdSesion(rest); break;
+    case 'avatar': await cmdAvatar(rest); break;
+    case 'repaint': await cmdRepaint(); break;
+    case 'ctl': await cmdCtl(rest); break;
+    case 'ps': cmdPs(); break;
+    case 'check': cmdCheck(); break;
+    case '--stop': await cmdStop(); break;
+    case '--check': cmdCheck(); break;
+    case '--fg': await cmdStart(true); break;
+    case 'help': case '--help': case '-h': printHelp(); break;
+    default: die(`comando desconocido '${cmd}'. Usa: munder {start|stop|restart|status|logs|create-harness|ps|check|help}`);
+  }
+}
+
+main().catch((e) => { console.error(`munder: error inesperado: ${e && e.message ? e.message : e}`); process.exit(1); });

@@ -654,6 +654,11 @@ const api = {
     try { return ipcRenderer.sendSync('app:readClipboardSync') ?? ''; } catch { return ''; }
   },
 
+  // ─── Avatar overrides (munder avatar inyectar) ───────────────────────────
+  /** Recetas custom por slot del cast ({slot: recipe}). Vacío si no hay. */
+  getAvatarOverrides: (): Promise<Record<string, unknown>> =>
+    ipcRenderer.invoke('avatar:getOverrides'),
+
   // ─── Config ──────────────────────────────────────────────────────────────
   getConfig: (): Promise<HarnessConfig> =>
     ipcRenderer.invoke('config:get'),

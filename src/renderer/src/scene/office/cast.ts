@@ -7,7 +7,14 @@
 // sheets are no longer used for the cast. See assets/ATTRIBUTION.md.
 
 import { Texture } from 'pixi.js';
-import { paintPortrait, sceneFrameBufs, SCENE_W, SCENE_H } from './portraitArt';
+import {
+  paintPortrait,
+  registerAvatarOverride,
+  sceneFrameBufs,
+  SCENE_W,
+  SCENE_H,
+  type Recipe,
+} from './portraitArt';
 
 export type OfficeCharacterName =
   | 'michael' | 'jim' | 'pam' | 'dwight' | 'kevin' | 'angela'
@@ -46,6 +53,30 @@ export const CAST_BY_NAME: Record<OfficeCharacterName, CastMember> =
   Object.fromEntries(OFFICE_CAST.map((c) => [c.name, c])) as Record<OfficeCharacterName, CastMember>;
 
 export const DEFAULT_CHARACTER: OfficeCharacterName = 'jim';
+
+/**
+ * Primer slot del cast no usado (ej: si jim/pam/oscar están ocupados,
+ * devuelve el siguiente libre para el "cuerpo prestado").
+ */
+export function firstFreeCharacter(used: Iterable<string>): OfficeCharacterName | null {
+  const u = new Set(used);
+  // 'michael' nunca se presta: es el asiento del GOD, siempre en el piso.
+  for (const c of OFFICE_CAST) {
+    if (c.name === 'michael') continue;
+    if (!u.has(c.name)) return c.name;
+  }
+  return null;
+}
+
+/**
+ * Inyecta un avatar custom (nombre + receta del CLI) en un slot prestado.
+ * Invalida también la caché de texturas de este módulo para que el sprite
+ * en escena re-componga con la cara nueva. Comportamiento/hitbox intactos.
+ */
+export function injectAvatarAs(slot: OfficeCharacterName, recipe: Recipe): void {
+  registerAvatarOverride(slot, recipe);
+  frameCache.delete(slot);
+}
 
 export function hexToNumber(hex: string): number {
   return parseInt(hex.replace('#', ''), 16);

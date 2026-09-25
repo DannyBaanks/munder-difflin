@@ -9,7 +9,9 @@ import { Camera } from './Camera';
 import { Character, paintCup } from './Character';
 import { DeskScreen } from './DeskScreen';
 import { MessageEnvelope, type MessageAct } from './MessageEnvelope';
-import { hexToNumber, DEFAULT_CHARACTER } from './cast';
+import { hexToNumber, DEFAULT_CHARACTER, injectAvatarAs } from './cast';
+import type { OfficeCharacterName } from './cast';
+import type { Recipe } from './portraitArt';
 import { pickSoloLine, pickExchange, type BreakSpot } from './cafeteriaLines';
 import { colors } from '@/design/tokens';
 import { loadTheme, resolveThemeMap, themeTilesetUrls } from './themeLoader';
@@ -1583,6 +1585,23 @@ export function OfficeFloor() {
           else applyState(agent, rt);
         }
       };
+
+      // Avatar overrides (munder avatar inyectar): recetas custom por slot,
+      // aplicadas una vez al montar, antes del primer sprite. Best-effort:
+      // receta mala o puente viejo = ese slot queda con su cara.
+      try {
+        const getOv = (window as unknown as { cth?: { getAvatarOverrides?: () => Promise<unknown> } }).cth?.getAvatarOverrides;
+        if (typeof getOv === 'function') {
+          const ov = await getOv();
+          if (ov && typeof ov === 'object') {
+            for (const [slot, recipe] of Object.entries(ov as Record<string, unknown>)) {
+              try {
+                injectAvatarAs(slot as OfficeCharacterName, recipe as Recipe);
+              } catch { /* ese slot queda con su cara */ }
+            }
+          }
+        }
+      } catch { /* sin overrides esta sesión */ }
 
       syncAgents();
 

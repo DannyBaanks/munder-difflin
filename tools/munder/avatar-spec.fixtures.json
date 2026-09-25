@@ -1,0 +1,54 @@
+{
+  "comment": "Fixtures M0 de avatar-spec/1: validan/invalidan según avatar-spec.schema.json (ver AVATAR_SPEC.md §8).",
+  "fixtures": [
+    {
+      "name": "valido-basico",
+      "from": "piel morena, pelo castaño corto, traje azul",
+      "spec": {
+        "spec": "avatar-spec/1",
+        "body": {"template": "standard_01"},
+        "skin": "SKIN_02",
+        "hair": {"style": "short_01", "color": "HAIR_02"},
+        "eyes": {"style": "round_01", "color": "EYE_02"},
+        "eyebrows": "flat",
+        "mouth": "smile",
+        "shirt": {"style": "suit", "color": "CLOTH_BLUE", "tie": "CLOTH_RED"},
+        "pants": {"template": "standard_01", "color": "CLOTH_BLUE"},
+        "shoes": {"template": "standard_01", "color": "CLOTH_BLACK"},
+        "accessory_1": "none"
+      },
+      "expect": {"ok": true}
+    },
+    {
+      "name": "invalido-forma-capa",
+      "from": "pieza inexistente en el spec",
+      "spec": {
+        "spec": "avatar-spec/1",
+        "body": {"template": "standard_01"},
+        "skin": "SKIN_01",
+        "hair": {"style": "short_01", "color": "HAIR_01"},
+        "eyes": {"style": "round_01", "color": "EYE_01"},
+        "shirt": {"style": "dressshirt", "color": "CLOTH_WHITE"},
+        "pants": {"template": "standard_01", "color": "CLOTH_BLACK"},
+        "shoes": {"template": "standard_01", "color": "CLOTH_BLACK"},
+        "cape": {"style": "heroica"}
+      },
+      "expect": {"ok": false, "code": "SCHEMA"}
+    },
+    {
+      "name": "enum-malo-pelo",
+      "from": "hair.style dragon_supersaiyan (el caso del plan)",
+      "spec": {
+        "spec": "avatar-spec/1",
+        "body": {"template": "standard_01"},
+        "skin": "SKIN_01",
+        "hair": {"style": "dragon_supersaiyan", "color": "HAIR_01"},
+        "eyes": {"style": "round_01", "color": "EYE_01"},
+        "shirt": {"style": "dressshirt", "color": "CLOTH_WHITE"},
+        "pants": {"template": "standard_01", "color": "CLOTH_BLACK"},
+        "shoes": {"template": "standard_01", "color": "CLOTH_BLACK"}
+      },
+      "expect": {"ok": false, "code": "INVALID_ENUM", "field": "hair.style"}
+    }
+  ]
+}

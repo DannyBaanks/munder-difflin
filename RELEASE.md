@@ -1,4 +1,11 @@
 <!-- RELEASE RUNNER, REQUIRED BEFORE YOU TAG: run RELEASE-CHECKLIST.md. Rehearse the updater on 0.4.6-rc.1 -> 0.4.7-rc.1 prereleases and pass the fault-injection checks BEFORE tagging the real release. This comment is not rendered in the published notes. -->
+# Munder Difflin Fork ISyCo v0.4.6-ISyCo.1
+
+> Build del fork [DannyBaanks/munder-difflin](https://github.com/DannyBaanks/munder-difflin):
+> español primero, canal de control local, launcher Linux, supervisión de entrega,
+> CLI `munder` y avatar inyectable. Detalle en el [README](./README.md).
+> Lo de abajo son las notas del upstream v0.4.6 sobre el que está construido.
+
 # Munder Difflin v0.4.6
 
 **A local hive of Claude Code, Antigravity, Codex, Gemini, Cursor, Grok & Copilot agents that run themselves.**

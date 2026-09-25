@@ -3283,6 +3283,42 @@ ipcMain.handle('integrations:test', async (_evt, payload: unknown) => {
   }
 });
 
+// ─── IPC: avatar overrides (munder avatar inyectar) ─────────────────────────
+// Archivo aparte del config (el CLI lo escribe sin correr la app y sin
+// pelear con el save de Settings). La app lo lee al montar el piso.
+const AVATAR_OVERRIDES_FILE = 'avatar-overrides.json';
+// Espejo de OFFICE_CAST (renderer/scene/office/cast.ts). Si el roster cambia,
+// actualizar. 'michael' nunca se presta: es del GOD.
+const AVATAR_CAST_SLOTS = ['michael', 'jim', 'pam', 'dwight', 'kevin', 'angela',
+  'oscar', 'stanley', 'phyllis', 'andy', 'kelly', 'ryan', 'toby', 'creed', 'meredith'];
+function isAvatarRecipeLike(r: unknown): boolean {
+  if (!r || typeof r !== 'object') return false;
+  const o = r as Record<string, unknown>;
+  if (typeof o.skin !== 'string' || typeof o.hair !== 'string' || typeof o.cloth !== 'string') return false;
+  const rgb = (v: unknown): boolean =>
+    Array.isArray(v) && v.length === 3 &&
+    v.every((n) => Number.isInteger(n) && (n as number) >= 0 && (n as number) <= 255);
+  return rgb(o.hairc) && rgb(o.c1);
+}
+function readAvatarOverrides(): Record<string, unknown> {
+  try {
+    const raw = JSON.parse(readFileSync(join(app.getPath('userData'), AVATAR_OVERRIDES_FILE), 'utf8')) as unknown;
+    const ov = raw && typeof raw === 'object'
+      ? ((raw as Record<string, unknown>).overrides ?? {}) : {};
+    if (!ov || typeof ov !== 'object' || Array.isArray(ov)) return {};
+    const out: Record<string, unknown> = {};
+    for (const [slot, entry] of Object.entries(ov as Record<string, unknown>)) {
+      if (slot === 'michael' || !AVATAR_CAST_SLOTS.includes(slot)) continue;
+      const recipe = (entry as Record<string, unknown>)?.recipe ?? entry;
+      if (isAvatarRecipeLike(recipe)) out[slot] = recipe;
+    }
+    return out;
+  } catch {
+    return {};
+  }
+}
+ipcMain.handle('avatar:getOverrides', () => readAvatarOverrides());
+
 // ─── IPC: config ────────────────────────────────────────────────────────────
 ipcMain.handle('config:get', (): HarnessConfig => readConfig());
 ipcMain.handle('config:update', (_evt, patch: Partial<HarnessConfig>) => {
