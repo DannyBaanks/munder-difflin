@@ -29,8 +29,14 @@ concurrency:
 
 jobs:
   update:
-    # Only when something actually merged.
-    if: github.event_name != 'pull_request_target' || github.event.pull_request.merged == true
+    # Only when something actually merged, and only upstream: the list is built
+    # from the PRs of the repo it runs in, and contributors-extra.json names
+    # upstream PR numbers. On a fork (DannyBaanks/munder-difflin) it 404'd on
+    # every merge, and if it ever got through it would replace upstream's
+    # contributors with the fork's own handful of PRs.
+    if: >-
+      github.repository == 'chaitanyagiri/munder-difflin' &&
+      (github.event_name != 'pull_request_target' || github.event.pull_request.merged == true)
     runs-on: ubuntu-latest
     timeout-minutes: 10
     steps:
