@@ -4,11 +4,20 @@
 
 # Munder Difflin — Fork ISyCo
 
-### El harness multi-agente, en español y con canal de control local
+### Una oficina de agentes en tu máquina, y otra en la de al lado, trabajando juntas
+
+[![CI](https://github.com/DannyBaanks/munder-difflin/actions/workflows/ci.yml/badge.svg)](https://github.com/DannyBaanks/munder-difflin/actions/workflows/ci.yml)
+[![Release](https://img.shields.io/github/v/release/DannyBaanks/munder-difflin?include_prereleases&label=release)](https://github.com/DannyBaanks/munder-difflin/releases)
+[![Linux · Windows · macOS](https://img.shields.io/badge/probado%20en-Linux%20%C2%B7%20Windows%20%C2%B7%20macOS-5fb37a)](https://github.com/DannyBaanks/munder-difflin/actions/workflows/ci.yml)
+[![Licencia MIT](https://img.shields.io/badge/licencia-MIT-blue)](./LICENSE)
 
 </div>
 
-> Fork en español de [chaitanyagiri/munder-difflin](https://github.com/chaitanyagiri/munder-difflin) (v0.4.6).
+<p align="center">
+  <img src="./docs/isyco/federacion.svg" alt="ChatGPT habla con la oficina Linux por MCP; la oficina Linux delega a la oficina Windows por Munder Link, firmado y cifrado" width="900">
+</p>
+
+> Fork en español de [chaitanyagiri/munder-difflin](https://github.com/chaitanyagiri/munder-difflin) (al día con su 0.5.2).
 > Este repo es [DannyBaanks/munder-difflin](https://github.com/DannyBaanks/munder-difflin).
 > El upstream es la app de oficina multi-agente (Electron + terminales reales + hive):
 > su producto completo se documenta en su
@@ -27,8 +36,10 @@ Regla de oro: **nunca los dos a la vez** — comparten
 `~/.config/munder-difflin` y la segunda instancia muere por singleton.
 Dos sesiones en paralelo: `./start.sh --user-data-dir ~/.config/munder-difflin-harness2`.
 
-Instaladores firmados (macOS/Windows/Linux) siguen en
-[releases del upstream](https://github.com/chaitanyagiri/munder-difflin/releases/latest).
+Descargas de este fork (Windows `.exe` instalador o portable, Linux `.AppImage`,
+con `SHA256SUMS.txt`) en
+[releases](https://github.com/DannyBaanks/munder-difflin/releases). El `.dmg` de
+mac sigue saliendo del [upstream](https://github.com/chaitanyagiri/munder-difflin/releases/latest).
 
 ## Para correrlo (mínimo)
 
@@ -81,6 +92,13 @@ Botón "create new config" en HivePicker, homes anidados en fresh mode,
 Avatares procedurales compartidos app↔CLI (`composeAvatar`, `AVATAR_VOCAB`):
 mismo texto = mismo PNG, sin drift.
 
+<p align="center">
+  <img src="./docs/isyco/avatares.png" alt="Cuatro avatares pixel-art generados por munder avatar compilar" width="520"><br>
+  <sub>Salida real de <code>munder avatar compilar</code>: «piel morena, blusa rosa, gafas» ·
+  «piel clara, pelo rojo, sudadera verde» · «piel oscura, pelo negro rizado, camisa azul» ·
+  «piel clara, pelo largo castaño, blusa morada».</sub>
+</p>
+
 ### 7. Catálogo + Office Bridge MCP
 `modelCatalog.json` con familia `openisy`, `mcpCatalog.ts` con `office-bridge`
 (stdio local, `HIVE_ROOT` inyectado): `compose_submit/task_get/task_message/task_cancel/office_status`.
@@ -117,15 +135,26 @@ autoridad interna: el peer nunca toca tu hive ni tus PTYs, deja la tarea en
 el inbox de tu Michael (formato Office Bridge) y él decide. Cada llamada va
 firmada (Ed25519) y cifrada (X25519 + AES-256-GCM), con anti-replay; el
 emparejamiento se confirma con un código de 6 dígitos en ambas pantallas.
-En las dos máquinas: `munder link conectar`. Guía con salida real en
+En las dos máquinas: `munder link conectar`, o desde la app en
+**Configuración → Munder Link** (feature 12). Guía con salida real en
 [`tools/munder/LINK.md`](./tools/munder/LINK.md).
+
+<p align="center">
+  <img src="./docs/pr-evidence/after-link-tab-es-dark.png" alt="Pestaña Munder Link: esta oficina, una solicitud entrante con su código y las oficinas enlazadas" width="760">
+</p>
 
 ### 11. Fachada ChatGPT sobre Munder Link
 ChatGPT (que vive en la nube) opera tu oficina emparejada sin tocar tu red:
 un servidor MCP local (`src/mcp/munder-chatgpt-link/`) verifica peer + ruta
 (loopback, misma LAN o Tailscale) antes de cada llamada y expone 7 tools
 (`verify/peers/status/submit/get/message/cancel`). Todo lo crypto sigue
-siendo Munder Link. Detalle en
+siendo Munder Link.
+
+**Sabe dónde está parado:** `munder_link_peers` devuelve `self` (la oficina
+donde corre el MCP) aparte de `peers` (las enlazadas), y
+`munder_office_status("self")` lee esta máquina directo, sin red. Así ChatGPT
+nunca confunde «el MCP corre aquí» con «el MCP alcanza esto». Delegar a `self`
+responde `self_not_a_peer`: eso viaja a otra oficina. Detalle en
 [`src/mcp/munder-chatgpt-link/README.md`](./src/mcp/munder-chatgpt-link/README.md).
 
 **Probado end-to-end (2026-09-25):** chatgpt.com → fachada → link emparejado
@@ -137,6 +166,47 @@ Para levantarla en tu máquina: [`chatgpt-tunnel.sh`](./src/mcp/munder-chatgpt-l
 cada quien levanta su propio túnel (tu URL es pública y de vida corta; la mía
 jamás te sirve a ti).
 
+### 12. Munder Link desde Configuración
+Todo lo del link sin terminal: encender/apagar, ver esta oficina y las
+enlazadas (RAM, workers libres, latencia), buscar en tu red o en Tailscale,
+emparejar y olvidar. Usa el mismo motor, identidad y pid que `munder link`,
+así que lo que prendes en la app lo apagas en la terminal y al revés. La
+pantalla nunca maneja llaves: solo un token de un uso que emite el proceso
+principal.
+
+<p align="center">
+  <img src="./docs/pr-evidence/after-link-tab-pairing.png" alt="Emparejando desde la app: el código de 6 dígitos y los botones El código coincide / No coincide" width="760">
+</p>
+
+### 13. Guardia del hive + piso de versión de Claude Code
+El hive es solo para coordinarse: si un agente intenta escribir con
+`Write/Edit/MultiEdit/NotebookEdit` fuera de lo suyo (su `memory.md`, su
+inbox/outbox, `tasks.json`; el GOD además `board.md` y `spawn-requests/`), el
+hook se lo niega y le dice por qué. Y si pides un modelo más nuevo que tu
+Claude Code (Opus 5.5 pide 2.1.280+), arranca con el más nuevo que tu CLI
+soporta en vez de que el agente nunca levante.
+
+### 14. Office Packs
+Plantillas de oficina listas: `core` más cinco giros (servicios del hogar,
+servicios profesionales, restaurante, tienda, SaaS/consultoría).
+
+```bash
+munder sesion packs                                   # qué hay
+munder sesion armar --pack retail-shop --cwd ~/tienda --solo oscar,pam
+```
+
+### 15. Word, Excel, PowerPoint y PDF para los agentes
+La base de conocimiento ya no indexa bytes de un `.docx` como si fueran texto:
+convierte Word/Excel/PowerPoint/PDF fuera del proceso main y, si un archivo no
+se puede leer, lo dice en vez de guardar basura. Los agentes tienen
+`doc-text` para leerlos en sus carpetas.
+
+### 16. CI en Linux, Windows y macOS
+Cada push compila y corre la suite en los tres sistemas (antes solo macOS, y
+en Windows los tests ni arrancaban). Encontró un bug real: en Windows, borrar
+un worktree podía seguir el junction de `node_modules` hacia el checkout
+principal; hoy un test con un `must-survive.txt` lo vigila.
+
 ## Garantías de este fork
 
 * Nada subido al upstream: remoto `fork=DannyBaanks/munder-difflin`.
@@ -144,8 +214,11 @@ jamás te sirve a ti).
 * `avatar-engine.cjs` es GENERATED desde `portraitArt.ts` (verificado por hash
   en la suite); no se edita a mano:
   `node tools/munder/sync-avatar-engine.cjs`.
-* Tests: `node tools/munder/avatar.test.cjs`,
-  `node tools/munder/proveedor.test.cjs`, `npm run typecheck`.
+* Tests: `npm run test:focused` (los mismos en los tres sistemas),
+  `node tools/munder/link.test.cjs`, `node tools/munder/avatar.test.cjs`,
+  `npm run typecheck`.
+* Gate de release: `node tools/check-release-links.cjs --live` comprueba que
+  cada descarga anunciada exista de verdad.
 
 ## Licencia
 
