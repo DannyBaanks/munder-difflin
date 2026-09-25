@@ -37,8 +37,13 @@ Detalle en el [README](./README.md).
 
 ## Instalar
 
-Descargas abajo: Windows `.exe` (instalador o portable), Linux `.AppImage`.
-`SHA256SUMS.txt` para verificar lo descargado:
+| Plataforma | Descarga |
+|---|---|
+| Windows (instalador) | [`Munder-Difflin-0.5.2-ISyCo.1-win-x64-setup.exe`](https://github.com/DannyBaanks/munder-difflin/releases/download/v0.5.2-ISyCo.1/Munder-Difflin-0.5.2-ISyCo.1-win-x64-setup.exe) |
+| Windows (portable) | [`Munder-Difflin-0.5.2-ISyCo.1-win-x64-portable.exe`](https://github.com/DannyBaanks/munder-difflin/releases/download/v0.5.2-ISyCo.1/Munder-Difflin-0.5.2-ISyCo.1-win-x64-portable.exe) |
+| Linux | [`Munder-Difflin-0.5.2-ISyCo.1-linux-x86_64.AppImage`](https://github.com/DannyBaanks/munder-difflin/releases/download/v0.5.2-ISyCo.1/Munder-Difflin-0.5.2-ISyCo.1-linux-x86_64.AppImage) |
+
+[`SHA256SUMS.txt`](https://github.com/DannyBaanks/munder-difflin/releases/download/v0.5.2-ISyCo.1/SHA256SUMS.txt) para verificar lo descargado:
 
 ```bash
 sha256sum -c SHA256SUMS.txt

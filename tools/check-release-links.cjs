@@ -30,20 +30,25 @@ const fs = require('node:fs');
 const path = require('node:path');
 
 const root = path.join(__dirname, '..');
-const version = JSON.parse(fs.readFileSync(path.join(root, 'package.json'), 'utf8')).version;
+const pkg = JSON.parse(fs.readFileSync(path.join(root, 'package.json'), 'utf8'));
+const version = pkg.version;
+// A version is x.y.z with an optional prerelease tag: the ISyCo fork ships
+// 0.5.2-ISyCo.1, and a plain x.y.z pattern never matched its artifact names,
+// so the table read as "no download assets at all" and CI stayed red.
+const VER = String.raw`\d+\.\d+\.\d+(?:-[A-Za-z][A-Za-z0-9]*\.\d+)?`;
 const releaseMd = fs.readFileSync(path.join(root, 'RELEASE.md'), 'utf8');
 
 const problems = [];
 
-// -1, 0 or 1 for plain x.y.z strings, which is all these files ever carry.
+// -1, 0 or 1 on the x.y.z core; a prerelease tag does not change the order here.
 function compareVersions(a, b) {
-  const [x, y] = [a, b].map((v) => v.split('.').map(Number));
+  const [x, y] = [a, b].map((v) => v.split('-')[0].split('.').map(Number));
   for (let i = 0; i < 3; i++) if (x[i] !== y[i]) return x[i] < y[i] ? -1 : 1;
   return 0;
 }
 
 // — 1. every pinned artifact name must carry the current version —
-const assetRe = /Munder-Difflin-(\d+\.\d+\.\d+)-([^\s`)]+)/g;
+const assetRe = new RegExp(`Munder-Difflin-(${VER})-([^\\s\`)]+)`, 'g');
 const assets = new Set();
 for (const m of releaseMd.matchAll(assetRe)) {
   if (m[1] !== version) {
@@ -54,7 +59,7 @@ for (const m of releaseMd.matchAll(assetRe)) {
 if (assets.size === 0) problems.push('RELEASE.md advertises no download assets at all — did the table move?');
 
 // — 2. source tarball tags too; a stale tag silently ships last release's source —
-for (const m of releaseMd.matchAll(/archive\/refs\/tags\/v(\d+\.\d+\.\d+)/g)) {
+for (const m of releaseMd.matchAll(new RegExp(`archive/refs/tags/v(${VER})`, 'g'))) {
   if (m[1] !== version) {
     problems.push(`RELEASE.md links source for tag v${m[1]} but package.json says ${version}`);
   }
@@ -87,7 +92,7 @@ if (fs.existsSync(indexHtml)) {
 //   stayed green, because nothing was watching it.
 const llms = path.join(root, 'docs/llms.txt');
 if (fs.existsSync(llms)) {
-  const m = /Current version:\s*(\d+\.\d+\.\d+)/.exec(fs.readFileSync(llms, 'utf8'));
+  const m = new RegExp(`Current version:\\s*(${VER})`).exec(fs.readFileSync(llms, 'utf8'));
   if (!m) problems.push('docs/llms.txt no longer states "Current version: x.y.z" — did the line move?');
   else if (m[1] !== version) {
     problems.push(`docs/llms.txt says current version ${m[1]}, package.json says ${version}`);
@@ -108,14 +113,17 @@ async function head(url, label) {
 }
 
 async function checkLive() {
-  const base = 'https://github.com/chaitanyagiri/munder-difflin/releases/latest/download/';
+  // The repo that actually publishes (package.json `repository`), at this exact
+  // tag: a prerelease is never "latest", so /releases/latest/ would 404 on a fork.
+  const repo = /github\.com\/([^/]+\/[^/.]+)/.exec(String(pkg.repository?.url || pkg.repository || ''));
+  const base = `https://github.com/${repo ? repo[1] : 'chaitanyagiri/munder-difflin'}/releases/download/v${version}/`;
   for (const name of [...assets, 'SHA256SUMS.txt']) await head(base + name, name);
   for (const url of siteAssets) await head(url, url);
 }
 
 (async () => {
   if (process.argv.includes('--live')) {
-    console.log(`Checking advertised downloads for v${version} against the live latest release…`);
+    console.log(`Checking advertised downloads against release v${version}…`);
     await checkLive();
   }
   if (problems.length) {
