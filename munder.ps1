@@ -22,9 +22,13 @@
 # Logs: $env:LOCALAPPDATA\munder-difflin\logs\latest.log
 
 $ErrorActionPreference = 'Stop'
+$Utf8 = [System.Text.UTF8Encoding]::new($false)
+[Console]::OutputEncoding = $Utf8
+$OutputEncoding = $Utf8
 $APP_ROOT = Split-Path -Parent $MyInvocation.MyCommand.Path
 $ELECTRON = Join-Path $APP_ROOT 'node_modules\electron\dist\electron.exe'
 $MAIN_ENTRY = Join-Path $APP_ROOT 'out\main\index.js'
+$MUNDER_CLI = Join-Path $APP_ROOT 'tools\munder\munder'
 $LOG_DIR = Join-Path $env:LOCALAPPDATA 'munder-difflin\logs'
 
 function Say($m) { Write-Output "munder: $m" }
@@ -179,12 +183,22 @@ munder — CLI de Munder Difflin (checkout: $APP_ROOT)
 "@
 }
 
+function Invoke-Link($rest) {
+    if (-not (Test-Path -LiteralPath $MUNDER_CLI)) {
+        Say "Munder Link no encontrado: $MUNDER_CLI"
+        exit 1
+    }
+    & node $MUNDER_CLI 'link' @rest
+    exit $LASTEXITCODE
+}
+
 # --- dispatch ---
 $cmd = $args[0]
 $rest = @()
 if ($args.Count -gt 1) { $rest = $args[1..($args.Count - 1)] }
 
 switch ($cmd) {
+    'link' { Invoke-Link $rest }
     'start' {
         $udd = $null
         for ($i = 0; $i -lt $rest.Count; $i++) {

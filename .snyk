@@ -1,0 +1,23 @@
+# Snyk (https://snyk.io) policy file, patches or ignores known vulnerabilities.
+version: v1.25.1
+# ignores vulnerabilities until expiry date; change duration by modifying expiry date
+ignore:
+  SNYK-JS-DEEPMERGE-19964053:
+    - '*':
+        reason: >-
+          Falso positivo: GitHub Advisory API affects=deepmerge@4.3.1 -> 0
+          advisories; OSV -> 0 GHSAs; npm audit -> no reportado. 4.3.1 es la
+          ultima version publicada (npm view deepmerge version), asi que no
+          existe fix porque no esta afectada.
+        expires: 2026-10-25T00:00:00.000Z
+        created: 2026-09-25T09:45:00.000Z
+  SNYK-JS-BRACES-19963945:
+    - '*':
+        reason: >-
+          Falso positivo: GitHub Advisory API affects=braces@3.0.3 -> 0
+          advisories; OSV -> 0 GHSAs; npm audit -> no reportado. GHSA-grv7
+          (Uncontrolled resource consumption) esta fijado EN 3.0.3, version
+          ya instalada; 3.0.3 es la ultima publicada.
+        expires: 2026-10-25T00:00:00.000Z
+        created: 2026-09-25T09:45:00.000Z
+patch: {}

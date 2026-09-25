@@ -19,6 +19,8 @@ const HELP = `munder link — enlaza oficinas (Michael ↔ Michael) por tu red o
   munder link aceptar [código]  En la otra máquina: acepta si el código coincide
   munder link enviar <oficina> "tarea" [--titulo X] [--prioridad N]
                                 Delega trabajo; su Michael decide cómo hacerlo
+  munder link responder <oficina> <origin_ref> "texto" [--resultado X] [--estado N]
+                                Contesta una tarea delegada, por su origin_ref
   munder link tarea <oficina> <task_id>
   munder link mensaje <oficina> <task_id> "texto"
   munder link cancelar <oficina> <task_id> [motivo]
@@ -227,6 +229,16 @@ async function runLink(args, h) {
         console.log(st(`  sigue: munder link tarea ${who} ${r.result.task_id}`, C.dim));
         break;
       }
+      case 'responder': case 'reply': {
+        const done = flag(rest, '--resultado') ?? flag(rest, '--result');
+        const status = flag(rest, '--estado') ?? flag(rest, '--status');
+        const [who, ref, ...words] = rest;
+        const text = words.join(' ').trim();
+        if (!who || !ref || (!text && !done)) die('uso: munder link responder <oficina> <origin_ref> "texto" [--resultado X]');
+        const r = await L.reply(who, ref, { text, result: done, status });
+        say(`respuesta entregada a ${r.peer.name} en ${r.latency_ms} ms → ${r.result.task_id}${r.result.status ? ` (${r.result.status})` : ''}`);
+        break;
+      }
       case 'tarea': case 'task': {
         const [who, id] = rest;
         if (!who || !id) die('uso: munder link tarea <oficina> <task_id>');
@@ -234,6 +246,7 @@ async function runLink(args, h) {
         const t = r.result;
         console.log(`  ${st(t.title, C.bold)}  ${t.status}${t.assignee ? `  (${t.assignee})` : ''}`);
         if (t.result) console.log(`  resultado: ${t.result}`);
+        if (t.origin_ref) console.log(st(`  origin_ref: ${t.origin_ref}`, C.dim));
         break;
       }
       case 'mensaje': case 'message': {
