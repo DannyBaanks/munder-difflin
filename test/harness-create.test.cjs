@@ -149,8 +149,21 @@ test('ensureHarnessGitignore treats user `hive` as covering `hive/`', () => {
   assert.ok(!content.includes('auto-generated'), 'nothing added when covered');
 });
 
+// --check needs electron + a build next to the script. CI's test job has
+// neither (no `npm run build`), so run a copy of start.sh against a stand-in
+// app root: what is under test is the argument parsing, not this checkout.
+function stagedStartSh() {
+  const appRoot = fs.mkdtempSync(path.join(os.tmpdir(), 'harness-start-'));
+  fs.copyFileSync(path.join(ROOT, 'start.sh'), path.join(appRoot, 'start.sh'));
+  fs.mkdirSync(path.join(appRoot, 'node_modules', '.bin'), { recursive: true });
+  fs.writeFileSync(path.join(appRoot, 'node_modules', '.bin', 'electron'), '#!/bin/sh\nexit 0\n', { mode: 0o755 });
+  fs.mkdirSync(path.join(appRoot, 'out', 'main'), { recursive: true });
+  fs.writeFileSync(path.join(appRoot, 'out', 'main', 'index.js'), '');
+  return path.join(appRoot, 'start.sh');
+}
+
 test('start.sh --check passes and accepts --user-data-dir (both forms)', () => {
-  const sh = path.join(ROOT, 'start.sh');
+  const sh = stagedStartSh();
   const check = spawnSync('bash', [sh, '--check'], { encoding: 'utf8', timeout: 15000 });
   assert.strictEqual(check.status, 0, `--check exit 0: ${check.stderr}`);
   assert.match(check.stdout, /start\.sh: OK/, 'preflight OK');
