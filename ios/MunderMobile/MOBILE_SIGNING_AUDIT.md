@@ -194,12 +194,30 @@ DannyBaanks/munder-difflin (MIT)               DannyBaanks/munder-sidestore (AGP
 - rebuilding the iloader bootstrap;
 - a Tailscale-first design in V0.
 
-### STOP: needs Danny's decision before M2
+### STOP: needs Danny's decision before M2 (answered below)
 
 1. **License/repo split.** Approve a new AGPL-3.0 repo (working name `munder-sidestore`) for the companion. The alternatives are L4 (relicense parts of Munder Mobile) or accepting the cost of L3.
 2. **SideSign provenance.** It has no LICENSE file, and its AGPL deps are unpinned. Accept pinning them by commit and filing an upstream issue asking for a LICENSE file, or wait for upstream.
 3. **iBridge.** Sync it with upstream iloader, or retire the fork and point users at upstream iloader.
 4. **Test device.** M2 onward needs a real iPhone (model and iOS version recorded) and an Apple Account that is free and ideally dedicated to testing. Mind the 3-app limit and certificate revocation.
+
+### Decisions (Danny, 2026-09-25, comment on PR #28)
+
+1. **Approved: L1.** The signer lives in a separate **AGPL-3.0** repository (`munder-sidestore`). Munder Mobile stays MIT and client-only.
+2. **Approved, with a precondition.** SideSign's dependencies get pinned by commit. **Before depending on them we ask upstream to add a `LICENSE` file** to SideSign; the request text is in §9.1. Until they answer, M2 does not link SideSign.
+3. **iBridge gets synced with upstream iloader.** Danny re-verified it: `productName: iloader`, `me.nabdev.iloader`, 2.3.3, 10 commits behind v2.3.4. He builds the `.deb` locally.
+4. **Test device: iPhone 12**, with Danny's Apple Account already verified in iloader. The iOS version is not confirmed yet, and it decides whether the iOS 26.4+ IKEv2 constraint (§3.3) applies.
+
+### 9.1 Upstream request (draft, for SideStore/SideSign)
+
+> **Add a LICENSE file (README says GPL-3.0; dependencies are AGPL-3.0)**
+>
+> Hi! We'd like to build a small companion app on top of SideSign, published under AGPL-3.0 with full attribution. Before depending on it, we want the license to be unambiguous:
+>
+> - The README says "GNU General Public License v3.0", but the repository has no `LICENSE`/`COPYING` file (checked at `6b68651`).
+> - `Package.swift` depends on CodeSignKit, GSACryptoKit and AnisetteKit on `branch: main`, and those three are AGPL-3.0. Any binary that includes SideSign therefore carries AGPL-3.0 terms in practice.
+>
+> Could you add a `LICENSE` file that states the intended license (GPL-3.0-or-later? AGPL-3.0?), and, if possible, tag releases of the three dependencies so consumers can pin them? Thanks for the work on SideSign.
 
 ## 10. Next milestones, once approved
 
