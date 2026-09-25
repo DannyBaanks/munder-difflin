@@ -39,6 +39,23 @@ El servidor resuelve `tools/munder/lib-link.cjs` desde la raíz del repo;
 para otro layout: `MUNDER_LINK_MODULE=/ruta/absoluta/lib-link.cjs`.
 Usa el mismo state dir de Munder Link: los peers existentes son la confianza.
 
+## Conectar chatgpt.com
+
+```bash
+./chatgpt-tunnel.sh    # stdio -> HTTP :8093 -> quick tunnel HTTPS
+```
+
+Pega la `https://*.trycloudflare.com/mcp` que imprime en chatgpt.com:
+**Settings → Apps & Connectors → Advanced settings → Developer Mode** →
+**Create** → Server URL = esa URL. El túnel vive mientras el script corre;
+mátalo con `./chatgpt-tunnel.sh --stop` (la URL muere al cerrarlo y cada
+levantada es distinta — por eso nadie te presta el suyo: cada quién levanta
+el propio). Verificado end-to-end 2026-09-25: submit `accepted` + recibo
+vía LAN contra una oficina ya emparejada.
+
+Si chatgpt.com exige OAuth al crear el conector, aún no está: díselo al
+mantenedor antes de publicar nada.
+
 ## Overrides del gate (normalmente sin tocar)
 
 ```bash

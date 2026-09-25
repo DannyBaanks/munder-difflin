@@ -128,6 +128,15 @@ un servidor MCP local (`src/mcp/munder-chatgpt-link/`) verifica peer + ruta
 siendo Munder Link. Detalle en
 [`src/mcp/munder-chatgpt-link/README.md`](./src/mcp/munder-chatgpt-link/README.md).
 
+**Probado end-to-end (2026-09-25):** chatgpt.com → fachada → link emparejado
+× LAN → Michael del otro lado: `compose_submit` llegó `accepted` con recibo
+(`task-1790331110686-46d4bbdb`, same_lan vía wlo1, 22ms). Si la oficina remota
+tiene su Michael activo, la tarea corre; si no, queda en cola hasta despertar.
+
+Para levantarla en tu máquina: [`chatgpt-tunnel.sh`](./src/mcp/munder-chatgpt-link/chatgpt-tunnel.sh) —
+cada quien levanta su propio túnel (tu URL es pública y de vida corta; la mía
+jamás te sirve a ti).
+
 ## Garantías de este fork
 
 * Nada subido al upstream: remoto `fork=DannyBaanks/munder-difflin`.
