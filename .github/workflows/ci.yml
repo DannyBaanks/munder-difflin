@@ -40,3 +40,22 @@ jobs:
           cache: npm
       - run: npm ci
       - run: npm run build
+
+  test:
+    name: Tests
+    runs-on: macos-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: npm
+      # npm ci runs postinstall (electron-rebuild), so node-pty is built for the
+      # tests that spawn real PTYs; the build gives start.sh --check its bundle.
+      - run: npm ci
+      - run: npm run build
+      - name: Focused tests
+        run: npm run test:focused
+      # proveedor.test.cjs is left out: it prompts for sudo and hangs headless.
+      - name: munder CLI tests
+        run: node --test tools/munder/link.test.cjs tools/munder/avatar.test.cjs
