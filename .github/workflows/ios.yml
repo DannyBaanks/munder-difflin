@@ -1,0 +1,184 @@
+name: iOS (Munder Mobile)
+
+# Builds the native iPhone app as an UNSIGNED .ipa on a macOS runner (free on a
+# public repo) and runs its tests on the simulator. Install the .ipa with
+# iloader / SideStore / AltStore and a free Apple ID: see ios/MunderMobile/README.md.
+# Pattern borrowed from DannyBaanks/OpencodeNative's ios-build.yml.
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - 'ios/**'
+      - 'tools/munder/lib-remote.cjs'
+      - 'tools/munder/lib-link.cjs'
+      - 'tools/munder/avatar-engine.cjs'
+      - '.github/workflows/ios.yml'
+  pull_request:
+    paths:
+      - 'ios/**'
+      - 'tools/munder/lib-remote.cjs'
+      - 'tools/munder/lib-link.cjs'
+      - 'tools/munder/avatar-engine.cjs'
+      - '.github/workflows/ios.yml'
+  workflow_dispatch:
+
+concurrency:
+  group: ios-${{ github.ref }}
+  cancel-in-progress: true
+
+defaults:
+  run:
+    working-directory: ios/MunderMobile
+
+jobs:
+  assets:
+    # The portraits, the icon and the crypto vectors come from the office's own
+    # code. If that code moved and nobody regenerated them, stop here (cheap, Linux).
+    name: Generated assets are current
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+      - run: node scripts/make-assets.cjs --check
+
+  test:
+    name: Tests (iOS Simulator)
+    needs: assets
+    runs-on: macos-latest
+    timeout-minutes: 25
+    steps:
+      - uses: actions/checkout@v4
+      - name: Install XcodeGen
+        run: brew install xcodegen
+      - name: Generate Xcode project
+        run: xcodegen generate
+      - name: Run tests
+        run: |
+          set -o pipefail
+          UDID=$(xcrun simctl list devices available -j | python3 -c "
+          import sys, json
+          d = json.load(sys.stdin)
+          for runtime, devices in sorted(d.get('devices', {}).items(), reverse=True):
+            if 'iOS' not in runtime: continue
+            for dev in devices:
+              if dev.get('isAvailable') and 'iPhone' in dev.get('name', ''):
+                print(dev['udid']); sys.exit(0)
+          ")
+          test -n "$UDID" || { echo "::error::No iPhone simulator on the runner"; exit 1; }
+          xcodebuild test \
+            -scheme MunderMobile \
+            -destination "id=$UDID" \
+            -derivedDataPath /tmp/mm_test \
+            CODE_SIGNING_ALLOWED=NO CODE_SIGNING_REQUIRED=NO \
+            2>&1 | tee test-output.log
+      - name: Fail if no tests ran
+        run: grep -E "Executed [0-9]+ test" test-output.log || { echo "::error::No tests executed"; exit 1; }
+      - name: Upload test log
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: munder-mobile-test-log
+          path: ios/MunderMobile/test-output.log
+          retention-days: 14
+
+  build:
+    name: Build unsigned IPA
+    needs: assets
+    runs-on: macos-latest
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v4
+      - name: Install XcodeGen
+        run: brew install xcodegen
+      - name: Generate Xcode project
+        run: xcodegen generate
+      - name: Build (unsigned, device)
+        run: |
+          set -o pipefail
+          xcodebuild \
+            -scheme MunderMobile \
+            -configuration Release \
+            -sdk iphoneos \
+            -derivedDataPath /tmp/mm_dd \
+            CODE_SIGNING_ALLOWED=NO CODE_SIGN_IDENTITY= CODE_SIGNING_REQUIRED=NO \
+            build 2>&1 | tee build-output.log
+      - name: Package the .ipa
+        run: |
+          APP=$(find /tmp/mm_dd -name "MunderMobile.app" -type d -path "*iphoneos*" | head -1)
+          test -n "$APP" || { echo "::error::MunderMobile.app not found"; exit 1; }
+          echo "App: $APP"; ls -la "$APP"
+          test -f "$APP/Resources/Fonts/PressStart2P-Regular.ttf" || { echo "::error::font missing from the bundle"; exit 1; }
+          test -f "$APP/Resources/Cast/michael.png" || { echo "::error::cast portraits missing from the bundle"; exit 1; }
+          mkdir -p Payload && cp -R "$APP" Payload/
+          zip -qr MunderMobile-unsigned.ipa Payload
+          ls -la MunderMobile-unsigned.ipa
+      - name: Upload build log
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: munder-mobile-build-log
+          path: ios/MunderMobile/build-output.log
+          retention-days: 14
+      - name: Upload unsigned IPA
+        uses: actions/upload-artifact@v4
+        with:
+          name: MunderMobile-unsigned-ipa
+          path: ios/MunderMobile/MunderMobile-unsigned.ipa
+          retention-days: 30
+
+  screenshots:
+    # The real SwiftUI screens on the simulator, launched with -MunderDemo (the
+    # bundled demo office, no network): what the PR and README show.
+    name: Simulator screenshots (demo office)
+    needs: assets
+    runs-on: macos-latest
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v4
+      - name: Install XcodeGen
+        run: brew install xcodegen
+      - name: Generate Xcode project
+        run: xcodegen generate
+      - name: Build, install and capture
+        run: |
+          set -euo pipefail
+          UDID=$(xcrun simctl list devices available -j | python3 -c "
+          import sys, json
+          d = json.load(sys.stdin)
+          for runtime, devices in sorted(d.get('devices', {}).items(), reverse=True):
+            if 'iOS' not in runtime: continue
+            for dev in devices:
+              if dev.get('isAvailable') and dev.get('name', '').startswith('iPhone') and 'Pro Max' not in dev['name'] and 'Plus' not in dev['name']:
+                print(dev['udid']); sys.exit(0)
+          ")
+          test -n "$UDID" || { echo "::error::No iPhone simulator"; exit 1; }
+          xcrun simctl boot "$UDID" || true
+          xcrun simctl bootstatus "$UDID" -b
+          xcrun simctl status_bar "$UDID" override --time 9:41 --batteryState charged --batteryLevel 100 --cellularBars 4 --wifiBars 3 || true
+          xcodebuild -scheme MunderMobile -configuration Debug -sdk iphonesimulator -destination "id=$UDID" \
+            -derivedDataPath /tmp/mm_sim build 2>&1 | tail -30
+          APP=$(find /tmp/mm_sim -name "MunderMobile.app" -type d -path "*iphonesimulator*" | head -1)
+          xcrun simctl install "$UDID" "$APP"
+          BID=mx.isyco.munder.mobile
+          mkdir -p shots
+          shoot() { xcrun simctl terminate "$UDID" "$BID" >/dev/null 2>&1 || true; xcrun simctl launch "$UDID" "$BID" "${@:2}" >/dev/null; sleep 5; xcrun simctl io "$UDID" screenshot "shots/$1.png"; }
+          xcrun simctl ui "$UDID" appearance light
+          shoot pair-light
+          for scheme in light dark; do
+            xcrun simctl ui "$UDID" appearance "$scheme"
+            shoot "office-$scheme" -MunderDemo -MunderTab 0
+            shoot "questions-$scheme" -MunderDemo -MunderTab 1
+            shoot "board-$scheme" -MunderDemo -MunderTab 2
+            shoot "link-$scheme" -MunderDemo -MunderTab 3
+          done
+          ls -la shots
+      - name: Upload screenshots
+        uses: actions/upload-artifact@v4
+        with:
+          name: munder-mobile-screenshots
+          path: ios/MunderMobile/shots/*.png
+          retention-days: 30

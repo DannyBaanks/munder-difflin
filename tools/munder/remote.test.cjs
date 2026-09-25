@@ -139,6 +139,12 @@ test('pairing: both screens show the same code, nothing works until a human acce
   assert.equal(hi.ok, true);
   assert.equal(hi.result.name, 'michael-victus');
   assert.equal(hi.result.device, 'iPhone de Danny');
+  // The native app learns where else it can reach this office (LAN, Tailscale) from here.
+  assert.ok(Array.isArray(hi.result.addresses));
+  for (const a of hi.result.addresses) {
+    assert.match(a.address, /^[^/\s]+:\d+$/, 'host:port, no scheme or path');
+    assert.ok(['lan', 'tailscale'].includes(a.via));
+  }
 });
 
 test('pairing: a reveal that breaks the commitment is refused, and each commitment gets one reveal', async (t) => {

@@ -217,6 +217,11 @@ async function peersView(dir) {
   }));
 }
 
+/** host:port for every LAN and Tailscale address this office answers on, Tailscale first. */
+function officeAddresses() {
+  return L.appUrls().map((u) => ({ address: new URL(u.url).host, via: u.via }));
+}
+
 // ─── HTTP ────────────────────────────────────────────────────────────────────
 
 function serveStatic(res, name) {
@@ -246,7 +251,9 @@ function createRemoteRoutes({ dir = L.stateDir(), hiveRoot = L.localHiveRoot(), 
     const office = () => new L.Office(hiveRoot, 'human', dir);
     const officeOrNull = () => { try { return office(); } catch { return null; } };
     switch (op) {
-      case 'hello': return { office_id: identity.office_id, name: identity.name, device: device.name, version };
+      // `addresses` lets the native app pair once at home and still find this
+      // office over Tailscale later: it tries each address, last good first.
+      case 'hello': return { office_id: identity.office_id, name: identity.name, device: device.name, version, addresses: officeAddresses() };
       case 'overview': return overview(officeOrNull(), identity, version);
       case 'peers': return { peers: await peersView(dir) };
       case 'answer': return answer(office(), args, device);

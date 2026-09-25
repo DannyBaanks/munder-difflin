@@ -1,0 +1,167 @@
+{
+  "office": {
+    "office_id": "fa801f7ab6693f03",
+    "name": "michael-victus",
+    "fingerprint": "fa80 1f7a b669 3f03",
+    "host": "victus",
+    "version": "demo"
+  },
+  "capacity": {
+    "ram_total_gb": 15.7,
+    "ram_free_gb": 9.2,
+    "cpus": 12,
+    "load1": 0.64,
+    "platform": "linux",
+    "workers_total": 4,
+    "workers_idle": 2,
+    "michael_state": "working",
+    "tasks_open": 5
+  },
+  "agents": [
+    {
+      "id": "god",
+      "name": "Michael",
+      "role": "Orquestador",
+      "status": "working",
+      "god": true,
+      "on_hold": false
+    },
+    {
+      "id": "dwight",
+      "name": "Dwight",
+      "role": "Backend y tests",
+      "status": "working",
+      "god": false,
+      "on_hold": false
+    },
+    {
+      "id": "jim",
+      "name": "Jim",
+      "role": "Frontend",
+      "status": "idle",
+      "god": false,
+      "on_hold": false
+    },
+    {
+      "id": "pam",
+      "name": "Pam",
+      "role": "Diseño y docs",
+      "status": "blocked",
+      "god": false,
+      "on_hold": false
+    },
+    {
+      "id": "oscar",
+      "name": "Oscar",
+      "role": "Finanzas",
+      "status": "idle",
+      "god": false,
+      "on_hold": true
+    }
+  ],
+  "tasks": [
+    {
+      "id": "task-5",
+      "title": "Revisar PR de Windows CI",
+      "status": "todo",
+      "assignee": null,
+      "created_at": "2026-09-25T09:40:00.000Z",
+      "description": null,
+      "result": null,
+      "question": null,
+      "from_office": null
+    },
+    {
+      "id": "task-3",
+      "title": "Migrar tests a node --test",
+      "status": "doing",
+      "assignee": "dwight",
+      "created_at": "2026-09-25T09:30:00.000Z",
+      "description": "Pasar los tests de mocha a node --test en tools/munder.",
+      "result": null,
+      "question": null,
+      "from_office": null
+    },
+    {
+      "id": "task-4",
+      "title": "Rediseñar el onboarding",
+      "status": "doing",
+      "assignee": "jim",
+      "created_at": "2026-09-25T09:10:00.000Z",
+      "description": null,
+      "result": null,
+      "question": null,
+      "from_office": null
+    },
+    {
+      "id": "task-1",
+      "title": "Publicar la landing de ISyCo",
+      "status": "blocked",
+      "assignee": "pam",
+      "created_at": "2026-09-25T08:00:00.000Z",
+      "description": null,
+      "result": null,
+      "question": {
+        "q": "**¿Qué dominio uso para la landing?** `isyco.mx` ya lo tienes; `isyco.office` hay que comprarlo.",
+        "asked_at": "2026-09-25T09:48:00.000Z"
+      },
+      "from_office": null
+    },
+    {
+      "id": "task-2",
+      "title": "Cotización para cliente Monterrey",
+      "status": "blocked",
+      "assignee": "oscar",
+      "created_at": "2026-09-25T07:00:00.000Z",
+      "description": null,
+      "result": null,
+      "question": {
+        "q": "**¿Aplico el descuento del 10%?** El cliente lo pidió por correo.",
+        "asked_at": "2026-09-25T09:15:00.000Z"
+      },
+      "from_office": null
+    },
+    {
+      "id": "task-6",
+      "title": "Pestaña Munder Link en Configuración",
+      "status": "done",
+      "assignee": "jim",
+      "created_at": "2026-09-24T18:00:00.000Z",
+      "description": null,
+      "result": "Mergeado en #12.",
+      "question": null,
+      "from_office": null
+    }
+  ],
+  "questions": [
+    {
+      "id": "task-1",
+      "title": "Publicar la landing de ISyCo",
+      "status": "blocked",
+      "assignee": "pam",
+      "created_at": "2026-09-25T08:00:00.000Z",
+      "description": null,
+      "result": null,
+      "question": {
+        "q": "**¿Qué dominio uso para la landing?** `isyco.mx` ya lo tienes; `isyco.office` hay que comprarlo.",
+        "asked_at": "2026-09-25T09:48:00.000Z"
+      },
+      "from_office": null
+    },
+    {
+      "id": "task-2",
+      "title": "Cotización para cliente Monterrey",
+      "status": "blocked",
+      "assignee": "oscar",
+      "created_at": "2026-09-25T07:00:00.000Z",
+      "description": null,
+      "result": null,
+      "question": {
+        "q": "**¿Aplico el descuento del 10%?** El cliente lo pidió por correo.",
+        "asked_at": "2026-09-25T09:15:00.000Z"
+      },
+      "from_office": null
+    }
+  ],
+  "hive": true
+}
