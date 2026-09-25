@@ -1,0 +1,29 @@
+# Line endings: LF in the repo for everything text, whatever OS committed it.
+# Without this, an editor on Windows can commit CRLF into a .sh/.cjs and the
+# shebang turns into "bash\r: not found" on Linux — "works on my machine".
+* text=auto eol=lf
+
+# Windows-only launchers keep CRLF in the working tree: cmd.exe misparses
+# labels/goto in LF-only batch files, and PowerShell is happiest with CRLF.
+*.cmd text eol=crlf
+*.bat text eol=crlf
+*.ps1 text eol=crlf
+
+# Binary assets: never touched by line-ending conversion or textual diffs.
+*.png binary
+*.jpg binary
+*.jpeg binary
+*.gif binary
+*.webp binary
+*.ico binary
+*.icns binary
+*.woff binary
+*.woff2 binary
+*.ttf binary
+*.mp4 binary
+*.webm binary
+*.mov binary
+*.pdf binary
+*.zip binary
+*.node binary
+*.p12 binary
