@@ -367,7 +367,8 @@ async function cmdSesion(args) {
   const [sub, ...rest] = args;
   if (sub === 'ver') return await cmdSesionVer();
   if (sub === 'proveedor') return await cmdSesionProveedor(rest);
-  if (sub === 'armar') return await cmdSesionArmar(rest);
+  if (sub === 'armar') return flagVal(rest, ['--pack']) ? await cmdSesionArmarPack(rest) : await cmdSesionArmar(rest);
+  if (sub === 'packs') return await cmdSesionPacks();
   if (sub === 'quitar') {
     const id = rest[0];
     if (!id) die("uso: munder sesion quitar <id>  (id de agente o de pty)");
@@ -380,7 +381,49 @@ async function cmdSesion(args) {
     }
     die(`no se pudo quitar (${r.status}): ${(r.body && r.body.error) || 'sin detalle'}`);
   }
-  die("uso: munder sesion ver | munder sesion proveedor [--cli X --endpoint Y --model Z] | munder sesion armar [--nombre X --comando \"...\" --cwd ...] | munder sesion quitar <id>");
+  die("uso: munder sesion ver | munder sesion proveedor [--cli X --endpoint Y --model Z] | munder sesion armar [--nombre X --comando \"...\" --cwd ...] | munder sesion armar --pack <id|pack.json> --cwd ... [--comando claude] [--solo a,b] | munder sesion packs | munder sesion quitar <id>");
+}
+
+// Office Packs (de dontbemichael): equipos listos por tipo de negocio.
+async function cmdSesionPacks() {
+  const ch = readChannel();
+  const r = await channelCall('GET', { port: ch.port, path: '/packs' }, undefined, ch.token)
+    .catch((e) => die(`sin respuesta del canal (${e && e.message ? e.message : e})`));
+  if (r.status !== 200 || !r.body || r.body.ok !== true) die(`no se pudieron leer los packs (${r.status}): ${(r.body && r.body.error) || 'sin detalle'}`);
+  for (const p of r.body.packs) {
+    console.log(`  ${st(p.id, C.bold)}  ${p.name}  ${st(p.tagline || '', C.dim)}`);
+    for (const a of p.agents) console.log(`      ${a.default ? st('●', C.green) : st('○', C.dim)} ${a.id.padEnd(9)} ${a.role}: ${st(a.summary, C.dim)}`);
+  }
+  console.log(st('  ● = entra por defecto. Arma uno con: munder sesion armar --pack <id> --cwd <carpeta> [--solo oscar,pam]', C.dim));
+}
+
+async function cmdSesionArmarPack(args) {
+  const pack = flagVal(args, ['--pack']);
+  let cwd = flagVal(args, ['--cwd', '--carpeta', '-d']);
+  const comando = flagVal(args, ['--comando', '-c']) || 'claude';
+  const proveedor = flagVal(args, ['--proveedor', '--provider', '-p']);
+  const solo = flagVal(args, ['--solo']);
+  if (!cwd) die('falta --cwd: la carpeta donde trabajará el equipo');
+  if (cwd.startsWith('~/')) cwd = path.join(os.homedir(), cwd.slice(2));
+  const body = { cwd, command: comando };
+  // Un archivo es un pack IMPORTADO: el main le baja todo lo que envía, publica,
+  // paga o borra a "preguntar primero" antes de usarlo.
+  if (/\.json$/i.test(pack) && fs.existsSync(pack)) {
+    try { body.packJson = JSON.parse(fs.readFileSync(pack, 'utf8')); } catch (e) { die(`no pude leer ${pack}: ${e.message}`); }
+  } else {
+    body.pack = pack;
+  }
+  if (proveedor) body.provider = proveedor;
+  if (solo) body.picks = solo.split(',').map((x) => x.trim()).filter(Boolean);
+  const ch = readChannel();
+  const r = await channelCall('POST', { port: ch.port, path: '/sesion/pack' }, body, ch.token)
+    .catch((e) => die(`sin respuesta del canal (${e && e.message ? e.message : e})`));
+  if (r.status !== 200 || !r.body || !Array.isArray(r.body.agents)) die(`no se pudo armar el pack (${r.status}): ${(r.body && r.body.error) || 'sin detalle'}`);
+  console.log(st(`  Pack ${r.body.pack}${r.body.imported ? ' (importado: todo lo que sale de la máquina pide confirmación)' : ''}`, C.bold));
+  for (const a of r.body.agents) {
+    console.log(a.ok ? `    ${st('✓', C.green)} ${a.name}  ${st(a.id, C.dim)}` : `    ${st('✗', C.red)} ${a.name}: ${a.error}`);
+  }
+  if (!r.body.ok) process.exitCode = 1;
 }
 
 // Adaptadores IO reales para chatearPersonaje (lib-personaje.cjs).
@@ -1726,6 +1769,8 @@ Comandos:
                   Crea una carpeta de harness completa (.gitignore incluido).
                   Sin args: ventana para la carpeta + prompt para el nombre.
   sesion armar [--nombre X --comando "..." --cwd ...]
+  sesion armar --pack <id|pack.json> --cwd ... [--comando claude] [--solo a,b]
+  sesion packs
                   Crea un agente en la sesión viva (pregunta lo que falte).
   sesion quitar <id>
                   Elimina un agente (id de agente o de pty).

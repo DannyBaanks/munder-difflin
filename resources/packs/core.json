@@ -1,0 +1,61 @@
+{
+  "spec": "dontbemichael/office-pack@1",
+  "schemaVersion": 1,
+  "businessType": "core",
+  "displayName": "Core",
+  "tagline": "every business needs these",
+  "agents": [
+    {
+      "schemaVersion": 1,
+      "id": "oscar",
+      "character": "oscar",
+      "role": "Finance",
+      "folder": "Finance",
+      "summary": "Tracks sales, bills and receipts, reminds you what's due, and sends a weekly money summary.",
+      "does": [
+        "Keep a running tally of sales, bills and receipts you add",
+        "Flag anything due in the next seven days",
+        "Send a weekly money summary"
+      ],
+      "wontDo": [
+        "Pay a bill or move money",
+        "Change anything in your accounting software"
+      ],
+      "connections": [
+        {
+          "id": "quickbooks",
+          "required": false
+        }
+      ],
+      "tools": [
+        {
+          "capability": "books.read",
+          "level": "auto"
+        },
+        {
+          "capability": "books.write",
+          "level": "ask"
+        }
+      ],
+      "modelTier": "fast",
+      "firstAction": "Oscar sends your first money summary next Monday at 9am"
+    }
+  ],
+  "defaultPicks": [
+    "oscar"
+  ],
+  "officeHours": {
+    "days": [
+      "mon",
+      "tue",
+      "wed",
+      "thu",
+      "fri"
+    ],
+    "work": {
+      "start": "09:00",
+      "end": "17:00"
+    },
+    "pauses": []
+  }
+}

@@ -1,0 +1,259 @@
+{
+  "spec": "dontbemichael/office-pack@1",
+  "schemaVersion": 1,
+  "businessType": "pro-services",
+  "displayName": "Pro Services",
+  "tagline": "CPA, realtor, insurance",
+  "glyph": "clipboard",
+  "extends": "core",
+  "agents": [
+    {
+      "schemaVersion": 1,
+      "id": "oscar",
+      "character": "oscar",
+      "role": "Finance",
+      "folder": "Finance",
+      "summary": "Tracks invoices and retainers, chases what's unpaid, and warns you before filing deadlines.",
+      "does": [
+        "Keep a running list of invoices sent and paid",
+        "Flag invoices that are more than 30 days overdue",
+        "Flag filing and renewal deadlines in the next seven days",
+        "Send a weekly money summary"
+      ],
+      "wontDo": [
+        "Send a client an invoice or a reminder without asking",
+        "Move money or change anything in your accounting software"
+      ],
+      "connections": [
+        {
+          "id": "quickbooks",
+          "required": false
+        }
+      ],
+      "tools": [
+        {
+          "capability": "books.read",
+          "level": "auto"
+        },
+        {
+          "capability": "books.write",
+          "level": "ask"
+        }
+      ],
+      "modelTier": "fast",
+      "firstAction": "Oscar sends your first money summary next Monday at 9am"
+    },
+    {
+      "schemaVersion": 1,
+      "id": "pam",
+      "character": "pam",
+      "role": "Executive Admin",
+      "folder": "Admin",
+      "summary": "Keeps an eye on your email and calendar (client mail, deadlines, document requests) and routes each message to the right person.",
+      "does": [
+        "Sort new mail into clients, deadlines, documents and junk",
+        "Keep client appointments and filing deadlines on your calendar",
+        "Keep a checklist of the documents each client still owes you",
+        "Route new leads to Dwight, client questions to Kelly and bills to Oscar"
+      ],
+      "wontDo": [
+        "Reply on your behalf without asking",
+        "Delete any email"
+      ],
+      "connections": [
+        {
+          "id": "email",
+          "required": true
+        },
+        {
+          "id": "calendar",
+          "required": false
+        }
+      ],
+      "tools": [
+        {
+          "capability": "email.read",
+          "level": "auto"
+        },
+        {
+          "capability": "email.label",
+          "level": "auto"
+        },
+        {
+          "capability": "email.send",
+          "level": "ask"
+        },
+        {
+          "capability": "calendar.read",
+          "level": "auto"
+        },
+        {
+          "capability": "calendar.write",
+          "level": "ask"
+        }
+      ],
+      "modelTier": "fast",
+      "firstAction": "Pam sorts your inbox every morning at 8am"
+    },
+    {
+      "schemaVersion": 1,
+      "id": "kelly",
+      "character": "kelly",
+      "role": "Customer Support",
+      "folder": "Support",
+      "summary": "Answers client questions and keeps clients updated, and passes anything that needs your expertise to you.",
+      "does": [
+        "Draft replies to client questions using your services and rates",
+        "Draft a status update for a client waiting on you",
+        "Ask you before committing to a date or a fee"
+      ],
+      "wontDo": [
+        "Give advice a licensed professional should give",
+        "Commit to a fee or a deadline without asking"
+      ],
+      "connections": [
+        {
+          "id": "email",
+          "required": true
+        },
+        {
+          "id": "google-business",
+          "required": false
+        }
+      ],
+      "tools": [
+        {
+          "capability": "email.read",
+          "level": "auto"
+        },
+        {
+          "capability": "email.send",
+          "level": "ask"
+        },
+        {
+          "capability": "reviews.read",
+          "level": "auto"
+        },
+        {
+          "capability": "reviews.reply",
+          "level": "ask"
+        }
+      ],
+      "modelTier": "best",
+      "firstAction": "Kelly replies when a client question arrives"
+    },
+    {
+      "schemaVersion": 1,
+      "id": "dwight",
+      "character": "dwight",
+      "role": "Sales Director",
+      "folder": "Sales",
+      "summary": "Brings in new clients: tracks every lead and referral from first call to signed engagement, and follows up so none go cold.",
+      "does": [
+        "Keep your pipeline of leads and referrals current",
+        "Draft a reminder when a lead goes quiet",
+        "Track proposals and engagement letters sent",
+        "Pass new engagements to Oscar"
+      ],
+      "wontDo": [
+        "Send a proposal or fee quote without your OK",
+        "Offer a discount on his own"
+      ],
+      "connections": [
+        {
+          "id": "email",
+          "required": true
+        },
+        {
+          "id": "crm",
+          "required": false
+        }
+      ],
+      "tools": [
+        {
+          "capability": "email.read",
+          "level": "auto"
+        },
+        {
+          "capability": "email.send",
+          "level": "ask"
+        }
+      ],
+      "modelTier": "best",
+      "firstAction": "Dwight asks for your open leads tomorrow at 9am"
+    },
+    {
+      "schemaVersion": 1,
+      "id": "ryan",
+      "character": "ryan",
+      "role": "Marketing",
+      "folder": "Marketing",
+      "summary": "Drafts referral outreach, a monthly note to past clients, and posts explaining what you do.",
+      "does": [
+        "Draft a short note to past clients worth staying in touch with",
+        "Draft posts explaining what you do in plain language",
+        "Write in your voice, not a brochure's"
+      ],
+      "wontDo": [
+        "Post or send anything before you approve it",
+        "Name a client without you clearing it"
+      ],
+      "connections": [
+        {
+          "id": "meta",
+          "required": false
+        }
+      ],
+      "tools": [
+        {
+          "capability": "social.post",
+          "level": "ask"
+        }
+      ],
+      "modelTier": "best",
+      "firstAction": "Ryan drafts a note to past clients on the first Monday of the month"
+    },
+    {
+      "schemaVersion": 1,
+      "id": "sadiq",
+      "character": "sadiq",
+      "role": "IT Security",
+      "folder": "Security",
+      "summary": "Keeps your clients' private information safe: who can see it, passwords and backups, and emails that look like fraud.",
+      "does": [
+        "Keep a list of the accounts and devices that hold client data",
+        "Remind you to review who has access, and to update passwords",
+        "Check that important files are backed up",
+        "Flag emails that look like phishing or wire fraud attempts"
+      ],
+      "wontDo": [
+        "Change passwords or settings on your behalf",
+        "Delete anything"
+      ],
+      "connections": [],
+      "tools": [],
+      "modelTier": "best",
+      "firstAction": "Sadiq asks where your client files live tomorrow at 9am"
+    }
+  ],
+  "defaultPicks": [
+    "oscar",
+    "pam",
+    "kelly",
+    "dwight"
+  ],
+  "officeHours": {
+    "days": [
+      "mon",
+      "tue",
+      "wed",
+      "thu",
+      "fri"
+    ],
+    "work": {
+      "start": "09:00",
+      "end": "18:00"
+    },
+    "pauses": []
+  }
+}

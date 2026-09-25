@@ -33,6 +33,7 @@ import { CircuitBreaker, type BreakerInput } from './breaker';
 import type { UsageProvider } from './usage';
 import { MemoryManager } from './memory';
 import { KnowledgeManager } from './knowledge';
+import { loadBundledPacks, loadImportedPack, packsResourceDir } from './packs';
 import { claudeCliVersion } from './claudeCliVersion';
 import { CLAUDE_MODEL_CLI_FLOOR, modelForCli } from '../shared/modelCliFloor';
 import type { DocExtraction } from './docText';
@@ -1869,6 +1870,12 @@ async function startControlChannel(): Promise<void> {
         hive: opts.hive ? { ...opts.hive, provider: opts.hive.provider as AgentProvider } : undefined,
       }, null),
       kill: (id) => killAgentById(id),
+      // Office Packs (from dontbemichael): read fresh per call, the files are tiny.
+      packs: () => ({ packs: loadBundledPacks({ packsDir: () => packsResourceDir(app, process.resourcesPath) }).packs.map((l) => l.pack) }),
+      importPack: (raw) => loadImportedPack(raw, loadBundledPacks({ packsDir: () => packsResourceDir(app, process.resourcesPath) }).core),
+      brief: (agentId, subject, body) => {
+        hive.send({ to: agentId, conversation: `pack-${agentId}`, act: 'request', subject, body }, 'god');
+      },
     });
     const r = await next.start();
     if (!r.ok || r.port === undefined) {
