@@ -241,6 +241,8 @@ export class WebhookServer {
       const server = createServer((req, res) => this.handleRequest(req, res));
       const onError = (e: Error): void => reject(e);
       server.once('error', onError);
+      // Loopback only: tunnelmole forwards to localhost, so nothing else needs
+      // to reach this port. Binding every interface exposed it to the LAN too.
       server.listen(this.port, '127.0.0.1', () => {
         server.off('error', onError);
         this.server = server;
