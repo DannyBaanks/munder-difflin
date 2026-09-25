@@ -69,6 +69,10 @@ public struct Overview: Decodable {
     public let tasks: [TaskItem]
     public let questions: [TaskItem]
     public let hive: Bool?
+    /// Another office, seen through this one's link: read-only, work goes to its Michael.
+    public let remote: Bool?
+    /// That office runs an older Munder: numbers only, no team or board.
+    public let limited: Bool?
 }
 
 public struct Peer: Decodable, Hashable, Identifiable {
@@ -84,7 +88,11 @@ public struct Peer: Decodable, Hashable, Identifiable {
 
 public struct PeersReply: Decodable { public let peers: [Peer] }
 public struct AnswerReply: Decodable { public let taskId: String? }
-public struct MessageReply: Decodable { public let messageId: String? }
+public struct MessageReply: Decodable {
+    public let messageId: String?
+    public let to: String?
+    public let name: String?
+}
 public struct DelegateReply: Decodable {
     public let office: String
     public let taskId: String?

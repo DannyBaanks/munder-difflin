@@ -20,6 +20,10 @@ public final class OfficeStore: ObservableObject {
     @Published public var pairError: String?
     @Published public var toast: String?
     @Published public var busy = false
+    /// nil = the office this phone is paired with; otherwise a paired office's id, seen through it.
+    @Published public private(set) var viewing: String?
+    /// The agent the composer writes to ("god" = Michael). Only for this office.
+    @Published public var recipient = "god"
 
     private var client: RemoteClient?
     private let defaults: UserDefaults
@@ -110,6 +114,8 @@ public final class OfficeStore: ObservableObject {
     }
 
     public func forget() {
+        viewing = nil
+        recipient = "god"
         Keychain.delete(account: K.sessionKey)
         defaults.removeObject(forKey: K.office)
         defaults.removeObject(forKey: K.pendingCode)
@@ -123,10 +129,22 @@ public final class OfficeStore: ObservableObject {
 
     // MARK: the office
 
+    /// Switch the whole app to another office (nil = this one).
+    public func view(office id: String?) async {
+        guard id != viewing else { return }
+        viewing = id
+        recipient = "god"
+        overview = nil
+        await refresh()
+    }
+
     public func refresh() async {
         guard phase == .paired, let c = client else { return }
+        let want = viewing
         do {
-            overview = try await c.call("overview", as: Overview.self)
+            let next = try await c.call("overview", args: want.map { ["office": $0] } ?? [:], as: Overview.self)
+            guard want == viewing else { return } // switched while this was in flight
+            overview = next
             online = true
             offlineReason = nil
         } catch let e as RemoteError {
@@ -161,10 +179,15 @@ public final class OfficeStore: ObservableObject {
         }
     }
 
+    /// This office: to Michael or one agent. Another office: a task for ITS Michael.
     public func ask(_ text: String) async -> Bool {
-        await send { c in
-            let _: MessageReply = try await c.call("ask", args: ["text": text])
-            return "Enviado a Michael"
+        if let peer = viewing { return await delegate(to: peer, text: text) }
+        let to = recipient
+        return await send { c in
+            var args: [String: Any] = ["text": text]
+            if to != "god" { args["agent"] = to }
+            let r: MessageReply = try await c.call("ask", args: args)
+            return "Enviado a \(r.name ?? "Michael")"
         }
     }
 
