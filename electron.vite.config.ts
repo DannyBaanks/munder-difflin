@@ -55,7 +55,12 @@ export default defineConfig({
     define: defineMain,
     build: {
       rollupOptions: {
-        input: { index: resolve(__dirname, 'src/main/index.ts') }
+        input: {
+          index: resolve(__dirname, 'src/main/index.ts'),
+          // Agent-facing `doc-text` CLI: same converter, same bundled libraries.
+          // The app also runs it (--json) to parse documents outside main.
+          docTextCli: resolve(__dirname, 'src/main/docTextCli.ts')
+        }
       }
     }
   },

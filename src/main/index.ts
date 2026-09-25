@@ -1,5 +1,5 @@
 import { app, BrowserWindow, clipboard, dialog, ipcMain, Menu, powerMonitor, powerSaveBlocker, screen, shell, Notification } from 'electron';
-import { spawn } from 'node:child_process';
+import { execFile, spawn } from 'node:child_process';
 import {
   rmSync, existsSync, readFileSync, readdirSync, statSync, cpSync, writeFileSync,
   unlinkSync, mkdirSync, renameSync, createWriteStream, copyFileSync, lstatSync,
@@ -33,6 +33,7 @@ import { CircuitBreaker, type BreakerInput } from './breaker';
 import type { UsageProvider } from './usage';
 import { MemoryManager } from './memory';
 import { KnowledgeManager } from './knowledge';
+import type { DocExtraction } from './docText';
 import { MemoryReflector, type ReflectSettings } from './reflect';
 import { PersistStore } from './db';
 import { readAgentUsage, readContextTokens, seedSessionTranscript, resolveSessionCwd } from './transcript';
@@ -328,6 +329,42 @@ const memory = new MemoryManager(
 );
 // Enterprise Knowledge Graph — file-backed store + agent CLI (default OFF).
 const knowledge = new KnowledgeManager();
+
+/** The bundled `doc-text` CLI (second entry of the main bundle, docTextCli.ts). */
+function docTextCliPath(): string {
+  return join(app.getAppPath(), 'out', 'main', 'docTextCli.js');
+}
+
+/** Untrusted documents (PDF via pdf.js, Office zips) are parsed in a child Node
+ *  process, never in main: a parser bug then crashes or compromises a
+ *  throwaway process instead of the one holding every PTY and secret. */
+function extractOutOfProcess(srcPath: string): Promise<DocExtraction> {
+  return new Promise((resolveExtract) => {
+    execFile(
+      process.execPath,
+      [docTextCliPath(), '--json', srcPath],
+      {
+        env: { ...process.env, ELECTRON_RUN_AS_NODE: '1' },
+        // Covers the one-time cold load of the macOS OCR models (macOcr.ts).
+        timeout: 240_000,
+        maxBuffer: 64 * 1024 * 1024,
+        windowsHide: true
+      },
+      (err, stdout) => {
+        if (err) {
+          resolveExtract({ kind: 'unreadable', reason: 'The file could not be read (the reader stopped or took too long).' });
+          return;
+        }
+        try {
+          resolveExtract(JSON.parse(stdout) as DocExtraction);
+        } catch {
+          resolveExtract({ kind: 'unreadable', reason: 'The file could not be read.' });
+        }
+      }
+    );
+  });
+}
+if (existsSync(docTextCliPath())) knowledge.setExtractor(extractOutOfProcess);
 /** Reads the reflect tunables from config each tick (defaults baked in here so a
  *  pre-existing config.json without the keys still gets sane values). */
 function reflectSettings(): ReflectSettings {
@@ -2880,6 +2917,7 @@ async function spawnAgentCore(opts: AgentSpawnOptions, owner: Electron.WebConten
           // expands to nothing, so every knowledge-graph instruction was dead on a
           // Windows floor. Empty when the KG is off (the line isn't emitted then).
           kgCliPath: knowledge.env().KG_CLI,
+          docTextCliPath: existsSync(docTextCliPath()) ? docTextCliPath() : undefined,
           theme: readConfig().terminalTheme ?? 'light',
           // W3 — default-MCP consent state + the bundled skills source dir.
           mcpDefaults: readConfig().mcpDefaults,
@@ -3823,19 +3861,11 @@ ipcMain.handle('kg:remove', (_evt, id: unknown) =>
   ({ ok: typeof id === 'string' && id ? knowledge.remove(id) : false }));
 // Ingest one or more files from disk. Best-effort per file; returns per-file
 // results so the UI can report partial success.
-ipcMain.handle('kg:ingestFiles', (_evt, payload: unknown) => {
+ipcMain.handle('kg:ingestFiles', async (_evt, payload: unknown) => {
   const p = (payload ?? {}) as { paths?: unknown; tags?: unknown };
   const paths = Array.isArray(p.paths) ? p.paths.filter((x): x is string => typeof x === 'string') : [];
   const tags = Array.isArray(p.tags) ? p.tags.filter((x): x is string => typeof x === 'string') : undefined;
-  const results = paths.map((srcPath) => {
-    try {
-      const r = knowledge.ingestFile(srcPath, { tags });
-      return { ok: true as const, srcPath, docId: r.docId, chunkCount: r.chunkCount };
-    } catch (e) {
-      return { ok: false as const, srcPath, error: e instanceof Error ? e.message : String(e) };
-    }
-  });
-  return { results };
+  return { results: await ingestSequentially(paths, tags) };
 });
 // Open a multi-file picker and ingest the chosen artifacts in one round-trip.
 ipcMain.handle('kg:addFiles', async (evt) => {
@@ -3846,16 +3876,28 @@ ipcMain.handle('kg:addFiles', async (evt) => {
     title: 'Add documents to the Knowledge Graph'
   });
   if (res.canceled || res.filePaths.length === 0) return { ok: false as const, error: 'cancelled' };
-  const results = res.filePaths.map((srcPath) => {
-    try {
-      const r = knowledge.ingestFile(srcPath);
-      return { ok: true as const, srcPath, docId: r.docId, chunkCount: r.chunkCount };
-    } catch (e) {
-      return { ok: false as const, srcPath, error: e instanceof Error ? e.message : String(e) };
-    }
-  });
-  return { ok: true as const, results };
+  return { ok: true as const, results: await ingestSequentially(res.filePaths) };
 });
+
+/** Ingest files one at a time. Sequential on purpose: kg-core appends every
+ *  document to a single index.jsonl, and parallel ingests would interleave
+ *  those appends. A file that can't be read comes back ok:false with the
+ *  reason, which the UI shows by name. */
+async function ingestSequentially(paths: string[], tags?: string[]) {
+  const results: Array<
+    | { ok: true; srcPath: string; docId: string; chunkCount: number }
+    | { ok: false; srcPath: string; error: string }
+  > = [];
+  for (const srcPath of paths) {
+    try {
+      const r = await knowledge.ingestFile(srcPath, tags ? { tags } : {});
+      results.push({ ok: true, srcPath, docId: r.docId, chunkCount: r.chunkCount });
+    } catch (e) {
+      results.push({ ok: false, srcPath, error: e instanceof Error ? e.message : String(e) });
+    }
+  }
+  return results;
+}
 
 // ─── IPC: composer attachments (images + arbitrary files, attached by PATH) ──
 // The message queue pipes raw text into a Claude CLI PTY, so attachments travel

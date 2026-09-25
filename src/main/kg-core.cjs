@@ -261,9 +261,11 @@ function ingest(kgRoot, input = {}) {
   fs.appendFileSync(path.join(kgRoot, 'index.jsonl'), lines.join('\n') + '\n', 'utf8');
 
   const meta = {
-    id: docId, title, source, modality, mime: ex.mime || null, origExt,
+    id: docId, title, source, modality, mime: input.mime || ex.mime || null, origExt,
     bytes, tags, caption: input.caption || null, chunkCount: chunks.length,
-    addedAt: nowIso(), extractor: ex.extractor, truncated
+    // Text converted upstream (docText.ts) arrives as inline text; record the
+    // converter that produced it, not the generic inline@1.
+    addedAt: nowIso(), extractor: input.extractor || ex.extractor, truncated
   };
   fs.writeFileSync(path.join(docDir, 'meta.json'), JSON.stringify(meta, null, 2), 'utf8');
 

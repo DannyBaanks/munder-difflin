@@ -48,6 +48,7 @@
     "better-sqlite3": "^11.10.0",
     "commit-graph": "^2.4.0",
     "electron-updater": "^6.8.9",
+    "fflate": "^0.8.3",
     "i18next": "^26.3.6",
     "monaco-editor": "^0.52.2",
     "node-pty": "^1.0.0",
@@ -59,6 +60,7 @@
     "react-markdown": "^10.1.0",
     "remark-gfm": "^4.0.1",
     "tunnelmole": "^2.4.0",
+    "unpdf": "^1.8.1",
     "zustand": "^4.5.5"
   },
   "devDependencies": {
