@@ -71,7 +71,7 @@ Michael te hace una pregunta y no estás en la compu. Contéstale desde el celul
 
 | Pestaña | Qué haces ahí |
 |---|---|
-| **Oficina** | Ves si Michael está trabajando, cuántos workers están libres, la RAM y el CPU, y le escribes lo que necesites. |
+| **Oficina** | Ves si Michael está trabajando, cuántos workers están libres, la RAM y el CPU, y le escribes a Michael **o a cualquiera del equipo** (toca su tarjeta). Arriba, el nombre de la oficina es un menú: cámbiate a tus otras oficinas para ver su equipo y su tablero, y mandarle trabajo a su Michael. |
 | **Preguntas** | Contestas lo que Michael o su equipo te preguntaron. La respuesta queda en la tarjeta y Michael la recibe al instante. |
 | **Tablero** | Revisas las tareas bloqueadas, en curso, por hacer y las últimas terminadas. |
 | **Enlace** | Ves tus otras oficinas en vivo y les pasas trabajo. |

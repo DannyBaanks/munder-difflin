@@ -196,12 +196,46 @@ function answer(office, { task_id, q, text }, device) {
   return { task_id: t.id, message_id: messageId };
 }
 
-function ask(office, { text }, device) {
+/**
+ * A message from the human to Michael, or to one agent of THIS office by id.
+ * The id must be a live agent in the registry: that is also what keeps a
+ * crafted id from ever naming a path.
+ */
+function ask(office, { text, agent }, device) {
   const body = textArg(text, 'el mensaje');
+  let to = 'god';
+  let name = 'Michael';
+  if (agent !== undefined && agent !== null && agent !== '' && agent !== 'god') {
+    const { agents, godId } = office.registryData();
+    const a = typeof agent === 'string' && Object.prototype.hasOwnProperty.call(agents, agent) ? agents[agent] : null;
+    if (!a || typeof a !== 'object' || a.archived) throw new L.LinkError('no_agent', 'ese agente ya no está en la oficina', 404);
+    if (agent !== godId) { to = agent; name = a.name || agent; }
+  }
   const subject = `Mensaje del humano desde el celular: ${body.split('\n')[0].slice(0, 60)}`;
-  const messageId = office.message(subject, `${body}\n\n_(Enviado desde el celular «${device.name}».)_`, 'request');
-  office.log({ event: 'remote_message', device: device.device_id, message_id: messageId });
-  return { message_id: messageId };
+  const messageId = office.message(subject, `${body}\n\n_(Enviado desde el celular «${device.name}».)_`, 'request', to);
+  office.log({ event: 'remote_message', device: device.device_id, to, message_id: messageId });
+  return { message_id: messageId, to, name };
+}
+
+/**
+ * Another office's overview, fetched through the office link. An office that
+ * predates the `overview` op still answers `status`: show its numbers and say
+ * the rest needs an update there, instead of failing the whole screen.
+ */
+async function peerOverview(dir, query) {
+  try {
+    const r = await L.call(query, 'overview', {}, { dir, timeoutMs: 4000, budgetMs: 5000 });
+    return { ...r.result, remote: true, latency_ms: r.latency_ms };
+  } catch (e) {
+    if (e.code !== 'bad_op') throw e;
+    const r = await L.call(query, 'status', {}, { dir, timeoutMs: 3000, budgetMs: 4000 });
+    const s = r.result;
+    return {
+      office: { office_id: s.office_id, name: s.name, fingerprint: L.prettyFingerprint(s.office_id), host: null, version: s.version || null },
+      capacity: s.capacity, agents: [], tasks: [], questions: [], hive: true,
+      remote: true, limited: true, latency_ms: r.latency_ms,
+    };
+  }
 }
 
 async function peersView(dir) {
@@ -254,7 +288,13 @@ function createRemoteRoutes({ dir = L.stateDir(), hiveRoot = L.localHiveRoot(), 
       // `addresses` lets the native app pair once at home and still find this
       // office over Tailscale later: it tries each address, last good first.
       case 'hello': return { office_id: identity.office_id, name: identity.name, device: device.name, version, addresses: officeAddresses() };
-      case 'overview': return overview(officeOrNull(), identity, version);
+      case 'overview': {
+        const target = typeof args.office === 'string' ? args.office.trim() : '';
+        if (!target || target === 'self' || target === identity.office_id || target === identity.name) {
+          return overview(officeOrNull(), identity, version);
+        }
+        return peerOverview(dir, target);
+      }
       case 'peers': return { peers: await peersView(dir) };
       case 'answer': return answer(office(), args, device);
       case 'ask': return ask(office(), args, device);

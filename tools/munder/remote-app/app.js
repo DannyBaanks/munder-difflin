@@ -27,7 +27,9 @@
 
   let state = load();
   let key = state && state.key ? C.fromB64u(state.key) : null;
-  const ui = { tab: 'office', filter: 'blocked', data: null, peers: null, online: true, busy: false, drafts: {} };
+  // `office`: null = this office; otherwise the office_id of a paired one, seen
+  // through this office's link. `to`: the agent the composer writes to.
+  const ui = { tab: 'office', filter: 'blocked', data: null, peers: null, online: true, busy: false, drafts: {}, office: null, to: 'god' };
 
   // ── DOM helpers ────────────────────────────────────────────────────────────
   function h(tag, attrs, ...kids) {
@@ -372,22 +374,66 @@
         tile('RAM libre', `${c.ram_free_gb ?? '—'}`, c.ram_total_gb ? `de ${c.ram_total_gb} GB` : ''),
         tile('Carga CPU', `${c.load1 ?? '—'}`, c.cpus ? `${c.cpus} CPUs` : '')),
       d.hive ? null : h('div', { class: 'offline-banner' }, 'No encuentro el hive de esta oficina. Abre Munder en la computadora.'),
-      h('div', { class: 'section-title' }, 'Pídele algo a Michael'),
-      h('div', { class: 'card' },
-        ...composer({
-          id: 'ask', placeholder: 'Escribe lo que necesitas…', button: 'Enviar a Michael',
-          onsend: async (text) => { await call('ask', { text }); toast('Enviado a Michael'); },
-        })),
+      d.limited ? h('div', { class: 'offline-banner' }, 'Esa oficina tiene un Munder más viejo: solo manda sus números. Actualízala para ver su equipo y su tablero.') : null,
+      ...(d.remote ? remoteComposer(d) : localComposer(d, god, agents)),
       h('div', { class: 'section-title' }, `Equipo · ${agents.length + (god ? 1 : 0)}`),
       god || agents.length
         ? h('div', { class: 'team' }, god ? agentCard(god) : null, agents.map(agentCard))
-        : h('div', { class: 'card empty' }, 'Nadie conectado todavía'),
+        : h('div', { class: 'card empty' }, d.limited ? 'Sin datos del equipo' : 'Nadie conectado todavía'),
+    ];
+  }
+
+  /** This office: write to Michael or to any one agent (tap a card, or pick here). */
+  function localComposer(d, god, agents) {
+    const live = [god, ...agents].filter(Boolean);
+    if (!live.some((a) => a.id === ui.to)) ui.to = 'god';
+    const target = live.find((a) => a.id === ui.to);
+    const name = ui.to === 'god' || !target ? 'Michael' : target.name;
+    const pick = h('select', { id: 'to', 'aria-label': 'Para quién' },
+      h('option', { value: 'god' }, 'Michael (jefe)'),
+      agents.map((a) => h('option', { value: a.id }, a.name)));
+    pick.value = ui.to;
+    pick.addEventListener('change', () => { ui.to = pick.value; render(); });
+    return [
+      h('div', { class: 'section-title' }, `Pídele algo a ${name}`),
+      h('div', { class: 'card' },
+        h('label', { class: 'field', for: 'to' }, 'Para'),
+        pick,
+        ...composer({
+          id: `ask:${ui.to}`, placeholder: 'Escribe lo que necesitas…', button: `Enviar a ${name}`,
+          onsend: async (text) => {
+            const r = await call('ask', ui.to === 'god' ? { text } : { text, agent: ui.to });
+            toast(`Enviado a ${(r && r.name) || name}`);
+          },
+        })),
+    ];
+  }
+
+  /** Another office: everything goes through ITS Michael, as a delegated task. */
+  function remoteComposer(d) {
+    return [
+      h('div', { class: 'section-title' }, 'Pídele algo a su Michael'),
+      h('div', { class: 'card' },
+        h('p', { class: 'hint' }, `En ${d.office.name} todo entra por su Michael: él reparte el trabajo a su equipo.`),
+        ...composer({
+          id: `delegate:${ui.office}`, placeholder: 'Qué debe hacer su Michael…', button: 'Enviar a su Michael',
+          onsend: async (text) => {
+            const r = await call('delegate', { office: ui.office, text });
+            toast(`Delegada a ${r.office}`);
+          },
+        })),
     ];
   }
 
   /** Like the agent cards along the bottom of the app: portrait, name, state. */
   function agentCard(a) {
-    return h('div', { class: `agent${a.god ? ' boss' : ''}` },
+    const pickable = ui.data && !ui.data.remote;
+    const chosen = pickable && ui.to === a.id;
+    return h(pickable ? 'button' : 'div', {
+      class: `agent${a.god ? ' boss' : ''}${chosen ? ' chosen' : ''}`,
+      onclick: pickable ? () => { ui.to = a.id; render(); window.scrollTo(0, 0); } : null,
+      'aria-label': pickable ? `Escribirle a ${a.name}` : null,
+    },
       portrait(castOf(a), 2),
       h('div', { class: 'who' },
         h('div', { class: 'name' }, a.name),
@@ -403,14 +449,14 @@
       h('div', { class: 'asker' },
         portrait(t.assignee ? castOf(agentById(d, t.assignee) || { id: t.assignee }) : 'michael', 2),
         h('div', { class: 'bubble' }, markdown(t.question.q))),
-      ...composer({
+      ...(d.remote ? [h('p', { class: 'hint' }, 'Contéstala desde el celular emparejado con esa oficina, o pásale la respuesta a su Michael desde Oficina.')] : composer({
         id: `qa:${t.id}`, placeholder: 'Tu respuesta…', button: 'Responder',
         onsend: async (text) => {
           await call('answer', { task_id: t.id, q: t.question.q, text });
           toast('Respuesta enviada a Michael');
           await refresh();
         },
-      })));
+      }))));
   }
 
   function boardTab(d) {
@@ -510,9 +556,25 @@
     }, icon(id), label, id === 'ask' && q ? h('span', { class: 'badge' }, String(q)) : null)));
   }
 
+  /** The header, as a menu: this office first, then every paired office. */
+  function officeSwitcher(d) {
+    const sel = h('select', { class: 'switcher', id: 'office', 'aria-label': 'Oficina' },
+      h('option', { value: '' }, `${state.office.name} · esta`),
+      (ui.peers || []).map((p) => h('option', { value: p.office_id }, `${p.name}${p.online ? '' : ' · sin conexión'}`)));
+    sel.value = ui.office || '';
+    sel.addEventListener('change', () => {
+      ui.office = sel.value || null;
+      ui.to = 'god';
+      ui.data = null;
+      render();
+      refresh();
+    });
+    return sel;
+  }
+
   function mainScreen() {
     const d = ui.data;
-    const title = { office: state.office.name, ask: 'Preguntas', board: 'Tablero', link: 'Enlace' }[ui.tab];
+    const title = { office: (d && d.office.name) || state.office.name, ask: 'Preguntas', board: 'Tablero', link: 'Enlace' }[ui.tab];
     const body = !d ? [h('div', { class: 'empty' }, ui.online ? 'Cargando…' : 'Sin conexión')]
       : ui.tab === 'office' ? officeTab(d)
         : ui.tab === 'ask' ? questionsTab(d)
@@ -520,8 +582,10 @@
             : linkTab();
     return [
       h('main', { class: 'screen' },
-        h('div', { class: 'top' }, h('span', { class: `dot ${ui.online ? 'on' : 'off'}`, title: ui.online ? 'en línea' : 'sin conexión' }), h('h1', null, title)),
-        ui.tab === 'office' && d ? h('p', { class: 'sub' }, `${d.office.host} · ${d.office.fingerprint}`) : null,
+        h('div', { class: 'top' }, h('span', { class: `dot ${ui.online ? 'on' : 'off'}`, title: ui.online ? 'en línea' : 'sin conexión' }),
+          ui.tab === 'office' && (ui.peers || []).length ? officeSwitcher(d) : h('h1', null, title)),
+        ui.tab === 'office' && d ? h('p', { class: 'sub' }, `${d.office.host || d.office.name} · ${d.office.fingerprint}`) : null,
+        (ui.tab === 'ask' || ui.tab === 'board') && d && d.remote ? h('p', { class: 'sub' }, `de ${d.office.name}`) : null,
         ui.online ? null : h('div', { class: 'offline-banner' }, ui.offlineWhy || 'No alcanzo la oficina. ¿Está encendido el enlace y estás en la misma red o en Tailscale?'),
         body),
       tabs(d),
@@ -562,7 +626,10 @@
     if (!state || !state.paired) return;
     if (document.visibilityState === 'visible' && !ui.busy) {
       try {
-        ui.data = await call('overview');
+        const want = ui.office;
+        const data = await call('overview', want ? { office: want } : {});
+        if (want !== ui.office) { timer = setTimeout(refresh, 0); return; } // switched mid-flight
+        ui.data = data;
         ui.online = true;
         ui.offlineWhy = null;
       } catch (e) {
@@ -585,12 +652,13 @@
     if (Date.now() - peersAt < PEERS_MS && ui.peers) return;
     peersAt = Date.now();
     try { ui.peers = (await call('peers')).peers; } catch { ui.peers = ui.peers || []; }
-    if (ui.tab === 'link') render();
+    const el = document.activeElement;
+    if (!(el && (el.tagName === 'TEXTAREA' || el.tagName === 'INPUT' || el.tagName === 'SELECT'))) render();
   }
 
   document.addEventListener('visibilitychange', () => { if (document.visibilityState === 'visible') refresh(); });
 
   render();
   if (state && !state.paired) waitForAccept();
-  else refresh();
+  else { refresh(); refreshPeers(); }
 })();
