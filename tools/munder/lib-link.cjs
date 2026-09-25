@@ -248,6 +248,12 @@ function checkOriginRef(ref) {
   return clean;
 }
 
+function payloadFingerprint({ compose, title, priority }) {
+  const normalizedTitle = typeof title === 'string' ? title.trim() : '';
+  const normalizedPriority = Number.isInteger(priority) ? priority : 5;
+  return crypto.createHash('sha256').update(JSON.stringify([String(compose).trim(), normalizedTitle, normalizedPriority])).digest('hex');
+}
+
 /** The index, pruned by age and capped in size so it can never grow unbounded. */
 function loadOrigins(dir = stateDir()) {
   const all = readJson(files(dir).origins, {});
@@ -260,11 +266,11 @@ function loadOrigins(dir = stateDir()) {
 function saveOrigins(origins, dir = stateDir()) { writePrivate(files(dir).origins, origins); }
 
 /** Record (or refresh) one delegation, scoped to the office it went to. */
-function rememberOrigin({ dir = stateDir(), toOffice, toName, originRef, taskId, messageId = null }) {
+function rememberOrigin({ dir = stateDir(), toOffice, toName, originRef, taskId, messageId = null, payloadHash = null }) {
   const ref = checkOriginRef(originRef);
   if (!ref || !toOffice || !taskId) return null;
   const all = loadOrigins(dir);
-  const rec = { origin_ref: ref, task_id: taskId, message_id: messageId, to_office: toOffice, to_name: toName || null, created_at: new Date().toISOString() };
+  const rec = { origin_ref: ref, task_id: taskId, message_id: messageId, to_office: toOffice, to_name: toName || null, payload_hash: payloadHash, created_at: new Date().toISOString() };
   all[originKey(toOffice, ref)] = rec;
   saveOrigins(all, dir);
   return rec;
@@ -300,13 +306,15 @@ class Office {
    * started before an upgrade keeps counting workers instead of reporting the
    * wrapper keys as if they were agents.
    */
-  registry() {
+  registryData() {
     const reg = readJson(this.p('registry.json'), {});
-    if (!reg || typeof reg !== 'object' || Array.isArray(reg)) return {};
+    if (!reg || typeof reg !== 'object' || Array.isArray(reg)) return { agents: {}, godId: 'god' };
     const agents = reg.agents;
-    if (agents && typeof agents === 'object' && !Array.isArray(agents)) return agents;
-    return reg;
+    if (agents && typeof agents === 'object' && !Array.isArray(agents)) return { agents, godId: typeof reg.godId === 'string' ? reg.godId : 'god' };
+    return { agents: reg, godId: 'god' };
   }
+
+  registry() { return this.registryData().agents; }
 
   log(entry) {
     fs.mkdirSync(this.root, { recursive: true });
@@ -350,17 +358,21 @@ class Office {
     if (typeof compose !== 'string' || !compose.trim()) throw new LinkError('bad_args', 'falta el texto de la tarea');
     const ref = checkOriginRef(origin.task_ref);
     const key = ref ? originKey(origin.office_id, ref) : null;
+    const payloadHash = payloadFingerprint({ compose, title, priority });
     const origins = this.loadOrigins();
 
-    // Idempotent per peer + origin_ref: a retried or replayed submit (fresh
-    // nonce, same ref) returns the very same task instead of duplicating work.
     if (key && origins[key] && origins[key].task_id) {
+      const previousHash = origins[key].payload_hash;
+      if (previousHash && previousHash !== payloadHash) throw new LinkError('origin_conflict', 'origin_ref ya existe con otro contenido', 409);
       const seen = this.tasks().find((x) => x.id === origins[key].task_id);
       if (seen) {
+        if (!previousHash) {
+          origins[key].payload_hash = payloadHash;
+          this.saveOrigins(origins);
+        }
         this.log({ event: 'link_submit_duplicate', task_id: seen.id, from_office: origin.office_id, origin_ref: ref });
         return { task_id: seen.id, message_id: origins[key].message_id || null, status: 'accepted', duplicate: true, receipt: this.receipt('link_task_duplicate', seen.id) };
       }
-      // The task left our board (or the board was reset): let the ref be reused.
     }
 
     const taskId = `task-${Date.now()}-${crypto.randomUUID().slice(0, 8)}`;
@@ -384,7 +396,7 @@ class Office {
     this.writeJson(this.p('tasks.json'), { tasks });
     if (key) {
       origins[key] = {
-        origin_ref: ref, task_id: taskId, message_id: messageId,
+        origin_ref: ref, task_id: taskId, message_id: messageId, payload_hash: payloadHash,
         to_office: origin.office_id, to_name: origin.name,
         created_at: new Date().toISOString(),
       };
@@ -499,11 +511,11 @@ function hostCapacity() {
 function capacity(office) {
   const out = hostCapacity();
   if (office) {
-    const reg = office.registry();
-    const agents = Object.entries(reg).filter(([id, a]) => id !== 'god' && a && typeof a === 'object');
+    const { agents: registry, godId } = office.registryData();
+    const agents = Object.entries(registry).filter(([id, a]) => id !== godId && a && typeof a === 'object');
     out.workers_total = agents.length;
     out.workers_idle = agents.filter(([, a]) => a.status === 'idle').length;
-    out.michael_state = reg.god && typeof reg.god === 'object' ? (reg.god.status || 'idle') : 'offline';
+    out.michael_state = registry[godId] && typeof registry[godId] === 'object' ? (registry[godId].status || 'idle') : 'offline';
     const tasks = office.tasks();
     out.tasks_open = tasks.filter((t) => t.status !== 'done').length;
   }
@@ -728,7 +740,7 @@ async function call(query, op, args = {}, { dir = stateDir(), timeoutMs = 6000, 
       return { peer, address, latency_ms: Date.now() - started, result: payload.result };
     } catch (e) {
       lastErr = e;
-      if (e instanceof LinkError && ['unknown_peer', 'bad_signature', 'no_task', 'unknown_origin', 'bad_args', 'bad_op', 'no_hive'].includes(e.code)) throw e;
+      if (e instanceof LinkError && ['unknown_peer', 'bad_signature', 'no_task', 'unknown_origin', 'origin_conflict', 'bad_args', 'bad_op', 'no_hive'].includes(e.code)) throw e;
     }
   }
   throw lastErr || new LinkError('no_address', 'esa oficina no tiene direcciones conocidas', 503);
@@ -739,7 +751,7 @@ async function delegate(query, compose, { title, priority, dir = stateDir(), hiv
   const r = await call(query, 'submit', { compose, title, priority, origin_ref: originRef }, { dir });
   // Remember the ref we just minted, scoped to the office that answered: that is
   // what lets a reply from that exact office be routed back into this thread.
-  rememberOrigin({ dir, toOffice: r.peer.office_id, toName: r.peer.name, originRef, taskId: r.result.task_id });
+  rememberOrigin({ dir, toOffice: r.peer.office_id, toName: r.peer.name, originRef, taskId: r.result.task_id, payloadHash: payloadFingerprint({ compose, title, priority }) });
   appendReceipt(dir, { event: 'delegated', to: r.peer.office_id, to_name: r.peer.name, origin_ref: originRef, remote_task_id: r.result.task_id, duplicate: !!r.result.duplicate, compose: compose.slice(0, 200) });
   if (hiveRoot) {
     // our own Michael's audit trail also records that this work left the office
@@ -827,11 +839,13 @@ async function discoverTailscale({ timeoutMs = 1500, dir = stateDir() } = {}) {
   try { status = JSON.parse(execFileSync('tailscale', ['status', '--json'], { encoding: 'utf8', timeout: 4000, stdio: ['ignore', 'pipe', 'ignore'] })); }
   catch { return { available: false, offices: [] }; }
   const me = loadIdentity(dir).office_id;
-  const peers = Object.values(status.Peer || {}).filter((p) => p.Online && Array.isArray(p.TailscaleIPs) && p.TailscaleIPs.length);
+  const peers = Object.values(status.Peer || {}).filter((p) => p.Online && Array.isArray(p.TailscaleIPs) && p.TailscaleIPs.length).slice(0, 32);
+  const deadline = Date.now() + Math.max(1500, Number(timeoutMs) || 0) * 2;
   const results = await Promise.all(peers.map(async (p) => {
+    const remaining = Math.max(1, deadline - Date.now());
     const ip = p.TailscaleIPs.find((x) => !x.includes(':')) || p.TailscaleIPs[0];
     try {
-      const c = await hello(ip, timeoutMs);
+      const c = await hello(ip, Math.min(timeoutMs, remaining));
       return c.office_id === me ? null : { ...c, address: hostPort(ip), via: 'tailscale', host: p.HostName };
     } catch { return null; }
   }));

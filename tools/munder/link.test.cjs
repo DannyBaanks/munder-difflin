@@ -189,8 +189,11 @@ test('submit is idempotent per peer+origin_ref, and it survives a restart', asyn
   // on the same state dir still recognises the ref.
   const b2 = await serve({ ...b, server: undefined });
   t.after(() => b2.server.close());
-  const afterRestart = await L.call(peer.name, 'submit', { ...args, compose: 'otra cosa' }, { dir: a.dir });
+  const afterRestart = await L.call(peer.name, 'submit', args, { dir: a.dir });
   assert.equal(afterRestart.result.task_id, first.result.task_id);
+  assert.equal(taskList(b).length, 1);
+  assert.equal(inboxCount(b), 1);
+  await assert.rejects(L.call(peer.name, 'submit', { ...args, compose: 'otra cosa' }, { dir: a.dir }), (e) => e.code === 'origin_conflict');
   assert.equal(taskList(b).length, 1);
   assert.equal(inboxCount(b), 1);
 
@@ -248,6 +251,7 @@ test('capacity reads a nested roster and an old flat one the same way', () => {
   const o = office('cap');
   const flat = { god: { name: 'Michael', status: 'idle' }, w1: { name: 'Jim', status: 'idle' }, w2: { name: 'Pam', status: 'working' } };
   const nested = { godId: 'god', agents: flat, version: 2 };
+  const officeFields = (value) => ({ workers_total: value.workers_total, workers_idle: value.workers_idle, michael_state: value.michael_state, tasks_open: value.tasks_open });
   const reg = path.join(o.hive, 'registry.json');
   fs.writeFileSync(path.join(o.hive, 'tasks.json'), JSON.stringify({ tasks: [{ id: 't1', status: 'todo' }, { id: 't2', status: 'done' }] }));
 
@@ -256,19 +260,25 @@ test('capacity reads a nested roster and an old flat one the same way', () => {
   fs.writeFileSync(reg, JSON.stringify(nested));
   const current = L.capacity(new L.Office(o.hive, 'link:x'));
 
-  assert.deepEqual(current, legacy);
+  assert.deepEqual(officeFields(current), officeFields(legacy));
   assert.equal(current.workers_total, 2);
   assert.equal(current.workers_idle, 1);
   assert.equal(current.michael_state, 'idle');
   assert.equal(current.tasks_open, 1);
   // the wrapper keys are not agents
   assert.notEqual(current.workers_total, 2 + 1);
+  const custom = { godId: 'boss', agents: { boss: { status: 'idle' }, w1: { status: 'idle' }, w2: { status: 'working' } } };
+  fs.writeFileSync(reg, JSON.stringify(custom));
+  const customCapacity = L.capacity(new L.Office(o.hive, 'link:x'));
+  assert.equal(customCapacity.workers_total, 2);
+  assert.equal(customCapacity.workers_idle, 1);
+  assert.equal(customCapacity.michael_state, 'idle');
   // missing roster: offline, not a crash
   fs.writeFileSync(reg, '{}');
   assert.equal(L.capacity(new L.Office(o.hive, 'link:x')).michael_state, 'offline');
   // a roster saved with a BOM (Windows editors do that) is not an empty roster
   fs.writeFileSync(reg, `\uFEFF${JSON.stringify(nested)}`);
-  assert.deepEqual(L.capacity(new L.Office(o.hive, 'link:x')), legacy);
+  assert.deepEqual(officeFields(L.capacity(new L.Office(o.hive, 'link:x'))), officeFields(legacy));
 });
 
 test('the public hello carries host numbers only, never the office roster or board', async (t) => {
@@ -339,4 +349,3 @@ test('a peer address list is capped, and a call gives up on its budget', async (
   const elapsed = Date.now() - started;
   assert.ok(elapsed < 3000, `bounded by the budget, took ${elapsed}ms`);
 });
-
