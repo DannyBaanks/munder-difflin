@@ -1538,11 +1538,25 @@ export class HiveManager {
 
   // — messaging —
 
-  /** Normalize a partial message into a full HiveMessage. */
+  /** Normalize a partial message into a full HiveMessage.
+   *
+   *  The id is minted HERE, always, and never taken from the caller — because
+   *  the id is also the inbox FILENAME (`<id>.json`). An agent-authored id could
+   *  write outside its recipient's inbox (`../`) or land on top of another
+   *  agent's message and overwrite it. PROTOCOL.md already tells agents "the
+   *  harness fills in `id`", so this enforces the documented contract instead of
+   *  trusting an out-of-contract field.
+   *
+   *  The fork already paid for this once: `useHive.ts` had to abandon its
+   *  largest-id high-water mark because one agent's `dev15-progress-canvas-v4`
+   *  sorted above every timestamp and froze the wake loop for the whole floor.
+   *
+   *  `<timestamp>-<rand>` is kept rather than a bare randomUUID: ids are
+   *  compared as strings wherever they stand in for creation order. */
   private normalize(partial: Partial<HiveMessage>, from: string): HiveMessage {
     const act = (partial.act ?? 'inform') as MessageAct;
     return {
-      id: partial.id ?? `${stamp()}-${shortRand()}`,
+      id: `${stamp()}-${shortRand()}`,
       conversation: partial.conversation ?? `conv-${shortRand()}`,
       in_reply_to: partial.in_reply_to ?? null,
       from: partial.from ?? from,
