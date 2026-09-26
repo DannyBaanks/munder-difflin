@@ -1,5 +1,6 @@
 // A minimal ACP v1 agent for CI: session/new|resume, prompt (asks one permission,
-// then writes a file only if allowed), cancel, close. FAKE_ACP: ok | hang | crash
+// then writes a file only if allowed), cancel, close.
+// FAKE_ACP: ok | hang | crash | sprint
 const fs = require('fs');
 const path = require('path');
 let buf = '';
@@ -29,6 +30,11 @@ function handle(m) {
       s.turns++;
       const finish = (res) => r(res);
       if (mode === 'hang') { s.pending = finish; return; }
+      // sprint: answer and die in the same tick. The reply is already on the
+      // wire when the process goes, so a parent that settles on 'exit' may
+      // never read it. On Linux 'exit' already waits for the drain and this
+      // is invisible; on Windows it was the losing side of the race.
+      if (mode === 'sprint') { r({ stopReason: 'end_turn' }); process.exit(0); }
       update(m.params.sessionId, { sessionUpdate: 'tool_call', toolCallId: 't1', title: 'write', kind: 'edit', status: 'pending' });
       const id = ++n;
       waiting.set(id, (res) => {
