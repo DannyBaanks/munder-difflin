@@ -129,7 +129,10 @@ jobs:
           disable-animations: true
           emulator-options: -no-window -no-snapshot -noaudio -no-boot-anim -camera-back none
           script: |
-            set -euo pipefail
+            # `set -eu`: el runner ejecuta esto con /usr/bin/sh (dash),
+            # que no conoce `pipefail`. No se usa ningún pipe que lo necesite:
+            # cada `adb` ya falla solo y `test -s` vigila cada captura.
+            set -eu
             PKG=mx.isyco.munder.mobile.debug
             APK=$(find apk -name "*.apk" | head -1)
             test -n "$APK" || { echo "::error::APK not found"; exit 1; }

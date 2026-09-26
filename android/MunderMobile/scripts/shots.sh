@@ -8,7 +8,8 @@
 #
 # Deja 13 PNG en android/MunderMobile/shots/, los mismos 13 que el CI:
 # pair-light + office/questions/board/link/panel/locked en light y dark.
-set -euo pipefail
+# `set -eu` como en el CI (sh, sin pipefail) para que ambos corran igual.
+set -eu
 cd "$(dirname "$0")/.."
 
 PKG=mx.isyco.munder.mobile.debug
