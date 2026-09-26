@@ -56,6 +56,8 @@ export default defineConfig({
     build: {
       rollupOptions: {
         input: {
+          // boot picks the office (index) or Munder Panel (--panel); see boot.ts.
+          boot: resolve(__dirname, 'src/main/boot.ts'),
           index: resolve(__dirname, 'src/main/index.ts'),
           // Agent-facing `doc-text` CLI: same converter, same bundled libraries.
           // The app also runs it (--json) to parse documents outside main.
