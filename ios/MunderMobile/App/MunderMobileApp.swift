@@ -20,7 +20,8 @@ struct MunderMobileApp: App {
         if demo,
            let o = Bundle.main.url(forResource: "overview", withExtension: "json", subdirectory: "Media/Demo").flatMap({ try? Data(contentsOf: $0) }),
            let p = Bundle.main.url(forResource: "demo-peers", withExtension: "json", subdirectory: "Media/Demo").flatMap({ try? Data(contentsOf: $0) }) {
-            store.loadDemo(overview: o, peers: p)
+            let pn = Bundle.main.url(forResource: "demo-panel", withExtension: "json", subdirectory: "Media/Demo").flatMap({ try? Data(contentsOf: $0) })
+            store.loadDemo(overview: o, peers: p, panel: pn)
         }
         _store = StateObject(wrappedValue: store)
         _lock = StateObject(wrappedValue: lock)

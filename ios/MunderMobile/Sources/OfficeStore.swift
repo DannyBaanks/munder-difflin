@@ -110,13 +110,16 @@ public final class OfficeStore: ObservableObject {
     }
 
     /// `-MunderDemo`: show the bundled demo office (for simulator screenshots). No network, no Keychain.
-    public func loadDemo(overview: Data, peers: Data) {
+    public func loadDemo(overview: Data, peers: Data, panel: Data? = nil) {
         client = nil
         office = PairedOffice(officeId: "fa801f7ab6693f03", name: "michael-victus", boxPub: "", deviceId: "9ed00cd88840bed1",
                               deviceName: "iPhone de Danny", addresses: ["192.168.1.64:47831", "100.101.4.7:47831"],
                               via: ["192.168.1.64:47831": "lan", "100.101.4.7:47831": "tailscale"])
         self.overview = try? RemoteClient.decoder.decode(Overview.self, from: overview)
         self.peers = (try? RemoteClient.decoder.decode(PeersReply.self, from: peers))?.peers
+        // The demo host, from the same fixture the tests decode. No authority dance
+        // in a screenshot: it is a picture of the tab, not of a real grant.
+        if let panel { self.panel = try? RemoteClient.decoder.decode(PanelState.self, from: panel) }
         online = true
         phase = .paired
     }

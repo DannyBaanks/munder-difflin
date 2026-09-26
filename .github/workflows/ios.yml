@@ -200,6 +200,9 @@ jobs:
             shoot "questions-$scheme" -MunderDemo -MunderTab 1
             shoot "board-$scheme" -MunderDemo -MunderTab 2
             shoot "link-$scheme" -MunderDemo -MunderTab 3
+            # The Panel tab, from the bundled demo host. This is the PR evidence for
+            # a change that only exists on screen.
+            shoot "panel-$scheme" -MunderDemo -MunderTab 4
             shoot "locked-$scheme" -MunderDemo -MunderDemoLocked
           done
           ls -la shots

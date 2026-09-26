@@ -227,7 +227,10 @@ async function panelFixture() {
   ];
   state.gpt = { available: false, on: false, running: false, profile: 'full', public_url: null, grants: 0, pending: [] };
   state.launcher = 'dev';
-  return { 'Tests/panel.json': Buffer.from(JSON.stringify(state, null, 2) + '\n') };
+  const bytes = Buffer.from(JSON.stringify(state, null, 2) + '\n');
+  // Also in the demo bundle, next to overview and demo-peers: that is what lets the
+  // CI screenshots job photograph the Panel tab without a host behind it.
+  return { 'Tests/panel.json': bytes, 'Media/Demo/demo-panel.json': bytes };
 }
 
 // panel.state() is async, so the whole pass is. Everything else is sync and
