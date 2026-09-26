@@ -269,6 +269,40 @@ function serveStatic(res, name) {
   res.end(body);
 }
 
+// ─── what a phone may reach ────────────────────────────────────────────────
+/**
+ * The authority each op needs, and the per-argument ceiling enforced with it.
+ * One table, read by the dispatch and by the tests, so a new op cannot arrive
+ * without both.
+ *
+ *   'office'  granted by the pairing code a human compares on both screens.
+ *   'machine' the host: opening/closing Munder, the link, the GPT gateway, the
+ *             reviver. Needs `munder link panel <celular>` on this machine.
+ *
+ * PANEL_OFF limits is measured, not guessed: on a live office panel.state came
+ * back at 0.5% of the 256 KiB body ceiling, and the worst case built from real
+ * record shapes (100 peers, 50 phones, 200 grants) reached 17.8%. A single op
+ * never needs paging, so no op takes a `page` argument.
+ */
+const PANEL_OFF = Object.freeze(['shortcut.install', 'link.phoneAuthority']); // writes a desktop file on a screen the phone cannot see; widens the phone's own authority
+const OFFICE = L.REMOTE_AUTHORITY.OFFICE;
+const MACHINE = L.REMOTE_AUTHORITY.MACHINE;
+const OP_AUTHORITY = Object.freeze({
+  hello: OFFICE, overview: OFFICE, peers: OFFICE, answer: OFFICE, ask: OFFICE, delegate: OFFICE,
+  'panel.state': MACHINE, 'panel.action': MACHINE,
+});
+/** Longest string any single argument may carry, in chars. Declared, per op. */
+const ARG_MAX = Object.freeze({ 'panel.action.code': 6, 'panel.action.id': 99, 'ask.text': 8000, 'answer.text': 8000, 'answer.q': 200, 'delegate.text': 8000, 'delegate.title': 120 });
+
+/** Every op a paired phone may try, and what it needs. Used by the tests. */
+function opCatalog() {
+  return Object.entries(OP_AUTHORITY).map(([op, authority]) => ({ op, authority, actions: op === 'panel.action' ? panelActions() : [] }));
+}
+/** The panel buttons a phone may press: the desktop set minus PANEL_OFF. */
+function panelActions() {
+  return Object.keys(require('./lib-panel.cjs').ACTIONS).filter((a) => !PANEL_OFF.includes(a));
+}
+
 function createRemoteRoutes({ dir = L.stateDir(), hiveRoot = L.localHiveRoot(), identity = L.loadIdentity(dir), version = 'dev', now = () => Date.now(), pairAllowed = () => true } = {}) {
   /** Pairings that committed but haven't revealed yet. Memory only, bounded. */
   const pre = new Map();
@@ -280,6 +314,9 @@ function createRemoteRoutes({ dir = L.stateDir(), hiveRoot = L.localHiveRoot(), 
     if (!keys.has(k)) keys.set(k, remoteKey(identity, rec.box_pub, rec.device_id));
     return keys.get(k);
   };
+
+  let panelLib = null;
+  const panel = () => (panelLib ||= require('./lib-panel.cjs'));
 
   async function dispatch(op, args, device) {
     const office = () => new L.Office(hiveRoot, 'human', dir);
@@ -303,6 +340,29 @@ function createRemoteRoutes({ dir = L.stateDir(), hiveRoot = L.localHiveRoot(), 
         const title = typeof args.title === 'string' && args.title.trim() ? args.title.trim().slice(0, 120) : undefined;
         const r = await L.delegate(String(args.office || ''), text, { title, dir, hiveRoot });
         return { office: r.peer.name, task_id: r.result.task_id, duplicate: !!r.result.duplicate, latency_ms: r.latency_ms };
+      }
+      // Munder Panel: the SAME buttons the desktop panel has, on the same
+      // engines, reached over the same seal. Required here, not at the top:
+      // lib-panel.cjs builds on lib-link.cjs, and this module is required BY it.
+      case 'panel.state': return panel().state();
+      case 'panel.action': {
+        const name = String(args.action || '').trim();
+        if (!name) throw new L.LinkError('bad_args', 'falta el botón');
+        if (PANEL_OFF.includes(name)) throw new L.LinkError('not_remote', `«${name}» solo se puede desde esta computadora`, 403);
+        const fn = Object.prototype.hasOwnProperty.call(panel().ACTIONS, name) ? panel().ACTIONS[name] : null;
+        if (!fn) throw new L.LinkError('bad_args', 'ese botón no existe', 404);
+        const given = args.args && typeof args.args === 'object' ? args.args : {};
+        for (const [k, v] of Object.entries(given)) {
+          if (typeof v !== 'string') throw new L.LinkError('bad_args', `${k} debe ser texto`, 400);
+          const max = ARG_MAX[`panel.action.${k}`];
+          if (max && v.length > max) throw new L.LinkError('bad_args', `${k} es demasiado largo`, 400);
+        }
+        try {
+          const r = await fn(given);
+          return { action: name, ok: !!r.ok, text: r.text || '' };
+        } catch (e) {
+          throw new L.LinkError(e.status === 400 ? 'bad_args' : 'action_failed', e.message, e.status || 500);
+        }
       }
       default: throw new L.LinkError('bad_op', `operación desconocida: ${op}`);
     }
@@ -375,7 +435,16 @@ function createRemoteRoutes({ dir = L.stateDir(), hiveRoot = L.localHiveRoot(), 
       seen.set(nk, t + L.NONCE_TTL_MS);
       let reply;
       try {
-        reply = { ok: true, result: await dispatch(String(msg.op || ''), msg.args && typeof msg.args === 'object' ? msg.args : {}, rec) };
+        const op = String(msg.op || '');
+        const args = msg.args && typeof msg.args === 'object' ? msg.args : {};
+        // The authority gate is INSIDE the try, so a phone that lacks it gets
+        // the same shape of answer as any other failure, and never learns
+        // whether the op it asked for exists.
+        const need = Object.prototype.hasOwnProperty.call(OP_AUTHORITY, op) ? OP_AUTHORITY[op] : MACHINE;
+        if (need === MACHINE && L.remoteAuthority(rec) !== MACHINE) {
+          throw new L.LinkError('no_authority', 'este celular puede manejar la oficina, no la computadora. Pídele a Michael que te lo conceda.', 403);
+        }
+        reply = { ok: true, result: await dispatch(op, args, rec) };
       } catch (e) {
         reply = { ok: false, code: e.code || 'error', error: e instanceof L.LinkError ? e.message : 'error interno' };
       }
@@ -392,4 +461,5 @@ function createRemoteRoutes({ dir = L.stateDir(), hiveRoot = L.localHiveRoot(), 
 module.exports = {
   REMOTE, APP_DIR, STATIC, GENERATED, createRemoteRoutes,
   deviceIdOf, remoteSas, remoteKey, sealFor, openFrom, openQuestion, overview,
+  OP_AUTHORITY, ARG_MAX, PANEL_OFF, opCatalog,
 };
