@@ -17,10 +17,11 @@ Segunda iteración pública del fork ISyCo sobre Munder Difflin 0.5.2.
 - El emparejamiento y las respuestas fueron endurecidos: SAS ligado a las llaves de cifrado, anti-replay, límites de `/pair` y descubrimiento UDP acotado a redes privadas/Tailscale.
 - La UI de **Configuración → Munder Link** usa el mismo estado y motor que el CLI.
 
-### 📱 Munder Mobile: PWA + app nativa de iPhone
+### 📱 Munder Mobile: PWA + apps nativas de iPhone y Android
 
-- Cliente móvil para ver la oficina, preguntas y tablero; escribirle a Michael o a un agente y cambiar entre oficinas enlazadas.
-- App nativa SwiftUI con el mismo protocolo `munder-remote@1`; CI produce una `.ipa` sin firmar y verifica su build.
+- Cliente móvil para ver la oficina, preguntas y tablero; escribirle a Michael o a un agente y cambiar entre oficinas enlazadas. En Android además está la pestaña **Panel** para manejar la computadora.
+- Apps nativas con el mismo protocolo `munder-remote@1`: SwiftUI en iPhone (`ios/MunderMobile/`, llaves en el Keychain, Face ID) y Kotlin + Compose en Android (`android/MunderMobile/`, llaves en el Keystore, huella o PIN). El celular es solo un sustrato: mismos ops, misma autoridad, mismos bytes cifrados.
+- Cada release trae las dos para instalar directo: **`MunderMobile-unsigned.ipa`** (se firma con tu Apple ID gratuito vía iloader/SideStore/AltStore) y **`MunderMobile-debug.apk`** (se instala directo y no caduca).
 - Emparejamiento único con direcciones LAN/Tailscale y selección de la ruta que responde.
 - **Face ID / código del dispositivo** antes de mostrar la oficina y nuevamente para acciones sensibles.
 - La app se vuelve a bloquear tras pasar tiempo en segundo plano y cubre el snapshot del app switcher.

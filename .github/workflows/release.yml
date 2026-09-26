@@ -135,7 +135,7 @@ jobs:
 
   publish:
     name: Publish release
-    needs: build
+    needs: [build, mobile-ios, mobile-android]
     if: startsWith(github.ref, 'refs/tags/')
     runs-on: ubuntu-latest
     steps:
@@ -148,8 +148,11 @@ jobs:
       - name: Flatten + merge checksums
         run: |
           mkdir -p release
-          find artifacts -type f \( -name '*.dmg' -o -name '*.zip' -o -name '*.exe' -o -name '*.AppImage' -o -name '*.deb' -o -name '*.blockmap' -o -name 'latest*.yml' \) -exec cp {} release/ \;
+          find artifacts -type f \( -name '*.dmg' -o -name '*.zip' -o -name '*.exe' -o -name '*.AppImage' -o -name '*.deb' -o -name '*.blockmap' -o -name 'latest*.yml' -o -name '*.ipa' -o -name '*.apk' \) -exec cp {} release/ \;
           cat artifacts/*/SHA256SUMS-*.txt > release/SHA256SUMS.txt 2>/dev/null || true
+          # Los móviles suben el binario suelto (sin su propio SHA256SUMS): se
+          # hashea aquí para que todo lo descargable quede cubierto.
+          (cd release && sha256sum MunderMobile-*.ipa MunderMobile-*.apk >> SHA256SUMS.txt)
           ls -la release
 
       - name: Publish to GitHub Release
@@ -177,4 +180,76 @@ jobs:
             release/*.deb
             release/*.blockmap
             release/latest*.yml
+            release/*.ipa
+            release/*.apk
             release/SHA256SUMS.txt
+
+  mobile-ios:
+    # El iPhone de la release: la misma .ipa sin firmar del CI de iOS
+    # (XcodeGen + xcodebuild en macOS), instalada con iloader/SideStore/AltStore.
+    name: Build iPhone IPA
+    runs-on: macos-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Install XcodeGen
+        run: brew install xcodegen
+      - name: Generate Xcode project
+        run: xcodegen generate
+        working-directory: ios/MunderMobile
+      - name: Build (unsigned, device)
+        run: |
+          set -o pipefail
+          xcodebuild \
+            -scheme MunderMobile \
+            -configuration Release \
+            -sdk iphoneos \
+            -derivedDataPath /tmp/mm_dd \
+            CODE_SIGNING_ALLOWED=NO CODE_SIGN_IDENTITY= CODE_SIGNING_REQUIRED=NO \
+            build 2>&1 | tail -5
+      - name: Package the .ipa
+        run: |
+          APP=$(find /tmp/mm_dd -name "MunderMobile.app" -type d -path "*iphoneos*" | head -1)
+          test -n "$APP" || { echo "::error::MunderMobile.app not found"; exit 1; }
+          test -f "$APP/Media/Fonts/PressStart2P-Regular.ttf" || { echo "::error::font missing from the bundle"; exit 1; }
+          test -f "$APP/Media/Cast/michael.png" || { echo "::error::cast portraits missing from the bundle"; exit 1; }
+          rm -rf /tmp/signcheck.app && cp -R "$APP" /tmp/signcheck.app
+          codesign --force --deep --sign - /tmp/signcheck.app
+          codesign --verify --deep --strict --verbose=2 /tmp/signcheck.app
+          rm -rf Payload && mkdir -p Payload && cp -R "$APP" Payload/
+          rm -f MunderMobile-unsigned.ipa
+          zip -qr MunderMobile-unsigned.ipa Payload
+          ls -la MunderMobile-unsigned.ipa
+        working-directory: ios/MunderMobile
+      - name: Upload IPA
+        uses: actions/upload-artifact@v4
+        with:
+          name: MunderMobile-unsigned-ipa
+          path: ios/MunderMobile/MunderMobile-unsigned.ipa
+          retention-days: 30
+
+  mobile-android:
+    # El Android de la release: el mismo APK debug del CI (firmado con la
+    # llave de debug, se instala directo, no caduca).
+    name: Build Android APK
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: 17
+      - uses: gradle/actions/setup-gradle@v4
+      - run: ./gradlew :app:assembleDebug --stacktrace
+        working-directory: android/MunderMobile
+      - name: Rename for the release page
+        run: |
+          APK=$(find android/MunderMobile/app/build/outputs/apk/debug -name "*.apk" | head -1)
+          test -n "$APK" || { echo "::error::APK not found"; exit 1; }
+          cp "$APK" android/MunderMobile/MunderMobile-debug.apk
+          ls -la android/MunderMobile/MunderMobile-debug.apk
+      - name: Upload APK
+        uses: actions/upload-artifact@v4
+        with:
+          name: MunderMobile-debug-apk
+          path: android/MunderMobile/MunderMobile-debug.apk
+          retention-days: 30
