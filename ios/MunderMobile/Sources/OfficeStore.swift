@@ -25,6 +25,10 @@ public final class OfficeStore: ObservableObject {
     /// The agent the composer writes to ("god" = Michael). Only for this office.
     @Published public var recipient = "god"
 
+    /// The owner check before anything that changes the office (see AppLock).
+    /// Defaults to "allowed" so the tests and demo mode need no Face ID.
+    public var authorize: (SensitiveAction) async -> Bool = { _ in true }
+
     private var client: RemoteClient?
     private let defaults: UserDefaults
 
@@ -173,6 +177,7 @@ public final class OfficeStore: ObservableObject {
 
     public func answer(_ task: TaskItem, text: String) async -> Bool {
         guard let q = task.question?.q else { return false }
+        guard await authorize(.answer) else { return false }
         return await send { c in
             let _: AnswerReply = try await c.call("answer", args: ["task_id": task.id, "q": q, "text": text])
             return "Respuesta enviada a Michael"
@@ -182,6 +187,7 @@ public final class OfficeStore: ObservableObject {
     /// This office: to Michael or one agent. Another office: a task for ITS Michael.
     public func ask(_ text: String) async -> Bool {
         if let peer = viewing { return await delegate(to: peer, text: text) }
+        guard await authorize(.ask) else { return false }
         let to = recipient
         return await send { c in
             var args: [String: Any] = ["text": text]
@@ -192,7 +198,8 @@ public final class OfficeStore: ObservableObject {
     }
 
     public func delegate(to peer: String, text: String) async -> Bool {
-        await send { c in
+        guard await authorize(.delegate) else { return false }
+        return await send { c in
             let r: DelegateReply = try await c.call("delegate", args: ["office": peer, "text": text])
             return "Delegada a \(r.office)"
         }
@@ -204,6 +211,7 @@ public final class OfficeStore: ObservableObject {
             toast = "Esa dirección no se entiende"
             return
         }
+        guard await authorize(.addAddress) else { return }
         let probe = RemoteClient(office: PairedOffice(officeId: office.officeId, name: office.name, boxPub: office.boxPub,
                                                       deviceId: office.deviceId, deviceName: office.deviceName, addresses: [address]),
                                  key: sessionKey() ?? SymmetricKey(size: .bits256))
@@ -216,9 +224,18 @@ public final class OfficeStore: ObservableObject {
         }
     }
 
-    public func removeAddress(_ address: String) {
-        guard let c = client, (office?.addresses.count ?? 0) > 1 else { return }
-        c.remove(address: address)
+    public func removeAddress(_ address: String) async {
+        guard client != nil, (office?.addresses.count ?? 0) > 1 else { return }
+        guard await authorize(.removeAddress) else { return }
+        client?.remove(address: address)
+    }
+
+    /// Forget a paired office, after the owner confirms it is them. (Abandoning a
+    /// pairing that was never accepted — `forget()` from the code screen — needs
+    /// no check: nothing is reachable yet.)
+    public func forgetAuthorized() async {
+        guard await authorize(.forget) else { return }
+        forget()
     }
 
     private func sessionKey() -> SymmetricKey? {
