@@ -1,0 +1,166 @@
+name: Android (Munder Mobile)
+
+# El gemelo del .ipa: un APK debug firmado con la llave de debug, en un runner
+# ubuntu gratuito. Mismo protocolo (munder-remote@1), misma lista PANEL_OFF,
+# mismos retratos y demos que iOS: el móvil es solo un sustrato.
+# Patrón espejo de .github/workflows/ios.yml.
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - 'android/**'
+      - 'ios/MunderMobile/Media/**'
+      - 'ios/MunderMobile/Tests/vectors.json'
+      - 'tools/munder/lib-remote.cjs'
+      - 'tools/munder/lib-link.cjs'
+      - 'tools/munder/lib-panel.cjs'
+      - 'tools/munder/avatar-engine.cjs'
+      - '.github/workflows/android.yml'
+  pull_request:
+    paths:
+      - 'android/**'
+      - 'ios/MunderMobile/Media/**'
+      - 'ios/MunderMobile/Tests/vectors.json'
+      - 'tools/munder/lib-remote.cjs'
+      - 'tools/munder/lib-link.cjs'
+      - 'tools/munder/lib-panel.cjs'
+      - 'tools/munder/avatar-engine.cjs'
+      - '.github/workflows/android.yml'
+  workflow_dispatch:
+
+concurrency:
+  group: android-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  assets:
+    name: Generated assets are current
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+      # iOS primero: si la oficina se movió y nadie regeneró, se para aquí (barato).
+      - run: node ios/MunderMobile/scripts/make-assets.cjs --check
+      # Android después: retratos, demos, fuente, vectores y PANEL_OFF.
+      - run: node android/MunderMobile/scripts/check-assets.cjs
+
+  test:
+    name: Unit tests (JVM)
+    needs: assets
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: 17
+      - uses: gradle/actions/setup-gradle@v4
+      - run: ./gradlew :app:testDebugUnitTest --stacktrace
+        working-directory: android/MunderMobile
+      - name: Fail if no tests ran
+        run: grep -rl "tests=" android/MunderMobile/app/build/test-results/testDebugUnitTest/*.xml | head
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: munder-android-test-results
+          path: android/MunderMobile/app/build/test-results/testDebugUnitTest/
+          retention-days: 14
+
+  build:
+    name: Build debug APK
+    needs: assets
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: 17
+      - uses: gradle/actions/setup-gradle@v4
+      - run: ./gradlew :app:assembleDebug --stacktrace
+        working-directory: android/MunderMobile
+      - name: Check the APK carries its substrate
+        run: |
+          APK=$(find android/MunderMobile/app/build/outputs/apk/debug -name "*.apk" | head -1)
+          test -n "$APK" || { echo "::error::APK not found"; exit 1; }
+          echo "APK: $APK"; ls -la "$APK"
+          unzip -l "$APK" | grep -E "Media/Cast/michael.png|Media/Fonts/PressStart2P-Regular.ttf|Media/Demo/overview.json" || {
+            echo "::error::cast portraits / font / demo missing from the APK"; exit 1
+          }
+      - uses: actions/upload-artifact@v4
+        with:
+          name: MunderMobile-debug-apk
+          path: android/MunderMobile/app/build/outputs/apk/debug/*.apk
+          retention-days: 30
+
+  screenshots:
+    # Las pantallas reales en el emulador, lanzadas con MunderDemo (la oficina
+    # de ejemplo incluida, sin red): lo que el PR y el README muestran.
+    # Espejo del job `screenshots` de ios.yml (allá simulador + -MunderTab N,
+    # aquí emulador + extras MunderDemo/MunderTab).
+    name: Emulator screenshots (demo office)
+    needs: build
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/download-artifact@v4
+        with:
+          name: MunderMobile-debug-apk
+          path: apk
+      - name: Boot, install and capture
+        uses: reactivecircus/android-emulator-runner@v2
+        with:
+          api-level: 34
+          target: google_apis
+          arch: x86_64
+          profile: pixel_6
+          disable-animations: true
+          emulator-options: -no-window -no-audio -no-boot-anim -camera-back none
+          script: |
+            set -euo pipefail
+            PKG=mx.isyco.munder.mobile.debug
+            APK=$(find apk -name "*.apk" | head -1)
+            test -n "$APK" || { echo "::error::APK not found"; exit 1; }
+            echo "APK: $APK"
+            adb install -r "$APK"
+            adb shell settings put global window_animation_scale 0 || true
+            adb shell settings put global transition_animation_scale 0 || true
+            adb shell settings put global animator_duration_scale 0 || true
+            mkdir -p android/MunderMobile/shots
+            shoot() {
+              local name=$1; shift || true
+              adb shell am force-stop "$PKG" >/dev/null 2>&1 || true
+              adb shell am start -n "$PKG/.MainActivity" "$@" >/dev/null
+              sleep 5
+              adb exec-out screencap -p > "android/MunderMobile/shots/$name.png"
+              test -s "android/MunderMobile/shots/$name.png"
+            }
+            adb shell cmd uimode night no
+            sleep 2
+            shoot pair-light
+            for mode in light dark; do
+              if [ "$mode" = "dark" ]; then adb shell cmd uimode night yes; else adb shell cmd uimode night no; fi
+              sleep 3
+              shoot "office-$mode" --ez MunderDemo true --ei MunderTab 0
+              shoot "questions-$mode" --ez MunderDemo true --ei MunderTab 1
+              shoot "board-$mode" --ez MunderDemo true --ei MunderTab 2
+              shoot "link-$mode" --ez MunderDemo true --ei MunderTab 3
+              # La pestaña Panel, del host demo incluido. Es la evidencia del PR
+              # para un cambio que solo existe en pantalla.
+              shoot "panel-$mode" --ez MunderDemo true --ei MunderTab 4
+              shoot "locked-$mode" --ez MunderDemo true --ez MunderDemoLocked true
+            done
+            ls -la android/MunderMobile/shots
+      - name: Upload screenshots
+        uses: actions/upload-artifact@v4
+        with:
+          name: munder-android-screenshots
+          path: android/MunderMobile/shots/*.png
+          retention-days: 30

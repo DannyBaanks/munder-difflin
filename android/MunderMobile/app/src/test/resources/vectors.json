@@ -1,0 +1,23 @@
+{
+  "protocol": "munder-remote@1",
+  "office_id": "0123456789abcdef",
+  "office_box_pub": "SdGsqKGGRhalQBWPUnH1CExvA9uMwF1hsH_xEXHteR4",
+  "device_priv": "7umKEgRXIWWK6V5DqLhi17l5nDnfyTvHVW0g16KSonE",
+  "device_pub": "MnA7TMDXDyzRqpTXXraeiu3sRIK_puHglWAxiiKTJl4",
+  "device_id": "9ed00cd88840bed1",
+  "session_key": "hQTftJNXhz11n3KQoLmER3baSbNIImG3h1z2cCGv4mg",
+  "office_nonce": "Ns04eHBqrY_-6bxmlYcooQ",
+  "device_nonce": "1ONp7jWdUsWM5p4otdqeeQ",
+  "commit": "8rZ3fwUh4_WfEgpMqi1qH9uQIjJPyRaoL39JUmA0Bc8",
+  "sas": "800200",
+  "request": {
+    "iv": "MzxW9Klzzk2knBgQ",
+    "plaintext": "{\"ts\":1790000000000,\"op\":\"hello\",\"args\":{}}",
+    "ct": "Ek4jUBaC0iXm9b9ENeKq3CoDbmJW8b4vS8qKLfABB-MvfyftA-qAHlhCGGoMUujJOVLfxMZj-wqYtCA"
+  },
+  "response": {
+    "iv": "m3TPq_EejX2Xaxhp",
+    "plaintext": "{\"ok\":true,\"result\":{\"name\":\"michael-victus\",\"addresses\":[{\"address\":\"100.101.4.7:47831\",\"via\":\"tailscale\"}]},\"re\":\"MzxW9Klzzk2knBgQ\"}",
+    "ct": "Fv66Wb5VRNSLo4ySja24fVLt3ZJL4KOTkkFt6mFL0DcM3LAM8yXcZtMYCIIdbIUfwWp-3Q2QCJH7kQ8vkB9Vuqi5UMGprV-P2Ynvm8UMFrzw0I_O2cJ3bdQsJRxCCJ1uhRzQUNefPFXX6pdB1kKcCNDKv5aNwGFwBNMlRWQ_PmHRPOooRd5M9mG0XkX9kiFxnOCujRZP"
+  }
+}

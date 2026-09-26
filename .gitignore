@@ -47,3 +47,13 @@ peers.json
 pending.json
 receipts.jsonl
 *.pid
+
+# Android (MunderMobile): SDK local, compilados y capturas — nunca al repo.
+# El APK se distribuye por el artifact del CI, no por git.
+android/MunderMobile/local.properties
+android/MunderMobile/.gradle/
+android/MunderMobile/build/
+android/MunderMobile/app/build/
+android/MunderMobile/shots/
+*.apk
+*.aab

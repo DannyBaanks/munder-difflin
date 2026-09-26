@@ -1,0 +1,11 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- Misma regla que NSAppTransportSecurity en iOS: todo http permitido porque
+     el sellado munder-remote@1 ya cifra el contenido; sobre Tailscale además
+     viaja bajo WireGuard. -->
+<network-security-config>
+    <base-config cleartextTrafficPermitted="true">
+        <trust-anchors>
+            <certificates src="system" />
+        </trust-anchors>
+    </base-config>
+</network-security-config>

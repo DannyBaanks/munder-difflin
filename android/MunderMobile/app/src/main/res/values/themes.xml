@@ -1,0 +1,8 @@
+<resources>
+    <!-- Tema minimo: el color real lo pone Pixel.kt con los tokens cth en claro y oscuro. -->
+    <style name="Theme.MunderMobile" parent="android:Theme.Material.Light.NoActionBar">
+        <item name="android:windowBackground">#FFFDF5</item>
+        <item name="android:statusBarColor">#FFFDF5</item>
+        <item name="android:navigationBarColor">#FFFDF5</item>
+    </style>
+</resources>

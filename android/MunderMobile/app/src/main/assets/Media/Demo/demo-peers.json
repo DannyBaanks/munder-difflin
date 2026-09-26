@@ -1,0 +1,25 @@
+{
+  "peers": [
+    {
+      "office_id": "1029dd438aa3a6a1",
+      "name": "michael-xeon",
+      "fingerprint": "1029 dd43 8aa3 a6a1",
+      "online": true,
+      "latency_ms": 27,
+      "capacity": {
+        "workers_idle": 12,
+        "workers_total": 16,
+        "ram_free_gb": 22.4,
+        "ram_total_gb": 31.9,
+        "michael_state": "idle"
+      }
+    },
+    {
+      "office_id": "77aa00bb11cc22dd",
+      "name": "michael-laptop",
+      "fingerprint": "77aa 00bb 11cc 22dd",
+      "online": false,
+      "error": "sin respuesta"
+    }
+  ]
+}
