@@ -147,6 +147,13 @@ test('secret hygiene: la key solo existe en el auth destino', () => {
   const leak = ['claude', 'codex', 'gemini', 'opencode', 'qwen', 'crush', 'pi', 'copilot', 'cursor-agent', 'agy']
     .filter((b) => elsewhere.includes(b));
   if (leak.length) { console.log(`    (skip: CLIs reales en el sistema: ${leak.join(',')})`); return; }
+  // Sin toolchain pty (bash/timeout/script) no hay pty que manejar: en esos
+  // hosts el flujo E2E no puede correr (ni colgarse ni tocar nada), skip
+  // honesto con la causa, igual que con los CLIs reales de arriba.
+  const onPath = (b) => String(process.env.PATH || '').split(path.delimiter)
+    .some((d) => { try { fs.accessSync(path.join(d, b), fs.constants.X_OK); return true; } catch { return false; } });
+  const missing = ['bash', 'timeout', 'script'].filter((b) => !onPath(b));
+  if (missing.length) { console.log(`    (skip: sin toolchain pty: ${missing.join(',')})`); return; }
   const { bin, home, env: senv } = sandbox();
   const munderDir = path.join(home, 'app');
   fs.writeFileSync(path.join(bin, 'codex'), '#!/bin/sh\necho codex\n');
