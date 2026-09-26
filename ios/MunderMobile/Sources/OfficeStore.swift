@@ -22,6 +22,10 @@ public final class OfficeStore: ObservableObject {
     @Published public var busy = false
     /// nil = the office this phone is paired with; otherwise a paired office's id, seen through it.
     @Published public private(set) var viewing: String?
+    /// The Panel stratum, when this phone was granted the machine. nil + `panelDenied`
+    /// means the host has not been granted, which is a locked door, not a failure.
+    @Published public private(set) var panel: PanelState?
+    @Published public private(set) var panelDenied: String?
     /// The agent the composer writes to ("god" = Michael). Only for this office.
     @Published public var recipient = "god"
 
@@ -128,6 +132,8 @@ public final class OfficeStore: ObservableObject {
         overview = nil
         peers = nil
         pairError = nil
+        panel = nil
+        panelDenied = nil
         phase = .unpaired
     }
 
@@ -174,6 +180,40 @@ public final class OfficeStore: ObservableObject {
         guard let c = client else { return } // demo mode keeps its bundled peers
         if let r: PeersReply = try? await c.call("peers") { peers = r.peers } else if peers == nil { peers = [] }
     }
+
+    // MARK: the Panel stratum
+
+    /// Ask the host how it is. `no_authority` is the expected answer until a human
+    /// runs `munder link panel <celular>` on the machine, so it is kept apart from
+    /// the offline banner: the phone is fine, it just was not given the keys.
+    public func refreshPanel() async {
+        guard phase == .paired, let c = client else { return }
+        do {
+            panel = try await c.call("panel.state", as: PanelState.self)
+            panelDenied = nil
+        } catch let e as RemoteError where e.code == "no_authority" {
+            panel = nil
+            panelDenied = e.localizedDescription
+        } catch {
+            // The office is reachable but the panel is not: keep the last state.
+        }
+    }
+
+    /// Press one of the host's buttons. Every one of them can stop your Munder, so
+    /// the owner check is not optional here: it is the same lock the other
+    /// write-actions use, plus the 30 s window that lets you fix a typo.
+    @discardableResult
+    public func panelAction(_ action: String, args: [String: String] = [:]) async -> Bool {
+        guard await authorize(.panel) else { return false }
+        return await send { c in
+            let r: PanelActionReply = try await c.call("panel.action", args: ["action": action, "args": args])
+            return r.text.isEmpty ? (r.ok ? "Listo" : "No se pudo") : r.text
+        }
+    }
+
+    /// Two buttons are desktop-only by design (see PANEL_OFF in lib-remote.cjs):
+    /// the phone must not install a desktop shortcut, nor widen its own authority.
+    static let panelRemoteBlocked: Set<String> = ["shortcut.install", "link.phoneAuthority"]
 
     public func answer(_ task: TaskItem, text: String) async -> Bool {
         guard let q = task.question?.q else { return false }

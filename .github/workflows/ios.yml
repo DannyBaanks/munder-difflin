@@ -12,6 +12,7 @@ on:
       - 'ios/**'
       - 'tools/munder/lib-remote.cjs'
       - 'tools/munder/lib-link.cjs'
+      - 'tools/munder/lib-panel.cjs'
       - 'tools/munder/avatar-engine.cjs'
       - '.github/workflows/ios.yml'
   pull_request:
@@ -19,6 +20,7 @@ on:
       - 'ios/**'
       - 'tools/munder/lib-remote.cjs'
       - 'tools/munder/lib-link.cjs'
+      - 'tools/munder/lib-panel.cjs'
       - 'tools/munder/avatar-engine.cjs'
       - '.github/workflows/ios.yml'
   workflow_dispatch:
@@ -44,6 +46,25 @@ jobs:
         with:
           node-version: 22
       - run: node scripts/make-assets.cjs --check
+      # The Panel stratum exists in the same shape on both sides. `panelRemoteBlocked`
+      # here and PANEL_OFF there are the same list, and a button that exists on the
+      # phone but is refused by the host is a button that always fails.
+      - name: The phone offers exactly the host's remote actions
+        run: |
+          set -euo pipefail
+          cd "$GITHUB_WORKSPACE"
+          node -e '
+            const blocked = require("./tools/munder/lib-remote.cjs").PANEL_OFF;
+            const sw = require("fs").readFileSync("ios/MunderMobile/Sources/OfficeStore.swift", "utf8");
+            const m = sw.match(/panelRemoteBlocked: Set<String> = \[([^\]]+)\]/);
+            if (!m) { console.error("no se encontro panelRemoteBlocked en OfficeStore.swift"); process.exit(1); }
+            const inSwift = [...m[1].matchAll(/"([^"]+)"/g)].map(x => x[1]);
+            const same = JSON.stringify([...inSwift].sort()) === JSON.stringify([...blocked].sort());
+            console.log("lib-remote PANEL_OFF:", blocked.join(" "));
+            console.log("OfficeStore Swift   :", inSwift.join(" "));
+            if (!same) { console.error("las dos listas de botones bloqueados no coinciden"); process.exit(1); }
+            console.log("coinciden");
+          '
 
   test:
     name: Tests (iOS Simulator)

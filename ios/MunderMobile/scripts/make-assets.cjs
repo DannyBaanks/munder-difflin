@@ -193,15 +193,56 @@ function demoData() {
   };
 }
 
-const all = { ...castPortraits(), ...appIcon(), ...vectors(), ...overviewFixture(), ...demoData() };
-const check = process.argv.includes('--check');
-let stale = 0;
-for (const [rel, data] of Object.entries(all)) {
-  const file = path.join(ROOT, rel);
-  const same = fs.existsSync(file) && fs.readFileSync(file).equals(data);
-  if (check) { if (!same) { console.error(`stale: ${rel}`); stale++; } continue; }
-  if (!same) { fs.mkdirSync(path.dirname(file), { recursive: true }); fs.writeFileSync(file, data); console.log(`wrote ${rel}`); }
+/**
+ * `panel.state` as the office's own code answers it, so the Swift test decodes
+ * the real bytes and not a shape someone typed.
+ *
+ * Same trick as `overviewFixture`: call the real thing, then pin the leaves that
+ * belong to whoever ran the generator. Without that this fixture carries the
+ * machine's Tailscale IP and hostname, and `make-assets.cjs --check` fails on a
+ * CI runner that has neither. Both state dirs are sandboxed because `state()`
+ * reaches the real `appStatus` and the real link files.
+ */
+async function panelFixture() {
+  const os = require('node:os');
+  const home = fs.mkdtempSync(path.join(os.tmpdir(), 'mm-panel-'));
+  const office = path.join(home, 'office');
+  process.env.MUNDER_LINK_DIR = office;
+  process.env.MUNDER_USER_DATA = path.join(home, 'userdata');
+  process.env.XDG_STATE_HOME = path.join(home, 'state');
+  fs.mkdirSync(office, { recursive: true });
+  // One phone, elevated, so the fixture carries the `authority` the app shows.
+  const L = require(path.join(REPO, 'tools/munder/lib-link.cjs'));
+  L.trustRemote({ office_id: '9ed00cd88840bed1', name: 'iPhone de Danny', box_pub: 'Vvzqnrc6mgdtA5HOBqVEEPKSn7nG3zGQysMrTDpWVlQ' }, office);
+  L.setRemoteAuthority('9ed00cd88840bed1', L.REMOTE_AUTHORITY.MACHINE, office);
+  const P = require(path.join(REPO, 'tools/munder/lib-panel.cjs'));
+  const state = await P.state();
+  // Deterministic leaves. The SHAPE is the office's; these three are the machine's.
+  state.app = { running: false, pid: null, version: 'fixture' };
+  state.link.name = 'michael-victus';
+  state.link.fingerprint = 'a3cd ab50 d939 52ee';
+  state.link.urls = [
+    { url: 'http://192.168.1.64:47831/app/', via: 'red de casa' },
+    { url: 'http://100.101.4.7:47831/app/', via: 'Tailscale (tambien fuera de casa)' },
+  ];
+  state.gpt = { available: false, on: false, running: false, profile: 'full', public_url: null, grants: 0, pending: [] };
+  state.launcher = 'dev';
+  return { 'Tests/panel.json': Buffer.from(JSON.stringify(state, null, 2) + '\n') };
 }
-if (check && stale) process.exit(1);
-if (check) console.log(`${Object.keys(all).length} generated files up to date`);
+
+// panel.state() is async, so the whole pass is. Everything else is sync and
+// unchanged; awaiting one fixture is cheaper than a second entry point.
+const check = process.argv.includes('--check');
+(async () => {
+  const all = { ...castPortraits(), ...appIcon(), ...vectors(), ...overviewFixture(), ...demoData(), ...(await panelFixture()) };
+  let stale = 0;
+  for (const [rel, data] of Object.entries(all)) {
+    const file = path.join(ROOT, rel);
+    const same = fs.existsSync(file) && fs.readFileSync(file).equals(data);
+    if (check) { if (!same) { console.error(`stale: ${rel}`); stale++; } continue; }
+    if (!same) { fs.mkdirSync(path.dirname(file), { recursive: true }); fs.writeFileSync(file, data); console.log(`wrote ${rel}`); }
+  }
+  if (check && stale) process.exit(1);
+  if (check) console.log(`${Object.keys(all).length} generated files up to date`);
+})();
 module.exports = { png };

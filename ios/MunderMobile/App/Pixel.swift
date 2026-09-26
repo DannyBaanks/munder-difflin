@@ -233,6 +233,10 @@ enum PixelIcon {
     static let link = ["............", ".####.......", "#....#......", "#..#####....", "#....#..#...", ".####....#..",
                        "..#....####.", "...#..#....#", "....#####..#", "......#....#", ".......####.", "............"]
 
+    /// A switch on a panel: the machine, not the office.
+    static let panel = ["############", "#..........#", "#.##....##.#", "#.##....##.#", "#..........#", "#.###..###.#",
+                        "#..........#", "#..........#", "#.##....##.#", "#..........#", "#..........#", "############"]
+
     static func image(_ grid: [String], cell: CGFloat = 2) -> UIImage {
         let size = CGSize(width: 12 * cell, height: 12 * cell)
         let img = UIGraphicsImageRenderer(size: size).image { ctx in

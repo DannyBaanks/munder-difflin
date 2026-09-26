@@ -14,7 +14,7 @@ import LocalAuthentication
 ///
 /// Munder never sees the biometric or the passcode: iOS answers yes or no.
 public enum SensitiveAction: Equatable, CaseIterable {
-    case ask, answer, delegate, addAddress, removeAddress, forget
+    case ask, answer, delegate, addAddress, removeAddress, forget, panel
 
     /// Shown by iOS under the Face ID / passcode prompt.
     public var reason: String {
@@ -25,6 +25,7 @@ public enum SensitiveAction: Equatable, CaseIterable {
         case .addAddress: return "Confirma que eres tú para agregar una dirección"
         case .removeAddress: return "Confirma que eres tú para quitar una dirección"
         case .forget: return "Confirma que eres tú para olvidar esta oficina"
+        case .panel: return "Confirma que eres tú para manejar la computadora"
         }
     }
 }

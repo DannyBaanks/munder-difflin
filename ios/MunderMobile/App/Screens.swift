@@ -88,7 +88,7 @@ struct CodeView: View {
 struct MainView: View {
     @EnvironmentObject private var store: OfficeStore
     @Environment(\.scenePhase) private var scenePhase
-    /// `-MunderTab N` on launch opens tab N (CI screenshots).
+    /// `-MunderTab N` on launch opens tab N (CI screenshots). 4 = Panel.
     @State private var tab = UserDefaults.standard.integer(forKey: "MunderTab")
 
     var body: some View {
@@ -98,6 +98,8 @@ struct MainView: View {
                 .badge(store.overview?.questions.count ?? 0).tag(1)
             BoardTab().tabItem { Label { Text("Tablero") } icon: { Image(uiImage: PixelIcon.image(PixelIcon.board)) } }.tag(2)
             LinkTab().tabItem { Label { Text("Enlace") } icon: { Image(uiImage: PixelIcon.image(PixelIcon.link)) } }.tag(3)
+            // The Panel stratum, tab 4: same `-MunderTab N` numbering as the rest.
+            PanelTab().tabItem { Label { Text("Panel") } icon: { Image(uiImage: PixelIcon.image(PixelIcon.panel)) } }.tag(4)
         }
         .tint(Px.ink900)
         .task {
@@ -114,7 +116,7 @@ struct MainView: View {
     }
 }
 
-/// Header + offline banner + scrolling body, shared by the four tabs.
+/// Header + offline banner + scrolling body, shared by the five tabs.
 struct Screen<Content: View>: View {
     @EnvironmentObject private var store: OfficeStore
     @EnvironmentObject private var lock: AppLock
@@ -544,5 +546,166 @@ struct LinkTab: View {
             }
         }
         .task { await store.refreshPeers() }
+    }
+}
+
+/// The Panel stratum: the buttons the desktop panel has, on the same engines,
+/// over the same seal. The pairing code does NOT open this — a human grants the
+/// machine on the computer — so the tab is a locked door until then, which is
+/// the honest thing to show rather than an error.
+struct PanelTab: View {
+    @EnvironmentObject private var store: OfficeStore
+    @State private var busy: String?
+
+    private var granted: Bool { store.panel != nil }
+
+    var body: some View {
+        Screen(title: "Panel", subtitle: store.panel?.link?.name) {
+            if let denied = store.panelDenied, !granted {
+                PixelCard {
+                    VStack(alignment: .leading, spacing: 10) {
+                        HStack(spacing: 8) {
+                            Image(systemName: "lock.fill").foregroundColor(Px.ink900)
+                            PixelLabel("Esta compu todavía no", size: 10, color: Px.ink900)
+                        }
+                        Text(denied)
+                            .font(.footnote).foregroundColor(Px.ink500)
+                        Text("En la computadora, con Michael a la vista:\n\nmunder link panel <este celular>\n\nPara quitarlo: munder link panel <este celular> --quitar")
+                            .font(.system(size: 11, design: .monospaced))
+                            .foregroundColor(Px.ink900)
+                            .padding(8)
+                            .frame(maxWidth: .infinity, alignment: .leading)
+                            .background(Px.cream100)
+                            .overlay(Rectangle().strokeBorder(Px.ink100, lineWidth: 1))
+                        Text("Con esto, este celular puede apagar tu Munder. Piénsalo antes de concederlo.")
+                            .font(.caption).foregroundColor(Px.ink500)
+                        Button("Comprobar otra vez") { Task { await store.refreshPanel() } }
+                            .buttonStyle(PixelButtonStyle())
+                    }
+                }
+            } else if let s = store.panel {
+                if let app = s.app {
+                    SectionTitle(text: "Munder")
+                    PixelCard {
+                        VStack(alignment: .leading, spacing: 10) {
+                            HStack(spacing: 8) {
+                                StatusDot(color: app.running == true ? Px.mint : Px.coral)
+                                Text(app.running == true ? "Abierto\(app.version.map { " · \($0)" } ?? "")" : "Cerrado")
+                                    .font(.subheadline).foregroundColor(Px.ink900)
+                            }
+                            if s.platform != nil { Chip(text: s.platform ?? "") }
+                            HStack(spacing: 10) {
+                                Button(app.running == true ? "Cerrar" : "Abrir") {
+                                    press(app.running == true ? "app.close" : "app.open")
+                                }
+                                .buttonStyle(PixelButtonStyle())
+                                Button("Reiniciar") { press("app.restart") }
+                                    .buttonStyle(PixelButtonStyle(kind: .ghost))
+                            }
+                        }
+                    }
+                }
+
+                if let link = s.link {
+                    SectionTitle(text: "Enlace")
+                    PixelCard {
+                        VStack(alignment: .leading, spacing: 10) {
+                            HStack(spacing: 8) {
+                                StatusDot(color: link.on == true ? Px.mint : Px.coral)
+                                Text(link.on == true ? "Encendido\(link.fingerprint.map { " · \($0)" } ?? "")" : "Apagado")
+                                    .font(.subheadline).foregroundColor(Px.ink900)
+                            }
+                            HStack(spacing: 10) {
+                                Button(link.on == true ? "Apagar" : "Encender") { press(link.on == true ? "link.off" : "link.on") }
+                                    .buttonStyle(PixelButtonStyle())
+                                ForEach(link.pending ?? []) { q in
+                                    Button("Aceptar \(q.code)") { accept(q) }
+                                        .buttonStyle(PixelButtonStyle(kind: .ghost))
+                                }
+                            }
+                            if let phones = link.phones, !phones.isEmpty {
+                                Divider().overlay(Px.ink100)
+                                PixelLabel("Celulares", size: 8, color: Px.ink500)
+                                ForEach(phones) { p in
+                                    HStack(spacing: 8) {
+                                        Image(systemName: p.authority == "machine" ? "checkmark.shield.fill" : "iphone")
+                                            .foregroundColor(p.authority == "machine" ? Px.ink900 : Px.ink500)
+                                        Text(p.name).font(.caption).foregroundColor(Px.ink900)
+                                        Spacer()
+                                        Chip(text: p.authority == "machine" ? "maneja la compu" : "solo la oficina")
+                                    }
+                                }
+                            }
+                        }
+                    }
+                }
+
+                if let gpt = s.gpt, gpt.available == true {
+                    SectionTitle(text: "GPT")
+                    PixelCard {
+                        VStack(alignment: .leading, spacing: 10) {
+                            HStack(spacing: 8) {
+                                StatusDot(color: gpt.running == true ? Px.mint : Px.coral)
+                                Text(gpt.running == true ? "Encendido\(gpt.grants.map { " · \($0) permisos" } ?? "")" : "Apagado")
+                                    .font(.subheadline).foregroundColor(Px.ink900)
+                            }
+                            HStack(spacing: 10) {
+                                Button(gpt.on == true ? "Apagar" : "Encender") { press(gpt.on == true ? "gpt.off" : "gpt.on") }
+                                    .buttonStyle(PixelButtonStyle())
+                            }
+                            if let pending = gpt.pending, !pending.isEmpty {
+                                Divider().overlay(Px.ink100)
+                                PixelLabel("Pide tu OK", size: 8, color: Px.ink500)
+                                ForEach(pending) { q in
+                                    HStack(spacing: 8) {
+                                        Text(q.client ?? "alguien").font(.caption).foregroundColor(Px.ink500)
+                                        Spacer()
+                                        Button("Sí") { approve(q, yes: true) }.buttonStyle(PixelButtonStyle(kind: .ghost))
+                                        Button("No") { approve(q, yes: false) }.buttonStyle(PixelButtonStyle(kind: .danger))
+                                    }
+                                }
+                            }
+                        }
+                    }
+                }
+
+                if let r = s.reviver, r.configured == true {
+                    SectionTitle(text: "Revividor")
+                    PixelCard {
+                        VStack(alignment: .leading, spacing: 10) {
+                            HStack(spacing: 8) {
+                                StatusDot(color: r.running == true ? Px.mint : Px.coral)
+                                Text(r.running == true ? "Vigilando\(r.watchdog.map { " · \($0)" } ?? "")" : "Instalado, sin vigilar")
+                                    .font(.subheadline).foregroundColor(Px.ink900)
+                            }
+                            HStack(spacing: 10) {
+                                Button(r.running == true ? "Desinstalar" : "Activar") { press(r.running == true ? "reviver.disable" : "reviver.enable") }
+                                    .buttonStyle(PixelButtonStyle())
+                            }
+                        }
+                    }
+                }
+
+                Text("Dos botones no se pueden desde aquí: crear el acceso directo del Panel, y conceder más permisos — un celular no se amplía su propia autoridad.")
+                    .font(.caption).foregroundColor(Px.ink500)
+            } else {
+                Text("Buscando el panel de la computadora…").foregroundColor(Px.ink500)
+            }
+        }
+        .task { await store.refreshPanel() }
+    }
+
+    private func press(_ action: String) {
+        guard !OfficeStore.panelRemoteBlocked.contains(action) else { return }
+        busy = action
+        Task { await store.panelAction(action); busy = nil; await store.refreshPanel() }
+    }
+
+    private func accept(_ q: PanelPending) {
+        Task { await store.panelAction("link.accept", args: ["code": q.code]); await store.refreshPanel() }
+    }
+
+    private func approve(_ q: PanelPending, yes: Bool) {
+        Task { await store.panelAction(yes ? "gpt.approve" : "gpt.deny", args: ["code": q.code]); await store.refreshPanel() }
     }
 }
