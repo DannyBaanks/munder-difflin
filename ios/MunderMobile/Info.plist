@@ -50,8 +50,12 @@
 	     the arbitrary-loads exception on top of local networking. -->
 	<key>NSAppTransportSecurity</key>
 	<dict>
-		<key>NSAllowsLocalNetworking</key>
-		<true/>
+		<!-- Only NSAllowsArbitraryLoads. With NSAllowsLocalNetworking also
+		     present, iOS 10+ IGNORES NSAllowsArbitraryLoads and allows plain
+		     HTTP to local hosts only, which blocks the office's Tailscale
+		     address (100.64.0.0/10). The office speaks HTTP with the payload
+		     encrypted end to end by RemoteCrypto, so the transport is not
+		     where the secrecy lives. See test/ios-ats.test.cjs. -->
 		<key>NSAllowsArbitraryLoads</key>
 		<true/>
 	</dict>
