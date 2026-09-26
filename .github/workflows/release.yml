@@ -56,6 +56,19 @@ jobs:
           POSTHOG_KEY: ${{ secrets.POSTHOG_KEY }}
           POSTHOG_HOST: ${{ secrets.POSTHOG_HOST }}
 
+      - name: Apple signing credentials (only if configured)
+        # app-builder-lib treats a SET-but-empty CSC_LINK as a certificate path:
+        # it resolves '' against the checkout dir and dies with "not a file"
+        # (run 36247008922, mac job). So the cert vars must be genuinely ABSENT
+        # when unconfigured — not '' via `|| ''` — and are exported here only
+        # when the P12 secret exists. When set, electron-builder receives the
+        # exact same values as before; when unset, identity auto-discovery finds
+        # no cert, warns, and produces an unsigned build.
+        if: ${{ matrix.os == 'macos-latest' && secrets.APPLE_CERTIFICATE_P12 != '' }}
+        run: |
+          echo "CSC_LINK=${{ secrets.APPLE_CERTIFICATE_P12 }}" >> "$GITHUB_ENV"
+          echo "CSC_KEY_PASSWORD=${{ secrets.APPLE_CERTIFICATE_PASSWORD }}" >> "$GITHUB_ENV"
+
       - name: Package installers
         # GH_TOKEN lets electron-builder skip its own publish; we upload via the
         # release step below for full control over the asset set.
@@ -65,14 +78,14 @@ jobs:
           # macOS code signing + notarization — MUST be macOS-only. CSC_LINK is the
           # Apple Developer ID .p12; if it leaks into the Windows/Linux runners,
           # electron-builder tries to sign those targets with the mac cert and the
-          # build hard-fails ("cannot extract publisher name"). So gate on the OS.
+          # build hard-fails ("cannot extract publisher name"). So it is exported
+          # by the step above, only on mac and only when configured — never ''.
           #   APPLE_CERTIFICATE_P12       = base64 of the "Developer ID Application" .p12
           #   APPLE_CERTIFICATE_PASSWORD  = that .p12's export password (REQUIRED if P12 set,
           #                                 else electron-builder imports with an empty
           #                                 password and fails "MAC verification failed")
-          # All optional: with the secrets unset every runner builds unsigned and stays green.
-          CSC_LINK: ${{ matrix.os == 'macos-latest' && secrets.APPLE_CERTIFICATE_P12 || '' }}
-          CSC_KEY_PASSWORD: ${{ matrix.os == 'macos-latest' && secrets.APPLE_CERTIFICATE_PASSWORD || '' }}
+          # All optional: with the secrets unset the CSC_* vars stay ABSENT and
+          # every runner builds unsigned and stays green.
           APPLE_ID: ${{ matrix.os == 'macos-latest' && secrets.APPLE_ID || '' }}
           APPLE_APP_SPECIFIC_PASSWORD: ${{ matrix.os == 'macos-latest' && secrets.APPLE_APP_SPECIFIC_PASSWORD || '' }}
           APPLE_TEAM_ID: ${{ matrix.os == 'macos-latest' && secrets.APPLE_TEAM_ID || '' }}
