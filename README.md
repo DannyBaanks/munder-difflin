@@ -31,6 +31,7 @@ Este fork en español le suma cosas que no trae el original:
 | | |
 |---|---|
 | 📱 **Tu oficina en el iPhone** | Contesta las preguntas de Michael, revisa el tablero y mándale trabajo desde el celular, en casa o fuera de ella. Protegido con **Face ID**. |
+| 🤖 **Tu oficina en Android** | Lo mismo que el iPhone, como APK: el mismo protocolo, la misma cara pixel-art y hasta el **Panel** para manejar la compu. Protegido con **huella o PIN**. |
 | 🔗 **Dos computadoras, una oficina** | Tu laptop le pasa trabajo a la PC grande. Cada una tiene su Michael y se ayudan. |
 | 💬 **ChatGPT como un compañero más** | ChatGPT puede ver tu oficina y mandarle trabajo, con los permisos que tú le des. |
 | 🛟 **Se levanta sola si se cae** | Si Munder se cierra por error, se vuelve a abrir sin que hagas nada. |
@@ -123,6 +124,44 @@ Si alguien toma tu celular, no puede ver tu oficina ni hacer cambios:
 > ⏳ Con un Apple ID gratuito la app **dura 7 días**. Luego la vuelves a firmar con iloader y sigue funcionando con tu mismo emparejamiento.
 
 Guía completa: [`ios/MunderMobile/README.md`](./ios/MunderMobile/README.md). ¿Sin iPhone? También hay una versión web que se instala desde el navegador: [`tools/munder/LINK.md`](./tools/munder/LINK.md#munder-remote-la-oficina-desde-el-celular).
+
+---
+
+## 🤖 Munder Mobile: tu oficina en Android
+
+La misma app del iPhone, como APK nativo (Kotlin + Compose). No es otra forma de conectarse: **el celular es solo un sustrato** y los dos pasan por los mismos procesos — mismos ops (`overview peers answer ask delegate panel.state panel.action`), misma autoridad, mismos bytes cifrados (`munder-remote@1`) y la misma cara pixel-art con el elenco.
+
+<p align="center">
+  <img src="./docs/isyco/mobile/android/office-light.png" alt="App de Android, pestaña Oficina: Michael, workers libres, preguntas y tareas" width="170">
+  <img src="./docs/isyco/mobile/android/questions-light.png" alt="App de Android, pestaña Preguntas para contestarle a Michael" width="170">
+  <img src="./docs/isyco/mobile/android/board-light.png" alt="App de Android, pestaña Tablero con las tareas" width="170">
+  <img src="./docs/isyco/mobile/android/panel-light.png" alt="App de Android, pestaña Panel para manejar la computadora" width="170">
+</p>
+<p align="center"><sub>Las cuatro son del CI en JVM con la oficina demo; más en modo oscuro y bloqueo en <code>docs/isyco/mobile/android/</code>.</sub></p>
+
+Trae una pestaña más que el iPhone no tenía al principio: **Panel**. Desde ahí abres y cierras Munder, prendes y apagas el enlace, enciendes GPT y manejas el revividor — los mismos botones del Panel de escritorio, ejecutando lo mismo. Eso sí: emparejar no da ese poder; se concede en la computadora con `munder link panel <celular>`.
+
+### 🔒 Nadie más puede usarla
+
+Igual que en el iPhone, pero con lo de Android:
+
+- La app **abre bloqueada** y pide tu **huella o el PIN**.
+- Si la dejas en segundo plano más de un minuto, **se vuelve a bloquear**.
+- Mandar algo, contestar, delegar, tocar el Panel o borrar **vuelve a pedir que seas tú**.
+- La llave de sesión vive en el **Keystore cifrado** del aparato. Munder nunca ve tu huella ni tu PIN.
+
+### Cómo instalarla
+
+1. **Baja el APK:** en [**Actions → Android (Munder Mobile)**](https://github.com/DannyBaanks/munder-difflin/actions/workflows/android.yml) abre la última corrida en verde de `main` y descarga **MunderMobile-debug-apk**.
+2. **Instálalo** en tu Android (permite instalar de fuentes desconocidas).
+3. **Prende el enlace en la computadora:** en Munder, **Configuración → Munder Link → Encender**.
+4. **Empareja:** escribe la dirección en la app, toca **Emparejar** y en la computadora acepta el código de 6 dígitos **solo si es el mismo** que ves en el celular.
+
+> 🌎 **¿Fuera de casa?** Igual que el iPhone: instala [Tailscale](https://tailscale.com) en la computadora y en el Android, y usa la dirección de Tailscale (la que empieza con `100.`).
+>
+> ✅ En Android la app **no caduca**: no hay que firmarla cada 7 días como en el iPhone.
+
+Guía completa: [`android/MunderMobile/README.md`](./android/MunderMobile/README.md).
 
 ---
 
@@ -297,16 +336,17 @@ Plantillas `core` más cinco giros. Las de packs importados limitan a «pedir pe
 ### 16. CI en Linux, Windows y macOS
 Cada push compila y corre la suite en los tres sistemas. Encontró un bug real: en Windows, borrar un worktree podía seguir el junction de `node_modules` hasta el checkout principal. Hoy un test con un `must-survive.txt` lo vigila.
 
-### 17. Munder Mobile: PWA + iOS nativo
+### 17. Munder Mobile: PWA + iOS nativo + Android nativo
 - **PWA:** el daemon de Link sirve la app web en `/app` y su API sellada en `/remote/v1/*`, en `tools/munder/lib-remote.cjs`.
 - **Emparejamiento commit-reveal:** el nonce del celular va comprometido antes de ver el de la oficina, así nadie en medio puede probar nonces hasta que coincidan los códigos.
 - **Llamadas:** ChaCha20-Poly1305 bajo X25519 + HKDF, con hora y anti-replay.
 - **Criptografía de la PWA:** va en JS puro (`remote-app/remote-crypto.js`) porque el navegador no da WebCrypto por `http://`. Los tests la comparan byte a byte con Node.
 - **App iOS nativa:** `ios/MunderMobile/` implementa el mismo protocolo `munder-remote@1` en SwiftUI, guarda las llaves en el Keychain y prueba las direcciones LAN/Tailscale de la oficina.
-- **Generado y verificado:** `scripts/make-assets.cjs` produce retratos, icono, vectores y fixtures; el CI falla si quedan viejos y los tests del simulador comparan los bytes con la oficina.
-- **Capturas reales:** el job `Simulator screenshots (demo office)` publica las pantallas en el artifact y las copias de referencia quedan en `docs/isyco/mobile/ios/`.
+- **App Android nativa:** `android/MunderMobile/` es el gemelo del iPhone en Kotlin + Compose — mismos ops, misma autoridad `OP_AUTHORITY`, mismos bytes (BouncyCastle en vez de CryptoKit), Keystore en vez de Keychain y BiometricPrompt en vez de Face ID. La red va en `Dispatchers.IO` y el `applicationId` es el mismo bundle (`mx.isyco.munder.mobile`).
+- **Generado y verificado:** `scripts/make-assets.cjs` produce retratos, icono, vectores y fixtures; el CI falla si quedan viejos y los tests del simulador comparan los bytes con la oficina. `android/.../scripts/check-assets.cjs` exige que el APK lleve copias byte por byte y la misma lista `PANEL_OFF`.
+- **Capturas reales:** el job `Simulator screenshots (demo office)` publica las pantallas del iPhone en el artifact y las copias de referencia quedan en `docs/isyco/mobile/ios/`. El job `Screenshots (Roborazzi, demo office)` hace lo mismo con Android en JVM — sin emulador, porque los runners hospedados no tienen KVM ni HVF — y las copias quedan en `docs/isyco/mobile/android/`.
 - **Dónde viven los celulares:** en `remotes.json`, nunca en `peers.json`.
-- **Operaciones:** `overview`, `peers`, `answer` (igual que ASK ME), `ask` y `delegate`.
+- **Operaciones:** `overview`, `peers`, `answer` (igual que ASK ME), `ask` y `delegate`, más el estrato Panel (`panel.state`, `panel.action`).
 
 ### 18. Munder Reviver (plano de mantenimiento)
 - **Independiente:** `tools/munder/lib-reviver.cjs` usa solo builtins de Node y tiene su propia llave y sus propios clientes. No necesita a Munder, Link, el hive ni Electron.
