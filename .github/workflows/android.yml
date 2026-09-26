@@ -106,7 +106,9 @@ jobs:
     # aquí emulador + extras MunderDemo/MunderTab).
     name: Emulator screenshots (demo office)
     needs: build
-    runs-on: ubuntu-latest
+    # En Linux el runner no tiene KVM (/dev/kvm denegado) y el x86_64
+    # emulado nunca termina el boot. En macOS el emulador ARM corre nativo.
+    runs-on: macos-latest
     timeout-minutes: 30
     steps:
       - uses: actions/checkout@v4
@@ -115,18 +117,17 @@ jobs:
           name: MunderMobile-debug-apk
           path: apk
       - name: Boot, install and capture
-        # API 30 + imagen default + Nexus 6: la combinación que arranca siempre
-        # en estos runners. (API 34 google_apis en Pixel 6 se quedó colgada en
-        # el boot: sys.boot_completed nunca llegó — ver run 36267182531.)
-        # La app pide minSdk 26, así que API 30 la corre igual.
+        # API 30 arm64: arranca nativo en el M1 del runner. (En ubuntu x86_64
+        # con y sin google_apis el boot nunca completó — ver runs 36267182531
+        # y 36268420580.) La app pide minSdk 26, así que API 30 la corre igual.
         uses: reactivecircus/android-emulator-runner@v2
         with:
           api-level: 30
-          target: default
-          arch: x86_64
-          profile: Nexus 6
+          target: google_apis
+          arch: arm64-v8a
+          profile: pixel_6
           disable-animations: true
-          emulator-options: -no-window -no-snapshot -gpu swiftshader_indirect -noaudio -no-boot-anim -camera-back none
+          emulator-options: -no-window -no-snapshot -noaudio -no-boot-anim -camera-back none
           script: |
             set -euo pipefail
             PKG=mx.isyco.munder.mobile.debug
