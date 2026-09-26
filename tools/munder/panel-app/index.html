@@ -1,0 +1,73 @@
+<!doctype html>
+<html lang="es">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Munder Panel</title>
+  <link rel="stylesheet" href="/panel.css">
+</head>
+<body>
+  <header>
+    <h1>MUNDER PANEL</h1>
+    <p class="sub">Todo lo de la terminal, con botones. Funciona aunque Munder esté cerrado.</p>
+  </header>
+
+  <main>
+    <section class="card" id="app">
+      <h2>Munder</h2>
+      <p class="state"><span class="dot" id="app-dot"></span><span id="app-text">Revisando…</span></p>
+      <div class="row">
+        <button data-action="app.open" class="primary">Abrir Munder</button>
+        <button data-action="app.restart">Reiniciar</button>
+        <button data-action="app.close" class="danger" data-confirm="¿Cerrar Munder? Tus agentes se detienen hasta que lo vuelvas a abrir.">Cerrar</button>
+      </div>
+    </section>
+
+    <section class="card" id="link">
+      <h2>Munder Link</h2>
+      <p class="hint">Conecta tus otras computadoras y tu celular.</p>
+      <p class="state"><span class="dot" id="link-dot"></span><span id="link-text">Revisando…</span></p>
+      <div class="row">
+        <button data-action="link.on" class="primary">Encender enlace</button>
+        <button data-action="link.off">Apagar</button>
+      </div>
+      <div id="link-pending"></div>
+      <h3>Tus otras oficinas</h3>
+      <ul id="link-peers" class="list"></ul>
+      <h3>Para tu celular</h3>
+      <p class="hint">En la app de Munder Mobile escribe una de estas direcciones y toca «Emparejar».</p>
+      <ul id="link-urls" class="list mono"></ul>
+      <h3>Celulares emparejados</h3>
+      <ul id="link-phones" class="list"></ul>
+    </section>
+
+    <section class="card" id="gpt">
+      <h2>ChatGPT</h2>
+      <p class="hint">Deja que ChatGPT vea tu oficina y le mande trabajo.</p>
+      <p class="state"><span class="dot" id="gpt-dot"></span><span id="gpt-text">Revisando…</span></p>
+      <div class="row">
+        <button data-action="gpt.on" class="primary">Encender</button>
+        <button data-action="gpt.off">Apagar</button>
+      </div>
+      <div id="gpt-pending"></div>
+    </section>
+
+    <section class="card" id="reviver">
+      <h2>Reviver</h2>
+      <p class="hint">Si Munder se cae, lo vuelve a abrir solo.</p>
+      <p class="state"><span class="dot" id="rv-dot"></span><span id="rv-text">Revisando…</span></p>
+      <div class="row">
+        <button data-action="reviver.enable" class="primary">Activar</button>
+        <button data-action="reviver.disable" class="danger" data-confirm="¿Quitar el Reviver? Munder ya no se levantará solo si se cae.">Quitar</button>
+      </div>
+    </section>
+  </main>
+
+  <footer>
+    <button data-action="shortcut.install" class="ghost">Agregar «Munder Panel» a mis aplicaciones</button>
+  </footer>
+
+  <div id="toast" role="status" aria-live="polite"></div>
+  <script src="/panel.js"></script>
+</body>
+</html>
