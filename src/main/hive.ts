@@ -1633,6 +1633,24 @@ export class HiveManager {
       ? selectBroadcastTargets(reg.agents, msg.from)
       // Never deliver to self — guards a god → "human" message looping back to god.
       : [resolveTo(msg.to)].filter((t) => t !== msg.from);
+    // The self-filter above is deliberate, but it left ONE case silent: a god
+    // writing to "human" (or "god") resolves to the god itself, the filter
+    // empties the list, and the message ceased to exist with no drop log and no
+    // bounce. The sender saw its mail consumed and moved to .sent/, read the
+    // `delivered: []` line as "nothing to deliver", and went on to report that
+    // the channel worked. The log was honest; the sender just had no way to learn
+    // the mail was gone, nor which channel DOES reach the human (a card at
+    // status "blocked" with the ask in humanQA — the outbox is not it).
+    // Same failure class the no-inbox drop below documents and fixes; this is the
+    // remaining instance of it. Keep the self-filter; make the drop observable.
+    if (msg.to !== 'broadcast' && resolveTo(msg.to) === msg.from) {
+      this.appendLog({ kind: 'drop', reason: 'human-proxy-is-sender', from: msg.from, to: msg.to, id: msg.id });
+      this.deliver({
+        ...msg,
+        to: msg.from,
+        subject: `[undeliverable — "${msg.to}" routes to the human's proxy, and the proxy is you; the human reads a card at status "blocked" with the ask in humanQA, not the outbox] ${msg.subject}`
+      }, msg.from);
+    }
     // Targets that actually took delivery. The log below reports these instead of
     // intent, so a bounced or dropped message can never read as delivered.
     const delivered: string[] = [];
