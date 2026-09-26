@@ -89,6 +89,15 @@ test('ACP adapter: cancel and timeout go through session/cancel; a crashing agen
   assert.equal(x.status, 'failed');
 });
 
+test('ACP adapter: a reply that lands in the same tick as the exit is not lost', async () => {
+  // The agent answers and exits in one tick. Settling on 'exit' loses that
+  // reply on Windows, where 'exit' fires before stdout is drained. On Linux
+  // both handlers pass, so this is the Windows regression guard.
+  const r = await H.run({ adapter: 'deepseek', prompt: 'x', cwd: repo(), env: env({ FAKE_ACP: 'sprint' }) });
+  assert.equal(r.status, 'completed', JSON.stringify(r.error));
+  assert.ok(!r.error, 'a turn that answered is not a failure');
+});
+
 test('recursion guard: nested only when asked, bounded, never the same harness twice', () => {
   const c1 = [{ adapter: 'deepseek', run_id: 'a' }];
   assert.equal(H.checkRecursion([], 'codex', false), null);
