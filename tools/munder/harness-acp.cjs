@@ -108,8 +108,13 @@ function run({ cfg, prompt, cwd, resume, timeoutMs, approvals, signal, env, onNa
     });
     child.stderr.on('data', (d) => { stderr = (stderr + d).slice(-4000); });
     child.on('error', (e) => done({ status: 'failed', error: { code: e.code === 'ENOENT' ? 'harness_not_installed' : 'spawn_failed', message: e.message } }));
-    child.on('exit', (code, sig) => {
-      for (const p of pending.values()) p.rej(Object.assign(new Error(`el agente ACP salió (${sig || code})`), { code: 'agent_exited' }));
+    // 'close', not 'exit': on Windows 'exit' fires while stdout is still
+    // buffered, so a reply that was on its way got read as never sent — the
+    // pending promise was rejected and the run was failed as 'agent_exited'.
+    // 'close' waits for the pipes to be drained, so a still-pending promise
+    // really was never answered.
+    child.on('close', (code, sig) => {
+      for (const p of pending.values()) p.rej(Object.assign(new Error(`el agente ACP salio (${sig || code})`), { code: 'agent_exited' }));
       pending.clear();
       done({ status: 'failed', error: { code: malformed ? 'malformed_result' : 'agent_exited', message: `el agente ACP salió (${sig || code}) sin asentar`, stderr_tail: stderr.slice(-800) } });
     });
