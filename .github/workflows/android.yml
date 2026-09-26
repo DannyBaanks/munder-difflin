@@ -100,75 +100,34 @@ jobs:
           retention-days: 30
 
   screenshots:
-    # Las pantallas reales en el emulador, lanzadas con MunderDemo (la oficina
-    # de ejemplo incluida, sin red): lo que el PR y el README muestran.
-    # Espejo del job `screenshots` de ios.yml (allá simulador + -MunderTab N,
-    # aquí emulador + extras MunderDemo/MunderTab).
-    name: Emulator screenshots (demo office)
-    needs: build
-    # En Linux el runner no tiene KVM (/dev/kvm denegado) y el x86_64
-    # emulado nunca termina el boot. En macOS el emulador ARM corre nativo.
-    runs-on: macos-latest
+    # Las pantallas reales con la oficina de ejemplo incluida (sin red): lo que
+    # el job `screenshots` de ios.yml fotografía en el simulador, pero en JVM
+    # con Roborazzi. Los runners hospedados no tienen KVM (Linux) ni HVF
+    # (macOS) y el emulador nunca termina el boot ahí — ver runs 36267182531
+    # y 36268420580. Solo graba, como en iOS: las capturas son evidencia del
+    # PR, no una compuerta pixel por pixel.
+    name: Screenshots (Roborazzi, demo office)
+    needs: assets
+    runs-on: ubuntu-latest
     timeout-minutes: 30
     steps:
       - uses: actions/checkout@v4
-      - uses: actions/download-artifact@v4
+      - uses: actions/setup-java@v4
         with:
-          name: MunderMobile-debug-apk
-          path: apk
-      - name: Boot, install and capture
-        # API 30 arm64: arranca nativo en el M1 del runner. (En ubuntu x86_64
-        # con y sin google_apis el boot nunca completó — ver runs 36267182531
-        # y 36268420580.) La app pide minSdk 26, así que API 30 la corre igual.
-        uses: reactivecircus/android-emulator-runner@v2
-        with:
-          api-level: 30
-          target: google_apis
-          arch: arm64-v8a
-          profile: pixel_6
-          disable-animations: true
-          emulator-options: -no-window -no-snapshot -noaudio -no-boot-anim -camera-back none
-          script: |
-            # `set -eu`: el runner ejecuta esto con /usr/bin/sh (dash),
-            # que no conoce `pipefail`. No se usa ningún pipe que lo necesite:
-            # cada `adb` ya falla solo y `test -s` vigila cada captura.
-            set -eu
-            PKG=mx.isyco.munder.mobile.debug
-            APK=$(find apk -name "*.apk" | head -1)
-            test -n "$APK" || { echo "::error::APK not found"; exit 1; }
-            echo "APK: $APK"
-            adb install -r "$APK"
-            adb shell settings put global window_animation_scale 0 || true
-            adb shell settings put global transition_animation_scale 0 || true
-            adb shell settings put global animator_duration_scale 0 || true
-            mkdir -p android/MunderMobile/shots
-            shoot() {
-              local name=$1; shift || true
-              adb shell am force-stop "$PKG" >/dev/null 2>&1 || true
-              adb shell am start -n "$PKG/.MainActivity" "$@" >/dev/null
-              sleep 5
-              adb exec-out screencap -p > "android/MunderMobile/shots/$name.png"
-              test -s "android/MunderMobile/shots/$name.png"
-            }
-            adb shell cmd uimode night no
-            sleep 2
-            shoot pair-light
-            for mode in light dark; do
-              if [ "$mode" = "dark" ]; then adb shell cmd uimode night yes; else adb shell cmd uimode night no; fi
-              sleep 3
-              shoot "office-$mode" --ez MunderDemo true --ei MunderTab 0
-              shoot "questions-$mode" --ez MunderDemo true --ei MunderTab 1
-              shoot "board-$mode" --ez MunderDemo true --ei MunderTab 2
-              shoot "link-$mode" --ez MunderDemo true --ei MunderTab 3
-              # La pestaña Panel, del host demo incluido. Es la evidencia del PR
-              # para un cambio que solo existe en pantalla.
-              shoot "panel-$mode" --ez MunderDemo true --ei MunderTab 4
-              shoot "locked-$mode" --ez MunderDemo true --ez MunderDemoLocked true
-            done
-            ls -la android/MunderMobile/shots
+          distribution: temurin
+          java-version: 17
+      - uses: gradle/actions/setup-gradle@v4
+      - run: ./gradlew :app:recordRoborazziDebug --stacktrace
+        working-directory: android/MunderMobile
+      - name: Check the shots exist
+        run: |
+          ls -la android/MunderMobile/app/build/outputs/roborazzi/
+          test "$(find android/MunderMobile/app/build/outputs/roborazzi -name '*.png' | wc -l)" -ge 13 || {
+            echo "::error::faltan capturas (se esperan 13+)"; exit 1
+          }
       - name: Upload screenshots
         uses: actions/upload-artifact@v4
         with:
           name: munder-android-screenshots
-          path: android/MunderMobile/shots/*.png
+          path: android/MunderMobile/app/build/outputs/roborazzi/*.png
           retention-days: 30

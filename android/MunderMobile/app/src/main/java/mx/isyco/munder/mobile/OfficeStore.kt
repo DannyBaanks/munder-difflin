@@ -16,9 +16,12 @@ import kotlinx.serialization.encodeToString
  * Todo lo que muestran y hacen las pantallas, en un solo lugar.
  * Espejo de Sources/OfficeStore.swift: misma Phase, mismos ops, mismos
  * toasts en español, mismo panelRemoteBlocked.
+ *
+ * `secure` nulo = sin persistencia (tests y capturas): la llave y la oficina
+ * viven solo en memoria. La app real siempre lo pasa.
  */
 class OfficeStore(
-    private val secure: SecureStore,
+    private val secure: SecureStore?,
 ) : ViewModel() {
 
     sealed interface Phase {
@@ -77,12 +80,12 @@ class OfficeStore(
     init {
         // Restaura el emparejamiento, igual que init(defaults:) en Swift.
         try {
-            val officeJson = secure.loadOffice()
-            val raw = secure.loadSessionKey()
+            val officeJson = secure?.loadOffice()
+            val raw = secure?.loadSessionKey()
             if (officeJson != null && raw != null) {
                 val office = MunderJson.decodeFromString<PairedOffice>(officeJson)
                 adopt(office, raw)
-                val pending = secure.loadPendingCode()
+                val pending = secure?.loadPendingCode()
                 _phase.value = if (pending != null) Phase.Waiting(pending) else Phase.Paired
             }
         } catch (e: Exception) {
@@ -94,7 +97,7 @@ class OfficeStore(
         val c = RemoteClient(office, key)
         c.onOfficeChanged = { next ->
             try {
-                secure.saveOffice(MunderJson.encodeToString(next))
+                secure?.saveOffice(MunderJson.encodeToString(next))
             } catch (e: Exception) { }
             _office.value = next.copy()
         }
@@ -105,7 +108,7 @@ class OfficeStore(
     private fun persist(office: PairedOffice) {
         _office.value = office
         try {
-            secure.saveOffice(MunderJson.encodeToString(office))
+            secure?.saveOffice(MunderJson.encodeToString(office))
         } catch (e: Exception) { }
     }
 
@@ -123,9 +126,9 @@ class OfficeStore(
             try {
                 val name = deviceName.trim().ifEmpty { "Android" }
                 val r = pairOffice(address, name)
-                secure.saveSessionKey(r.key)
+                secure?.saveSessionKey(r.key)
                 persist(r.office)
-                secure.savePendingCode(r.code)
+                secure?.savePendingCode(r.code)
                 adopt(r.office, r.key)
                 _phase.value = Phase.Waiting(r.code)
             } catch (e: RemoteError) {
@@ -148,7 +151,7 @@ class OfficeStore(
                 try {
                     val hello: Hello = client()?.call("hello") ?: break
                     client()?.learn(hello.addresses ?: emptyList())
-                    secure.clearPendingCode()
+                    secure?.clearPendingCode()
                     _phase.value = Phase.Paired
                     _toast.value = "¡Listo! Celular emparejado"
                     refresh()
@@ -195,8 +198,8 @@ class OfficeStore(
     fun forget() {
         _viewing.value = null
         _recipient.value = "god"
-        secure.deleteSessionKey()
-        secure.clearOffice()
+        secure?.deleteSessionKey()
+        secure?.clearOffice()
         client = null
         _office.value = null
         _overview.value = null
@@ -386,7 +389,7 @@ class OfficeStore(
                 return@launch
             }
             if (!authorize(SensitiveAction.ADD_ADDRESS)) return@launch
-            val key = secure.loadSessionKey() ?: return@launch
+            val key = secure?.loadSessionKey() ?: return@launch
             val probe = RemoteClient(
                 PairedOffice(office.officeId, office.name, office.boxPub, office.deviceId, office.deviceName, mutableListOf(address)),
                 key,

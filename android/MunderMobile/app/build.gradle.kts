@@ -3,6 +3,7 @@ plugins {
     id("org.jetbrains.kotlin.android")
     id("org.jetbrains.kotlin.plugin.compose")
     id("org.jetbrains.kotlin.plugin.serialization")
+    id("io.github.takahirom.roborazzi")
 }
 
 android {
@@ -95,5 +96,17 @@ dependencies {
     testImplementation("junit:junit:4.13.2")
     testImplementation("org.jetbrains.kotlinx:kotlinx-coroutines-test:1.8.1")
     testImplementation("org.bouncycastle:bcprov-jdk18on:1.78.1")
+    // Capturas: Compose en JVM (Roborazzi sobre Robolectric), sin emulador.
+    testImplementation("androidx.compose.ui:ui-test-junit4")
+    testImplementation("io.github.takahirom.roborazzi:roborazzi:1.16.0")
+    testImplementation("io.github.takahirom.roborazzi:roborazzi-compose:1.16.0")
+    testImplementation("org.robolectric:robolectric:4.17")
     androidTestImplementation("androidx.test.ext:junit:1.1.5")
+}
+
+android {
+    // Roborazzi necesita los recursos Android en los tests unitarios.
+    testOptions {
+        unitTests { isIncludeAndroidResources = true }
+    }
 }

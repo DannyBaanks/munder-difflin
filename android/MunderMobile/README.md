@@ -102,11 +102,14 @@ Dos botones **no** se pueden desde el celular, por diseño:
   (`PanelBlockedTest`). El CI además corre `make-assets --check` de iOS primero.
 - **Demo:** `adb shell am start -n mx.isyco.munder.mobile.debug/.MainActivity --ez MunderDemo true --ei MunderTab 2`
   abre el tablero de ejemplo sin red (N = 0..4, igual que `-MunderTab N` en iOS).
-- **Capturas:** el CI (`screenshots`, espejo del de ios.yml) instala el APK en
-  un emulador Pixel 6 y fotografía la oficina demo sin red: `pair-light` más
-  `office/questions/board/link/panel/locked` en light y dark (13 PNG en el
-  artifact `munder-android-screenshots`). Local, con un emulador corriendo:
-  `./scripts/shots.sh`.
+- **Capturas:** el CI (`screenshots`, espejo del de ios.yml) dibuja las pantallas
+  con la oficina demo sin red y sube 13 PNG al artifact
+  `munder-android-screenshots`: `pair-light` más
+  `office/questions/board/link/panel/locked` en light y dark.
+  Son Roborazzi en JVM, no emulador: los runners hospedados no tienen KVM
+  (Linux) ni HVF (macOS) y el emulador nunca termina el boot ahí.
+  Local: `./gradlew :app:recordRoborazziDebug`
+  (→ `app/build/outputs/roborazzi/`). Con emulador propio: `./scripts/shots.sh`.
 
 Para compilar local:
 

@@ -1,0 +1,47 @@
+{
+  "app": {
+    "running": false,
+    "pid": null,
+    "version": "fixture"
+  },
+  "link": {
+    "on": false,
+    "name": "michael-victus",
+    "fingerprint": "a3cd ab50 d939 52ee",
+    "peers": [],
+    "pending": [],
+    "phones": [
+      {
+        "id": "9ed00cd88840bed1",
+        "name": "iPhone de Danny",
+        "since": "2026-09-26",
+        "authority": "machine"
+      }
+    ],
+    "urls": [
+      {
+        "url": "http://192.168.1.64:47831/app/",
+        "via": "red de casa"
+      },
+      {
+        "url": "http://100.101.4.7:47831/app/",
+        "via": "Tailscale (tambien fuera de casa)"
+      }
+    ]
+  },
+  "gpt": {
+    "available": false,
+    "on": false,
+    "running": false,
+    "profile": "full",
+    "public_url": null,
+    "grants": 0,
+    "pending": []
+  },
+  "reviver": {
+    "configured": false,
+    "running": false
+  },
+  "platform": "linux",
+  "launcher": "dev"
+}

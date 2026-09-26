@@ -41,6 +41,8 @@ pairs.push(['ios/MunderMobile/Media/Fonts/PressStart2P-Regular.ttf', 'android/Mu
 pairs.push(['ios/MunderMobile/Media/Fonts/PressStart2P-Regular.ttf', 'android/MunderMobile/app/src/main/res/font/press_start_2p.ttf']);
 pairs.push(['ios/MunderMobile/Tests/vectors.json', 'android/MunderMobile/app/src/test/resources/vectors.json']);
 pairs.push(['ios/MunderMobile/Media/Demo/overview.json', 'android/MunderMobile/app/src/test/resources/overview.json']);
+pairs.push(['ios/MunderMobile/Media/Demo/demo-peers.json', 'android/MunderMobile/app/src/test/resources/demo-peers.json']);
+pairs.push(['ios/MunderMobile/Media/Demo/demo-panel.json', 'android/MunderMobile/app/src/test/resources/demo-panel.json']);
 
 for (const [srcRel, dstRel] of pairs) {
   const src = path.join(REPO, srcRel), dst = path.join(REPO, dstRel);
