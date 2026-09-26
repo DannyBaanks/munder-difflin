@@ -89,7 +89,11 @@ function run({ cfg, prompt, cwd, resume, timeoutMs, signal, env, onNative, onEve
     });
     child.stderr.on('data', (d) => { stderr = (stderr + d).slice(-4000); });
     child.on('error', (e) => done({ status: 'failed', error: { code: e.code === 'ENOENT' ? 'harness_not_installed' : 'spawn_failed', message: e.message } }));
-    child.on('exit', (code, sig) => {
+    // 'close', not 'exit': on Windows 'exit' fires while stdout is still
+    // buffered, so a harness that settled and exited 0 looked like it never
+    // did ('no_settle'). 'close' waits for the pipes to be drained, which is
+    // what "the turn is over" actually means.
+    child.on('close', (code, sig) => {
       // Exit without turn.completed / turn.failed is never success.
       done({ status: 'failed', error: { code: malformed ? 'malformed_result' : 'no_settle', message: `codex salió (${sig || code}) sin asentar el turno`, stderr_tail: stderr.slice(-800) } });
     });
