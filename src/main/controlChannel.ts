@@ -28,6 +28,9 @@ export interface ControlChannelOptions {
   /** Repaint broadcast delegate (M3): tells every live window to repaint its
    *  canvases. Returns the window count reached. Absent → 501. */
   repaint?: () => number;
+  /** Wake the renderer's guarded inbox delivery after a Munder Link arrival.
+   *  The delegate only signals; it never writes into an agent PTY directly. */
+  wake?: (messageId: string) => void;
   /** Office Packs (bundled, core merged in). Absent → pack routes answer 501. */
   packs?: () => { packs: OfficePack[] };
   /** Validate a pack that arrived from outside (a file): outward levels capped at 'ask'. */
@@ -325,6 +328,7 @@ export class ControlChannel {
   private readonly spawn?: ChannelSpawnFn;
   private readonly kill?: ChannelKillFn;
   private readonly repaint?: () => number;
+  private readonly wake?: (messageId: string) => void;
   private readonly read?: SessionReaderFn;
   private readonly packs?: ControlChannelOptions['packs'];
   private readonly importPack?: ControlChannelOptions['importPack'];
@@ -340,6 +344,7 @@ export class ControlChannel {
     this.spawn = opts.spawn;
     this.kill = opts.kill;
     this.repaint = opts.repaint;
+    this.wake = opts.wake;
     this.read = opts.read;
   }
 
@@ -466,6 +471,33 @@ export class ControlChannel {
       try {
         const windows = this.repaint();
         json(res, 200, { ok: true, windows });
+      } catch (e: unknown) {
+        json(res, 500, { ok: false, error: e instanceof Error ? e.message : String(e) });
+      }
+      return;
+    }
+    if (req.method === 'POST' && path === '/hive/wake') {
+      if (!this.authorized(req)) {
+        json(res, 401, { ok: false, error: 'unauthorized' });
+        return;
+      }
+      if (!this.wake) {
+        json(res, 501, { ok: false, error: 'wake no disponible en este build' });
+        return;
+      }
+      const body = await readJsonBody(req);
+      if (!body.ok) {
+        json(res, body.error === 'payload_too_large' ? 413 : 400, { ok: false, error: body.error });
+        return;
+      }
+      const messageId = (body.value as { message_id?: unknown } | null)?.message_id;
+      if (typeof messageId !== 'string' || !messageId.trim() || messageId.length > 256) {
+        json(res, 400, { ok: false, error: 'message_id inválido' });
+        return;
+      }
+      try {
+        this.wake(messageId);
+        json(res, 200, { ok: true });
       } catch (e: unknown) {
         json(res, 500, { ok: false, error: e instanceof Error ? e.message : String(e) });
       }

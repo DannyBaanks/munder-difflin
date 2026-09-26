@@ -172,6 +172,47 @@ test('messages keep the Office Bridge format, so Michael reads them like any oth
   assert.deepEqual(Object.keys(msg).sort(), ['act', 'body', 'conversation', 'created_at', 'from', 'hops', 'id', 'in_reply_to', 'needs_human', 'requires_reply', 'subject', 'to'].sort());
 });
 
+test('an accepted Link arrival immediately notifies the authenticated local control channel', async (t) => {
+  const a = await serve(office('wake-a'));
+  const b = office('wake-b');
+  let markReady;
+  const ready = new Promise((resolve) => { markReady = resolve; });
+  const received = new Promise((resolve, reject) => {
+    const control = require('node:http').createServer(async (req, res) => {
+      try {
+        assert.equal(req.method, 'POST');
+        assert.equal(req.url, '/hive/wake');
+        assert.equal(req.headers.authorization, 'Bearer wake-token');
+        let body = '';
+        for await (const chunk of req) body += chunk;
+        resolve(JSON.parse(body));
+        res.writeHead(200, { 'Content-Type': 'application/json' });
+        res.end('{"ok":true}');
+      } catch (error) {
+        reject(error);
+        res.writeHead(500);
+        res.end();
+      }
+    });
+    control.listen(0, '127.0.0.1', () => {
+      const controlFile = path.join(b.dir, 'munder-control.json');
+      fs.writeFileSync(controlFile, JSON.stringify({ port: control.address().port, token: 'wake-token' }));
+      const { server } = L.createLinkServer({ dir: b.dir, hiveRoot: b.hive, version: 'test', controlFile });
+      server.listen(0, '127.0.0.1', () => {
+        b.server = server;
+        b.address = `127.0.0.1:${server.address().port}`;
+        t.after(() => { a.server.close(); b.server.close(); control.close(); });
+        markReady();
+      });
+    });
+  });
+  await ready;
+  const peer = await pairWith(a, b);
+  const delegated = await L.call(peer.name, 'submit', { compose: 'Wake Michael now', origin_ref: 'wake-link-1' }, { dir: a.dir });
+  const wake = await received;
+  assert.equal(wake.message_id, delegated.result.message_id);
+});
+
 // ─── hardening ───────────────────────────────────────────────────────────────
 
 /** A man in the middle of pairing: forwards /pair both ways, swapping ONLY the

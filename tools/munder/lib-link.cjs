@@ -282,6 +282,44 @@ function localHiveRoot() {
   return home ? path.join(home, 'hive') : null;
 }
 
+/** Munder's Electron userData directory, matching the panel and GPT helpers. */
+function munderUserDataDir() {
+  if (process.env.MUNDER_USER_DATA) return process.env.MUNDER_USER_DATA;
+  const base = process.platform === 'win32' ? (process.env.APPDATA || path.join(os.homedir(), 'AppData', 'Roaming'))
+    : process.platform === 'darwin' ? path.join(os.homedir(), 'Library', 'Application Support')
+      : (process.env.XDG_CONFIG_HOME || path.join(os.homedir(), '.config'));
+  const names = ['munder-difflin', 'Munder Difflin'];
+  return names.map((name) => path.join(base, name)).find((dir) => fs.existsSync(dir)) || path.join(base, names[0]);
+}
+
+function munderControlPath() { return path.join(munderUserDataDir(), 'munder-control.json'); }
+
+/**
+ * Tell the live Munder app about a message Link has already atomically written.
+ * This is intentionally best-effort and bounded: Link remains available when
+ * the desktop app is closed, stale, or upgraded, and no peer can reach this
+ * loopback-only token-authenticated channel through the Link network surface.
+ */
+function notifyControlWake(messageId, controlFile = munderControlPath()) {
+  const cfg = readJson(controlFile, null);
+  if (!cfg || !Number.isInteger(cfg.port) || cfg.port < 1 || cfg.port > 65535 || typeof cfg.token !== 'string' || !cfg.token) return;
+  const data = Buffer.from(JSON.stringify({ message_id: messageId }));
+  let req;
+  try {
+    req = http.request({
+      host: '127.0.0.1', port: cfg.port, path: '/hive/wake', method: 'POST',
+      headers: {
+        Authorization: `Bearer ${cfg.token}`,
+        'Content-Type': 'application/json',
+        'Content-Length': data.length,
+      },
+    }, (res) => { res.resume(); });
+    req.setTimeout(1000, () => req.destroy());
+    req.on('error', () => {});
+    req.end(data);
+  } catch { try { req?.destroy(); } catch { /* noop */ } }
+}
+
 // ─── the durable origin index ────────────────────────────────────────────────
 // `origin_ref` is the correlation id a delegating office mints for one piece of
 // delegated work. It is only ever stored next to the office it belongs to — the
@@ -330,11 +368,12 @@ function rememberOrigin({ dir = stateDir(), toOffice, toName, originRef, taskId,
 }
 
 class Office {
-  constructor(hiveRoot, agentId = 'munder-link', dir = stateDir()) {
+  constructor(hiveRoot, agentId = 'munder-link', dir = stateDir(), onMessage = null) {
     if (!hiveRoot) throw new LinkError('no_hive', 'no encuentro el hive de esta oficina (abre Munder una vez o usa MUNDER_LINK_HIVE)', 503);
     this.root = path.resolve(hiveRoot);
     this.agentId = agentId;
     this.dir = dir;
+    this.onMessage = onMessage;
   }
 
   p(...parts) {
@@ -392,6 +431,7 @@ class Office {
       created_at: now,
     };
     this.writeJson(this.p('agents', to, 'inbox', `${msg.id}.json`), msg);
+    try { this.onMessage?.(msg.id); } catch { /* local wake is never an intake dependency */ }
     return msg.id;
   }
 
@@ -606,7 +646,7 @@ function appendReceipt(dir, entry) {
  * sealed, signed envelope from a paired office. Pair requests only become
  * trust when a human on THIS machine accepts the code (`munder link aceptar`).
  */
-function createLinkServer({ dir = stateDir(), hiveRoot = localHiveRoot(), version = 'dev', now = () => Date.now() } = {}) {
+function createLinkServer({ dir = stateDir(), hiveRoot = localHiveRoot(), version = 'dev', now = () => Date.now(), controlFile = munderControlPath() } = {}) {
   const identity = loadIdentity(dir);
   const seen = new Map();
   // Public route: our card plus HOST capacity only. The office's own numbers
@@ -676,7 +716,7 @@ function createLinkServer({ dir = stateDir(), hiveRoot = localHiveRoot(), versio
 
   async function dispatch(payload, peer) {
     const { op, args = {} } = payload || {};
-    const office = () => new Office(hiveRoot, `link:${peer.name}`, dir);
+    const office = () => new Office(hiveRoot, `link:${peer.name}`, dir, (messageId) => notifyControlWake(messageId, controlFile));
     switch (op) {
       case 'status': {
         let cap;
@@ -967,7 +1007,7 @@ module.exports = {
   stateDir, files, loadIdentity, publicCard, prettyFingerprint, officeIdOf,
   loadPeers, loadPending, savePending, findPeer, sas, seal, open,
   loadRemotes, trustRemote, forgetRemote, readJson, readBody, send, appendReceipt, MAX_PENDING, PENDING_TTL_MS, MAX_SKEW_MS, NONCE_TTL_MS,
-  Office, localHiveRoot, capacity, hostCapacity,
+  Office, localHiveRoot, munderUserDataDir, munderControlPath, notifyControlWake, capacity, hostCapacity,
   originKey, checkOriginRef, loadOrigins, saveOrigins, rememberOrigin,
   createLinkServer, createDiscoveryResponder,
   hello, requestPair, trustPeer, acceptPending, forgetPeer, call, delegate, reply,

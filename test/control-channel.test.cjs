@@ -297,6 +297,27 @@ test('POST /repaint without delegate is 501', async () => {
   }
 });
 
+test('POST /hive/wake with the boot token invokes the immediate wake delegate', async () => {
+  const wakes = [];
+  const ch = new ControlChannel({
+    token: 'test-token-123',
+    wake: (messageId) => { wakes.push(messageId); },
+  });
+  const { port } = await ch.start(0);
+  try {
+    const r = await post(port, '/hive/wake', { message_id: 'link-message-123' });
+    assert.equal(r.status, 200);
+    assert.deepEqual(r.body, { ok: true });
+    assert.deepEqual(wakes, ['link-message-123']);
+
+    const denied = await post(port, '/hive/wake', { message_id: 'must-not-wake' }, 'wrong');
+    assert.equal(denied.status, 401);
+    assert.deepEqual(wakes, ['link-message-123'], 'an unauthenticated caller never wakes the hive');
+  } finally {
+    ch.stop();
+  }
+});
+
 /* ─── M1: session read ───────────────────────────────────────────────────── */
 
 test('buildSessionView joins registry identity with PTY liveness', () => {

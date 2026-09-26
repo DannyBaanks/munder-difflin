@@ -689,44 +689,25 @@ export function useHive(config: HarnessConfig | null): void {
   //    always worked this way.
   useEffect(() => {
     if (!config?.onboardingComplete) return;
+    const queueInboxWake = async (agentId: string): Promise<void> => {
+      const { agents, enqueueMessage } = useStore.getState();
+      const agent = agents.find((candidate) => candidate.id === agentId);
+      if (!agent?.ptyId) return;
+      try {
+        const inbox = await window.cth.hiveInbox(agent.id);
+        const seen = nudged.current[agent.id] ?? (nudged.current[agent.id] = new Set());
+        const fresh = inbox.filter((message) => message.id && !seen.has(message.id));
+        if (!fresh.length) return;
+        enqueueMessage(agent.id, inboxNudgeText(fresh.map((message) => message.id)), { precondition: 'inbox-nonempty' });
+        for (const message of fresh) seen.add(message.id);
+      } catch { /* the regular poll retries */ }
+    };
+    const offWake = window.cth.onHiveInboxWake?.(({ agentId }) => { void queueInboxWake(agentId); }) ?? (() => {});
     const iv = setInterval(async () => {
       const agents = useStore.getState().agents.filter((a) => a.ptyId);
-      for (const a of agents) {
-        try {
-          const inbox = await window.cth.hiveInbox(a.id);
-          // Nudge on any id we have not nudged for yet (#130's per-id Set).
-          // Draining shrinks the set and introduces nothing new, so this POLL
-          // stays quiet; a genuinely new message fires regardless of how its id
-          // happens to sort.
-          //
-          // That reasoning covers the poll only — it does NOT survive the gap
-          // between enqueue and delivery, which is why the nudge carries an
-          // 'inbox-nonempty' precondition that the drain re-checks before typing.
-          // Without it: mail lands and queues a nudge, the already-awake agent
-          // drains the whole inbox in that same turn, and the nudge is typed into
-          // an empty inbox afterwards — a wasted turn, and the most expensive one
-          // on the floor when the agent is god.
-          const seen = nudged.current[a.id] ?? (nudged.current[a.id] = new Set());
-          const fresh = inbox.filter((m) => m.id && !seen.has(m.id));
-          if (fresh.length) {
-            // Name the ids: the nudge is queued now and typed whenever the agent
-            // next goes idle, so it can arrive long after the agent drained and
-            // filed this very mail. Carrying the ids is what lets it tell
-            // "already handled" from "woken for nothing". The queue keeps only
-            // one nudge pending per agent (see enqueueMessage), so a suppressed
-            // copy's ids stay unnamed — hence the text points at the pending
-            // inbox as the authority rather than at the list.
-            useStore.getState().enqueueMessage(
-              a.id,
-              inboxNudgeText(fresh.map((m) => m.id)),
-              { precondition: 'inbox-nonempty' }
-            );
-            for (const m of fresh) seen.add(m.id);
-          }
-        } catch { /* ignore */ }
-      }
+      for (const agent of agents) void queueInboxWake(agent.id);
     }, 4000);
-    return () => clearInterval(iv);
+    return () => { offWake(); clearInterval(iv); };
   }, [config?.onboardingComplete]);
 
   // 3b) Seed a fresh "type-into-tui" worker (Crush) with the hive protocol. Its

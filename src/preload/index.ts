@@ -918,6 +918,12 @@ const api = {
     ipcRenderer.on('hive:message', listener);
     return () => ipcRenderer.removeListener('hive:message', listener);
   },
+  /** Prompt the guarded renderer inbox scan after a locally-authenticated Link arrival. */
+  onHiveInboxWake: (cb: (e: { agentId: string; messageId: string }) => void): (() => void) => {
+    const listener = (_e: IpcRendererEvent, payload: { agentId: string; messageId: string }) => cb(payload);
+    ipcRenderer.on('hive:inboxWake', listener);
+    return () => ipcRenderer.removeListener('hive:inboxWake', listener);
+  },
   /** Register a listener for hive tasks routed to non-Claude agents (e.g.
    *  Codex). Main emits this instead of bouncing; the renderer enqueues the
    *  raw text so the drain effect types it into the agent's REPL when idle. */

@@ -1880,6 +1880,17 @@ async function startControlChannel(): Promise<void> {
         if (reached > 0) console.log(`[control] ui:repaint broadcast a ${reached} ventana(s)`);
         return reached;
       },
+      wake: (messageId) => {
+        // Link writes directly to the durable inbox, outside HiveManager's
+        // router, so wake the renderer's normal queue promptly. Do not type
+        // into Michael here: the renderer retains its idle/draft/boot guards.
+        const godId = hive.registry().godId;
+        if (!godId || !hive.inbox(godId).some((message) => message.id === messageId)) return;
+        for (const w of allWindows) {
+          if (w.isDestroyed() || w.webContents.isDestroyed()) continue;
+          try { w.webContents.send('hive:inboxWake', { agentId: godId, messageId }); } catch { /* tearing down */ }
+        }
+      },
       spawn: (opts) => spawnAgentCore({
         ...opts,
         // The channel carries provider as an unconstrained string (JSON);
