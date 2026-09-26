@@ -117,6 +117,7 @@ struct MainView: View {
 /// Header + offline banner + scrolling body, shared by the four tabs.
 struct Screen<Content: View>: View {
     @EnvironmentObject private var store: OfficeStore
+    @EnvironmentObject private var lock: AppLock
     let title: String
     var subtitle: String?
     /// The title becomes a menu of offices: this one first, then every paired one.
@@ -153,6 +154,11 @@ struct Screen<Content: View>: View {
                 }
                 .padding(.top, 8)
                 if let subtitle { Text(subtitle).font(.system(size: 12, design: .monospaced)).foregroundColor(Px.ink500) }
+                if lock.unprotected {
+                    Text("Tu iPhone no tiene código: cualquiera que lo tome puede usar tu oficina. Ponle uno en Ajustes → Face ID y código.")
+                        .font(.footnote).padding(10).frame(maxWidth: .infinity, alignment: .leading)
+                        .background(Px.lemonLight).overlay(Rectangle().strokeBorder(Px.lemon, lineWidth: 1))
+                }
                 if !store.online {
                     Text(store.offlineReason ?? "Sin conexión")
                         .font(.footnote).padding(10).frame(maxWidth: .infinity, alignment: .leading)
@@ -510,7 +516,7 @@ struct LinkTab: View {
                                 if i == 0 { Chip(text: "la última que contestó") }
                                 Spacer()
                                 if o.addresses.count > 1 {
-                                    Button { store.removeAddress(a) } label: { Image(systemName: "xmark") }.foregroundColor(Px.ink500)
+                                    Button { Task { await store.removeAddress(a) } } label: { Image(systemName: "xmark") }.foregroundColor(Px.ink500)
                                 }
                             }
                         }
@@ -532,7 +538,7 @@ struct LinkTab: View {
                     Button("Olvidar en este celular") { confirmForget = true }
                         .buttonStyle(PixelButtonStyle(kind: .danger))
                         .confirmationDialog("¿Olvidar la oficina en este celular?", isPresented: $confirmForget, titleVisibility: .visible) {
-                            Button("Olvidar", role: .destructive) { store.forget() }
+                            Button("Olvidar", role: .destructive) { Task { await store.forgetAuthorized() } }
                         }
                 }
             }

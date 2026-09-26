@@ -1,0 +1,9 @@
+[Desktop Entry]
+Type=Application
+Name=Munder Panel
+Comment=Abre, cierra y maneja Munder Difflin con botones
+Exec="/opt/Munder Difflin/munder-difflin" --panel
+Icon=munder-difflin
+Terminal=false
+Categories=Development;Utility;
+StartupWMClass=Munder Panel

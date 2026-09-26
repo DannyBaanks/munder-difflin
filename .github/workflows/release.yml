@@ -82,7 +82,7 @@ jobs:
         run: |
           cd dist
           # hash only the distributable artifacts, not blockmaps/yml
-          files=$(ls *.dmg *.zip *.exe *.AppImage 2>/dev/null || true)
+          files=$(ls *.dmg *.zip *.exe *.AppImage *.deb 2>/dev/null || true)
           [ -z "$files" ] && { echo "no artifacts to hash"; exit 0; }
           if command -v sha256sum >/dev/null 2>&1; then
             sha256sum $files > "SHA256SUMS-${{ matrix.os }}.txt"
@@ -103,6 +103,7 @@ jobs:
             dist/*.zip
             dist/*.exe
             dist/*.AppImage
+            dist/*.deb
             dist/*.blockmap
             dist/latest*.yml
             dist/SHA256SUMS-*.txt
@@ -123,7 +124,7 @@ jobs:
       - name: Flatten + merge checksums
         run: |
           mkdir -p release
-          find artifacts -type f \( -name '*.dmg' -o -name '*.zip' -o -name '*.exe' -o -name '*.AppImage' -o -name '*.blockmap' -o -name 'latest*.yml' \) -exec cp {} release/ \;
+          find artifacts -type f \( -name '*.dmg' -o -name '*.zip' -o -name '*.exe' -o -name '*.AppImage' -o -name '*.deb' -o -name '*.blockmap' -o -name 'latest*.yml' \) -exec cp {} release/ \;
           cat artifacts/*/SHA256SUMS-*.txt > release/SHA256SUMS.txt 2>/dev/null || true
           ls -la release
 
@@ -149,6 +150,7 @@ jobs:
             release/*.zip
             release/*.exe
             release/*.AppImage
+            release/*.deb
             release/*.blockmap
             release/latest*.yml
             release/SHA256SUMS.txt

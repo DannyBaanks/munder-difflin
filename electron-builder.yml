@@ -96,6 +96,14 @@ extraResources:
     to: munder/gpt.cjs
   - from: tools/munder/gpt-serve.cjs
     to: munder/gpt-serve.cjs
+  # Munder Panel (`Munder Difflin --panel`): every munder command as a button.
+  # Loaded by src/main/panelMode.ts; builtins only, like the rest of munder/.
+  - from: tools/munder/lib-panel.cjs
+    to: munder/lib-panel.cjs
+  - from: tools/munder/panel.cjs
+    to: munder/panel.cjs
+  - from: tools/munder/panel-app
+    to: munder/panel-app
   # Office Packs (JSON, no secrets). loadBundledPacks() reads them from
   # <process.resourcesPath>/packs packaged, repo resources/packs in dev.
   - from: resources/packs
@@ -181,6 +189,8 @@ nsis:
   allowToChangeInstallationDirectory: true
   artifactName: Munder-Difflin-${version}-win-x64-setup.exe
   shortcutName: Munder Difflin
+  # Adds (and removes) the "Munder Panel" Start menu shortcut: the same exe with --panel.
+  include: build/installer.nsh
 
 portable:
   artifactName: Munder-Difflin-${version}-win-x64-portable.exe
@@ -188,8 +198,19 @@ portable:
 # ---- Linux ----
 linux:
   category: Development
+  # The .deb needs a maintainer; package.json's author has no email.
+  maintainer: "DannyBaanks <DannyBaanks@users.noreply.github.com>"
   icon: build/icon.png
   target:
     - target: AppImage
       arch: [x64]
+    - target: deb
+      arch: [x64]
   artifactName: Munder-Difflin-${version}-linux-x86_64.AppImage
+
+# The .deb installs Munder into /opt and both menu entries: Munder Difflin
+# (electron-builder's own) and Munder Panel (the same binary with --panel).
+deb:
+  artifactName: Munder-Difflin-${version}-linux-amd64.deb
+  fpm:
+    - "build/linux/munder-panel.desktop=/usr/share/applications/munder-panel.desktop"

@@ -179,6 +179,7 @@ jobs:
             shoot "questions-$scheme" -MunderDemo -MunderTab 1
             shoot "board-$scheme" -MunderDemo -MunderTab 2
             shoot "link-$scheme" -MunderDemo -MunderTab 3
+            shoot "locked-$scheme" -MunderDemo -MunderDemoLocked
           done
           ls -la shots
       - name: Upload screenshots
