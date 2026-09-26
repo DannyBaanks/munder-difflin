@@ -4,6 +4,16 @@ All notable changes to this project are documented here. The format is based on
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and this project adheres to
 [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.5.2-ISyCo.2] — 2026-09-26
+
+Second public ISyCo fork cut over Munder Difflin 0.5.2. The full notes ship in
+[`RELEASE.md`](RELEASE.md), published verbatim as the GitHub Release body:
+Munder Link offices, Mobile (PWA + native iPhone), Munder Panel as its own
+stratum with explicit authorities, `munder gpt` (ChatGPT as a real principal),
+and the external-harness P0 boundary. CI runs the panel-remote and harness-p0
+suites load-checked in the munder CLI step, and `package-lock.json` is
+regenerated in sync (restores `ws@8.21.3` under `@openai/agents-core`).
+
 ## [Unreleased]
 
 ### Added
