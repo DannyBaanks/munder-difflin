@@ -59,6 +59,8 @@
 		<key>NSAllowsArbitraryLoads</key>
 		<true/>
 	</dict>
+	<key>NSFaceIDUsageDescription</key>
+	<string>Munder usa Face ID para que solo tú puedas ver y manejar tu oficina desde este celular.</string>
 	<key>NSLocalNetworkUsageDescription</key>
 	<string>Munder se conecta a tu oficina Munder en tu red local.</string>
 </dict>
