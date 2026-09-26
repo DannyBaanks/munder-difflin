@@ -115,14 +115,18 @@ jobs:
           name: MunderMobile-debug-apk
           path: apk
       - name: Boot, install and capture
+        # API 30 + imagen default + Nexus 6: la combinación que arranca siempre
+        # en estos runners. (API 34 google_apis en Pixel 6 se quedó colgada en
+        # el boot: sys.boot_completed nunca llegó — ver run 36267182531.)
+        # La app pide minSdk 26, así que API 30 la corre igual.
         uses: reactivecircus/android-emulator-runner@v2
         with:
-          api-level: 34
-          target: google_apis
+          api-level: 30
+          target: default
           arch: x86_64
-          profile: pixel_6
+          profile: Nexus 6
           disable-animations: true
-          emulator-options: -no-window -no-audio -no-boot-anim -camera-back none
+          emulator-options: -no-window -no-snapshot -gpu swiftshader_indirect -noaudio -no-boot-anim -camera-back none
           script: |
             set -euo pipefail
             PKG=mx.isyco.munder.mobile.debug
