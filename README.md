@@ -19,239 +19,200 @@
 
 ## ¿Qué es esto?
 
-Munder Difflin es una **oficina de agentes de IA** que corre en tu computadora. Tú le pides algo a **Michael** (el jefe) y él reparte el trabajo entre su equipo. Cada agente es un Claude Code, Codex, Gemini u otro CLI trabajando en su propia terminal. Todo se ve como una oficina en pixel art: quién está trabajando, quién está libre y qué tarea lleva cada quien.
+Imagina una oficina donde cada empleado es una IA. **Tú hablas con Michael, el jefe**, y él reparte el trabajo: uno programa, otro investiga, otro revisa. Tú ves todo en una oficina en pixel art: quién está trabajando, quién está libre y en qué va cada quien.
 
-Este fork en español ([DannyBaanks/munder-difflin](https://github.com/DannyBaanks/munder-difflin)) le agrega tres cosas grandes:
+<p align="center">
+  <img src="./docs/readme/oficina-real.png" alt="Una oficina real de Munder: arriba las pestañas Oficina, Configuración y Marketplace; en el piso Michael y Dwight trabajando («using bash») y otros agentes libres; abajo las tarjetas del equipo con su estado" width="860"><br>
+  <sub>Una oficina de verdad trabajando: Michael y Dwight ocupados, el resto del equipo libre.</sub>
+</p>
 
-- 🔗 **Dos computadoras, una oficina.** Tu Michael le puede pasar trabajo al Michael de otra máquina (Munder Link).
-- 📱 **Tu oficina en el celular.** Contesta las preguntas de Michael, revisa el tablero y delega desde la PWA o la app nativa de iPhone (Munder Mobile).
-- 🇲🇽 **Todo en español**, con una terminal cómoda (`munder`) para no depender de `npm run dev`.
+Este fork en español le suma cosas que no trae el original:
 
-> Es un fork de [chaitanyagiri/munder-difflin](https://github.com/chaitanyagiri/munder-difflin), al día con su 0.5.2. Este README cubre lo que cambia en el fork y lo mínimo para correrlo. El producto base se documenta en [su README](https://github.com/chaitanyagiri/munder-difflin/blob/main/README.md), [`HIVE.md`](./HIVE.md), [`SPEC.md`](./SPEC.md) y [`DESIGN.md`](./DESIGN.md).
+| | |
+|---|---|
+| 📱 **Tu oficina en el iPhone** | Contesta las preguntas de Michael, revisa el tablero y mándale trabajo desde el celular, en casa o fuera de ella. Protegido con **Face ID**. |
+| 🔗 **Dos computadoras, una oficina** | Tu laptop le pasa trabajo a la PC grande. Cada una tiene su Michael y se ayudan. |
+| 💬 **ChatGPT como un compañero más** | ChatGPT puede ver tu oficina y mandarle trabajo, con los permisos que tú le des. |
+| 🛟 **Se levanta sola si se cae** | Si Munder se cierra por error, se vuelve a abrir sin que hagas nada. |
+| 🧠 **No olvida al reiniciar** | Cierras y abres Munder, y cada agente sigue en su misma conversación y con su configuración. |
+| 🇲🇽 **Todo en español** | Menús, avisos y ayudas. |
 
-## Empieza aquí
+> Es un fork de [chaitanyagiri/munder-difflin](https://github.com/chaitanyagiri/munder-difflin), al día con su 0.5.2.
 
-### Opción A: descarga y listo
+---
 
-En [**Releases**](https://github.com/DannyBaanks/munder-difflin/releases) están el instalador y la versión portable para **Windows** (`.exe`) y la de **Linux** (`.AppImage`), con `SHA256SUMS.txt` para verificarlas. En **Mac**, el `.dmg` sale del [upstream](https://github.com/chaitanyagiri/munder-difflin/releases/latest). Para iPhone, la app nativa se compila como artifact de [**Actions → iOS (Munder Mobile)**](https://github.com/DannyBaanks/munder-difflin/actions/workflows/ios.yml); la guía está en [`ios/MunderMobile/README.md`](./ios/MunderMobile/README.md).
+## 🚀 Empieza en 3 pasos
 
-Solo necesitas **al menos un agente instalado**, por ejemplo [Claude Code](https://claude.com/claude-code) (`claude`). También sirven `codex`, `gemini`, `grok`, `kimi`, `qwen`, `opencode`, `crush`, `pi`, `copilot`, `cursor-agent` y `agy`.
+**1. Instala un «cerebro» para tus agentes.** Munder no trae IA propia: usa la que ya tienes. Lo más fácil es [Claude Code](https://claude.com/claude-code). También sirven Codex, Gemini, OpenCode, Copilot y otros.
 
-### Opción B: desde el código
+**2. Descarga Munder.** Entra a [**Releases**](https://github.com/DannyBaanks/munder-difflin/releases) y baja el de tu sistema:
 
-Necesitas Node.js 18 o más nuevo, las herramientas de C++ de tu sistema (para `node-pty`) y un agente como en la opción A.
+| Tu computadora | Descarga |
+|---|---|
+| 🪟 Windows | el instalador `.exe` (o la versión portable) |
+| 🐧 Linux | el `.AppImage` |
+| 🍎 Mac | el `.dmg` del [proyecto original](https://github.com/chaitanyagiri/munder-difflin/releases/latest) |
 
-```bash
-git clone https://github.com/DannyBaanks/munder-difflin.git
-cd munder-difflin
-npm install          # también recompila node-pty para Electron
-./start.sh           # abre la app ya compilada, sin amarrarla a tu terminal
-```
+**3. Ábrelo.** La primera vez te pregunta el idioma y qué IA usar. Luego toca **agregar agente** y listo: Michael se sienta en su oficina y tu equipo en sus escritorios.
 
-La primera vez sale una bienvenida donde eliges idioma y motor. Luego, con **Add agent**, creas a tu primer agente: Michael se sienta en su oficina y los demás en sus escritorios.
+> 💡 Abre Munder **una sola vez**. Si lo abres dos veces, la segunda copia se cierra sola para no pelearse con la primera.
 
-> **Ojo:** abre una sola copia a la vez. `./start.sh` y `munder start` comparten configuración (`~/.config/munder-difflin`), y la segunda copia se cierra sola. Si de verdad quieres dos sesiones, usa `./start.sh --user-data-dir ~/.config/munder-difflin-harness2`.
+---
 
-## Lo que puedes hacer
+## 🗺️ Cómo se usa
 
-Hay dos maneras de llevar la oficina al celular: la **PWA**, que se instala desde Safari en segundos, y la **app nativa de iPhone**, que ahora compila el CI en SwiftUI. Las dos hablan el mismo protocolo y se emparejan con el mismo código de seis dígitos.
+Arriba tienes tres pestañas. Siempre sabes dónde estás:
 
-### 📱 Munder Mobile: tu oficina en el celular
+<p align="center">
+  <img src="./docs/ui-shell/after-config-menu.png" alt="La barra de arriba con las pestañas Oficina, Configuración (abierta, con sus 8 secciones) y Marketplace" width="760">
+</p>
+
+| Pestaña | Para qué es |
+|---|---|
+| **Oficina** | El piso con tu equipo. Tocas a un agente para ver su terminal, y a la derecha está el **Centro de comando**: tareas, preguntas, historial, memoria y más. |
+| **Configuración ▾** | Todos los ajustes, a un clic: agentes y modelos, conexiones, Munder Link, voz, memoria… |
+| **Marketplace** | *Próximamente:* aquí vas a encontrar extensiones y pedir cosas nuevas para Munder. Por ahora solo es la vitrina. |
+
+Cambiar de pestaña **no detiene a nadie**: tus agentes siguen trabajando aunque estés viendo otra cosa.
+
+<p align="center">
+  <img src="./docs/ui-shell/after-marketplace-dark.png" alt="La pestaña Marketplace en modo oscuro: buscador, categorías (MCP, Harness, Provider, Skill, Office Pack, Tema) y la caja «Crear para Munder»" width="700"><br>
+  <sub>El Marketplace en modo oscuro. Todavía no instala nada, y lo dice claro.</sub>
+</p>
+
+---
+
+## 📱 Munder Mobile: tu oficina en el iPhone
 
 Michael te hace una pregunta y no estás en la compu. Contéstale desde el celular y la oficina sigue trabajando.
 
-#### PWA: rápida y sin compilar
-
 <p align="center">
-  <img src="./docs/isyco/mobile/office-light.png" alt="Munder Mobile PWA, pestaña Oficina: Michael trabajando, 2 de 4 workers libres, 2 preguntas pendientes y un campo para pedirle algo a Michael" width="200">
-  <img src="./docs/isyco/mobile/questions-light.png" alt="PWA, pestaña Preguntas: la pregunta de Michael sobre qué dominio usar, con su caja de respuesta" width="200">
-  <img src="./docs/isyco/mobile/board-dark.png" alt="PWA, pestaña Tablero en modo oscuro: tareas bloqueadas, en curso, por hacer y hechas" width="200">
-  <img src="./docs/isyco/mobile/link-dark.png" alt="PWA, pestaña Enlace en modo oscuro: la oficina michael-xeon en línea con 12 de 16 workers libres, y un formulario para delegarle trabajo" width="200">
+  <img src="./docs/isyco/mobile/ios/office-light.png" alt="App de iPhone, pestaña Oficina: Michael, workers libres, preguntas y tareas" width="190">
+  <img src="./docs/isyco/mobile/ios/questions-light.png" alt="App de iPhone, pestaña Preguntas para contestarle a Michael" width="190">
+  <img src="./docs/isyco/mobile/ios/board-light.png" alt="App de iPhone, pestaña Tablero con las tareas" width="190">
+  <img src="./docs/readme/iphone-equipo.png" alt="App de iPhone en un iPhone 12 real: el equipo de 11 agentes, con Michael como jefe y los demás libres" width="190">
 </p>
+<p align="center"><sub>Las tres primeras son del simulador (modo demo); la última es un iPhone 12 real conectado por Tailscale.</sub></p>
 
 | Pestaña | Qué haces ahí |
 |---|---|
-| **Oficina** | Ves si Michael está trabajando, cuántos workers están libres, la RAM y el CPU, y le escribes a Michael **o a cualquiera del equipo** (toca su tarjeta). Arriba, el nombre de la oficina es un menú: cámbiate a tus otras oficinas para ver su equipo y su tablero, y mandarle trabajo a su Michael. |
-| **Preguntas** | Contestas lo que Michael o su equipo te preguntaron. La respuesta queda en la tarjeta y Michael la recibe al instante. |
-| **Tablero** | Revisas las tareas bloqueadas, en curso, por hacer y las últimas terminadas. |
-| **Enlace** | Ves tus otras oficinas en vivo y les pasas trabajo. |
+| **Oficina** | Ves si Michael está ocupado, cuántos agentes están libres y le escribes a él o a cualquiera del equipo. Arriba puedes cambiarte a tus otras oficinas. |
+| **Preguntas** | Contestas lo que te preguntaron. Michael lo recibe al instante. |
+| **Tablero** | Tareas bloqueadas, en curso, por hacer y terminadas. |
+| **Enlace** | Tus otras oficinas y a dónde se conecta el celular. |
 
-**Cómo instalarla (una sola vez):**
+### 🔒 Nadie más puede usarla
 
-En la computadora, prende el enlace y pide la dirección para el celular (también sale en la app, en **Configuración → Munder Link → Celulares**):
+Si alguien toma tu celular, no puede ver tu oficina ni hacer cambios:
 
-```bash
-munder link encender
-munder link celular
-```
+- La app **abre bloqueada** y pide **Face ID** (o el código del iPhone).
+- Si la dejas en segundo plano más de un minuto, **se vuelve a bloquear**.
+- Mandar algo, contestar, delegar o borrar **vuelve a pedir Face ID**.
+- Munder **nunca ve tu cara ni tu código**: el iPhone solo le dice «sí es el dueño» o «no».
 
-Luego:
+### Cómo instalarla
 
-1. En el iPhone, abre esa dirección en **Safari** y toca **Compartir → Agregar a inicio**.
-2. Abre **Munder** desde el ícono nuevo y toca **Emparejar**.
-3. El celular muestra un código de 6 dígitos. En la computadora sale el mismo código en **Solicitudes**: si coincide, toca **Aceptar** (o corre `munder link aceptar`). ¡Listo!
+1. **Baja la app:** en [**Actions → iOS (Munder Mobile)**](https://github.com/DannyBaanks/munder-difflin/actions/workflows/ios.yml) abre la última corrida en verde de `main` y descarga **MunderMobile-unsigned-ipa**.
+2. **Instálala en tu iPhone** con [**iloader**](https://iloader.app) y tu Apple ID gratuito (también sirven SideStore o AltStore).
+3. **Confía en la app:** en el iPhone, **Ajustes → General → VPN y administración de dispositivos**, y activa el **Modo de desarrollador** si te lo pide.
+4. **Prende el enlace en la computadora:** en Munder, **Configuración → Munder Link → Encender**. Ahí mismo, en **Celulares**, aparece la dirección para el iPhone.
+5. **Empareja:** escribe esa dirección en la app, toca **Emparejar** y en la computadora acepta el código de 6 dígitos **solo si es el mismo** que ves en el celular.
 
-<p align="center">
-  <img src="./docs/isyco/mobile/code.png" alt="El celular muestra el código 350 992 y explica cómo aceptarlo en la computadora" width="200">
-  <img src="./docs/isyco/mobile/settings.png" alt="Configuración → Munder Link: la solicitud del iPhone con el mismo código 350 992 y el botón Aceptar; abajo, las direcciones para abrir en el celular y los celulares emparejados" width="600">
-</p>
+> 🌎 **¿Fuera de casa?** Instala [Tailscale](https://tailscale.com) en la computadora y en el iPhone, y usa la dirección de Tailscale (la que empieza con `100.`). La app aprende las dos direcciones y usa la que conteste: la de tu red en casa y la de Tailscale en la calle.
 
-**Tips:**
-- **Usa la dirección de Tailscale si puedes.** Funciona fuera de casa y todo el camino va protegido. Por el Wi-Fi de casa las llamadas van cifradas, pero la página en sí no va firmada.
-- **Empareja desde el ícono, no desde Safari.** El ícono guarda sus datos aparte.
-- **¿Perdiste el celular?** Olvídalo desde la computadora (**Olvidar** en Celulares, o `munder link olvidar <nombre>`) y deja de funcionar en ese momento.
-- **Un celular no es una oficina.** Puede ver, contestar y pedir, pero nunca recibe trabajo.
+> ⏳ Con un Apple ID gratuito la app **dura 7 días**. Luego la vuelves a firmar con iloader y sigue funcionando con tu mismo emparejamiento.
 
-La guía completa de la PWA está en [`tools/munder/LINK.md`](./tools/munder/LINK.md#munder-remote-la-oficina-desde-el-celular). En el código se llama **Munder Remote**.
+Guía completa: [`ios/MunderMobile/README.md`](./ios/MunderMobile/README.md). ¿Sin iPhone? También hay una versión web que se instala desde el navegador: [`tools/munder/LINK.md`](./tools/munder/LINK.md#munder-remote-la-oficina-desde-el-celular).
 
-#### iPhone nativo (SwiftUI)
+---
 
-La nueva app nativa hace lo mismo que la PWA, pero sin depender del navegador: las llaves viven en el **Keychain de iOS**, la app aprende las direcciones LAN/Tailscale de la oficina y prueba primero la que respondió la última vez. Las pantallas son SwiftUI y el CI corre los tests en el simulador.
+## 🔗 Munder Link: dos computadoras, una oficina
 
-<p align="center">
-  <img src="./docs/isyco/mobile/ios/office-light.png" alt="App nativa, pantalla Oficina con Michael, workers, preguntas, tareas y el equipo" width="200">
-  <img src="./docs/isyco/mobile/ios/questions-light.png" alt="App nativa, pantalla Preguntas para contestar a Michael" width="200">
-  <img src="./docs/isyco/mobile/ios/board-light.png" alt="App nativa, pantalla Tablero con tareas bloqueadas, en curso, por hacer y hechas" width="200">
-  <img src="./docs/isyco/mobile/ios/link-light.png" alt="App nativa, pantalla Enlace para ver oficinas y delegar trabajo" width="200">
-  <img src="./docs/isyco/mobile/ios/pair-light.png" alt="App nativa, pantalla de emparejamiento con la dirección de la computadora" width="200">
-</p>
-<sub>Capturas reales del simulador iPhone, generadas por el CI en modo demo (<code>-MunderDemo</code>); no son mockups.</sub>
+¿Tienes una laptop y una PC con más RAM? Enlázalas y tu Michael le pasa trabajo al Michael de la otra, por tu red de casa o por Tailscale. Ninguna toca los archivos de la otra: la tarea le llega al otro Michael y él decide cómo hacerla.
 
-**Cómo instalarla:**
-
-1. En GitHub, abre [**Actions → iOS (Munder Mobile)**](https://github.com/DannyBaanks/munder-difflin/actions/workflows/ios.yml) y descarga el artifact `MunderMobile-unsigned-ipa` de la última corrida verde de `main`.
-2. Firma el `.ipa` con tu Apple ID gratuito usando **iloader**, **SideStore** o **AltStore**.
-3. En el iPhone, confía en tu Apple ID en **Ajustes → General → VPN y administración de dispositivos** y activa **Modo de desarrollador** si iOS lo pide.
-4. En la computadora, prende el enlace:
-
-```bash
-munder link encender
-munder link celular
-```
-
-5. Escribe esa dirección en la app, toca **Emparejar** y acepta el mismo código de seis dígitos en la computadora.
-
-La guía completa —incluidos los límites de la cuenta gratuita de Apple, la renovación de firma y qué hacer si no contesta— está en [`ios/MunderMobile/README.md`](./ios/MunderMobile/README.md). Con una Apple ID gratuita la firma dura **7 días** y puedes tener hasta **3 apps** firmadas a la vez.
-
-### 🔗 Munder Link: dos computadoras, una oficina
-
-¿Tienes una laptop y una PC con más RAM? Enlázalas y tu Michael le pasa trabajo al Michael de la otra, por tu red de casa o por Tailscale. Ninguna toca los archivos de la otra: la tarea llega al buzón del otro Michael y él decide cómo hacerla.
-
-```bash
-munder link conectar     # en las dos máquinas: busca, empareja y listo
-```
-
-O sin terminal, desde **Configuración → Munder Link**: prender y apagar el enlace, buscar oficinas, emparejar con el código de 6 dígitos y ver cada oficina en vivo.
+**Cómo:** en las dos computadoras, **Configuración → Munder Link → Encender → Buscar**. Elige la otra, confirma que el código de 6 dígitos sea igual en las dos pantallas, y listo.
 
 <p align="center">
-  <img src="./docs/pr-evidence/after-link-tab-es-dark.png" alt="Pestaña Munder Link: esta oficina, una solicitud entrante con su código y las oficinas enlazadas" width="760">
+  <img src="./docs/pr-evidence/after-link-tab-es-dark.png" alt="Configuración → Munder Link: esta oficina, una solicitud entrante con su código y las oficinas enlazadas" width="760">
 </p>
 
-Cada mensaje entre oficinas va firmado y cifrado, y el emparejamiento se confirma viendo el mismo código en las dos pantallas. Guía con ejemplos reales: [`tools/munder/LINK.md`](./tools/munder/LINK.md).
+Todo lo que viaja entre oficinas va cifrado y firmado.
 
-### 💬 ChatGPT también puede mandar trabajo
+---
 
-Conecta ChatGPT a tu oficina y pídele cosas como «que la oficina del Xeon corra las pruebas». ChatGPT habla con un servidor local y ese servidor usa Munder Link, así que tu red no queda expuesta. ChatGPT sabe cuál es la oficina donde está conectado (`self`) y cuáles son las enlazadas. Cómo levantarlo: [`src/mcp/munder-chatgpt-link/README.md`](./src/mcp/munder-chatgpt-link/README.md).
+## 💬 ChatGPT en tu oficina
 
-### 🤖 Munder GPT: ChatGPT como un usuario más de tu oficina
+Conecta ChatGPT y pídele cosas como *«dile a Michael que revise las pruebas»* o *«¿qué está haciendo la oficina del Xeon?»*.
 
-- **Qué hace:** `munder gpt` le da a ChatGPT su propio usuario en Munder, el principal `gpt`, con el perfil que tú eliges: `lectura`, `operador` o `full`.
-- **Cómo entra:** por OAuth, y cada conexión la apruebas tú en la terminal con un código de 6 dígitos. Saber la URL no da nada.
-- **Qué puede hacer:**
-  - ver la oficina y la bitácora;
-  - escribirle a Michael y leer lo que Michael le manda (`"to": "gpt"`);
-  - contestar preguntas y delegar por Link;
-  - contratar y despedir agentes.
-- **Queda registrado:** cada acción tiene recibo y auditoría a nombre de `gpt`.
-- **Se quita en un comando:** `munder gpt revocar todo`.
+- **Tú decides cuánto puede hacer:** solo ver, ver y pedir, o todo.
+- **Cada conexión la apruebas tú** con un código, y la quitas cuando quieras.
+- **Todo queda anotado** a nombre de ChatGPT, para que sepas qué hizo.
 
-```bash
-munder gpt perfil full
-munder gpt encender --transporte ngrok --dominio tu-dominio.ngrok-free.dev   # URL fija
-munder gpt aprobar 123456
-```
+Cómo conectarlo: [`tools/munder/GPT.md`](./tools/munder/GPT.md).
 
-Guía: [`tools/munder/GPT.md`](./tools/munder/GPT.md).
+---
 
-### 🛟 Munder Reviver: si Munder se cae, se vuelve a levantar
+## 🛟 Munder Reviver: si se cae, se levanta
 
-Un proceso chiquito y aparte que vive junto a Munder y sabe hacer solo cuatro cosas: `status`, `start`, `restart` y `stop`.
+Un ayudante chiquito que vive junto a Munder:
 
-- **Si Munder se cae,** lo levanta solo. Lo intenta un número limitado de veces y deja un recibo de cada intento.
-- **Si lo cerraste tú,** lo deja cerrado.
-- **Desde el celular o ChatGPT** («¿está vivo Munder en el Xeon? levántalo») funciona aunque Munder y Link estén muertos.
-- **Solo cuenta como sano** si contesta con la identidad de tu oficina.
-- **No toca lo que no es suyo:** nunca mata un `opencode` ni nada que no pueda comprobar que es el suyo.
+- **Si Munder se cae,** lo vuelve a abrir. Lo intenta unas cuantas veces y, si no puede, te avisa en vez de insistir para siempre.
+- **Si lo cerraste tú,** lo respeta y lo deja cerrado.
+- **Desde el celular o ChatGPT** puedes preguntar «¿está vivo?» y levantarlo, aunque Munder esté totalmente caído.
 
-```bash
-munder reviver init && munder reviver instalar   # systemd --user en Linux, tarea al iniciar sesión en Windows
-munder reviver status
-```
+Cómo activarlo: [`tools/munder/REVIVER.md`](./tools/munder/REVIVER.md).
 
-Guía: [`tools/munder/REVIVER.md`](./tools/munder/REVIVER.md).
+---
 
-### 🧰 Oficinas listas para tu giro
+## ✨ Más cosas que puedes hacer
 
-Arranca con un equipo armado: servicios del hogar, servicios profesionales, restaurante, tienda o SaaS/consultoría.
-
-```bash
-munder sesion packs                                             # ver cuáles hay
-munder sesion armar --pack retail-shop --cwd ~/tienda --solo oscar,pam
-```
-
-### 📄 Tus agentes leen Word, Excel, PowerPoint y PDF
-
-Pásales tus documentos y los entienden. Si un archivo no se puede leer, te lo dicen en vez de inventar.
-
-### 🧑‍🎨 Ponte tú en la oficina
-
-Crea tu propio personaje en pixel art con una descripción, y entra al piso como un worker más:
-
-```bash
-munder avatar compilar "piel morena, blusa rosa, gafas"
-munder avatar inyectar "piel morena, blusa rosa, gafas" --slot auto
-```
+- **🧰 Oficinas listas para tu negocio.** Arranca con un equipo ya armado para servicios del hogar, servicios profesionales, restaurante, tienda o consultoría.
+- **📄 Tus agentes leen tus documentos.** Word, Excel, PowerPoint y PDF. Si un archivo no se puede leer, te lo dicen en vez de inventar.
+- **🧑‍🎨 Ponte tú en la oficina.** Describe tu personaje («piel morena, blusa rosa, gafas») y entra al piso en pixel art como uno más del equipo.
 
 <p align="center">
-  <img src="./docs/isyco/avatares.png" alt="Cuatro avatares pixel-art generados por munder avatar compilar" width="520"><br>
-  <sub>Salida real de <code>munder avatar compilar</code>: «piel morena, blusa rosa, gafas» ·
-  «piel clara, pelo rojo, sudadera verde» · «piel oscura, pelo negro rizado, camisa azul» ·
-  «piel clara, pelo largo castaño, blusa morada».</sub>
+  <img src="./docs/isyco/avatares.png" alt="Cuatro avatares pixel-art generados a partir de una descripción" width="440"><br>
+  <sub>Personajes creados solo con una descripción.</sub>
 </p>
 
-## La terminal `munder` (opcional, pero cómoda)
+---
 
-Una herramienta sin dependencias para manejar todo desde la terminal. Instálala una vez:
+## 🆘 Si algo no jala
 
-```bash
-./tools/munder/install.sh        # crea ~/.local/bin/munder
-```
+| Pasa esto | Prueba esto |
+|---|---|
+| Munder se cierra solo al abrirlo | Ya hay otro Munder abierto. Búscalo en tu barra de tareas y usa ese. |
+| El celular dice «No alcanzo la oficina» | En la computadora, **Configuración → Munder Link** debe estar **encendido**. Revisa que los dos estén en la misma red Wi-Fi, o los dos con Tailscale prendido. |
+| El celular dice que la hora no coincide | Activa la **hora automática** en el celular y en la computadora. |
+| El celular dice que ya no lo reconocen | Lo olvidaron en la computadora. En la app toca **Olvidar en este celular** y vuelve a emparejar. |
+| La app del iPhone dejó de abrir | Pasaron los 7 días del Apple ID gratuito: fírmala otra vez con iloader. |
+| No encuentra la otra computadora | Usa Tailscale en las dos, o pídele a quien sepa que abra los puertos 47831 y 47832 en el firewall. |
+| Un agente empezó una conversación nueva | La primera vez después de actualizar es normal. A partir de ahí, cada reinicio retoma la misma conversación. |
+
+---
+
+<details>
+<summary><b>⌨️ Para quien usa la terminal: el comando <code>munder</code></b></summary>
+
+Todo lo de arriba también se hace desde la terminal. Instálalo una vez con `./tools/munder/install.sh`.
 
 | Quiero… | Comando |
 |---|---|
 | Abrir, cerrar o reiniciar la app | `munder start` · `munder stop` · `munder restart` |
 | Ver si está corriendo y sus logs | `munder status` · `munder logs -f` |
 | Ver o armar el equipo | `munder sesion ver` · `munder sesion armar` |
-| Elegir CLIs y modelos | `munder sesion proveedor` |
+| Oficina lista para tu giro | `munder sesion packs` · `munder sesion armar --pack retail-shop` |
 | Enlazar otra computadora | `munder link conectar` |
-| Que Munder se levante solo si se cae | `munder reviver init` · `munder reviver instalar` |
-| Conectar ChatGPT con URL fija | `munder gpt perfil full` · `munder gpt encender` · `munder gpt aprobar` |
-| Usar la oficina en el celular | `munder link celular` |
+| Dirección para el celular | `munder link encender` · `munder link celular` |
+| Aceptar un celular | `munder link aceptar <código>` |
+| Que Munder se levante solo | `munder reviver init` · `munder reviver instalar` |
+| Conectar ChatGPT | `munder gpt perfil full` · `munder gpt encender` · `munder gpt aprobar <código>` |
+| Mandar una tarea a un harness externo | `munder harness run <adaptador> "tarea" --cwd <carpeta>` |
 | Crear un avatar | `munder avatar compilar "descripción"` |
 
-Detalle en [`tools/munder/README.md`](./tools/munder/README.md).
+Desde el código: `git clone`, `npm install` y `./start.sh` (Node 18+ y herramientas de C++). Detalle en [`tools/munder/README.md`](./tools/munder/README.md).
 
-## Si algo no jala
-
-| Pasa esto | Prueba esto |
-|---|---|
-| La app se cierra sola al abrirla | Ya hay otra copia abierta: `munder status`, y ciérrala con `munder stop`. |
-| En Linux la app se queda «Detenida» | Ábrela con `./start.sh`, no desde `npm run dev` en primer plano. |
-| El celular dice «sin conexión» | En la computadora: `munder link encender`. Revisa que estén en la misma red o los dos en Tailscale. |
-| El celular dice que la hora no coincide | Activa la hora automática en el celular y en la computadora. |
-| `munder link buscar` no encuentra la otra máquina | Abre en su firewall los puertos 47831/tcp y 47832/udp, o usa Tailscale. |
-| El celular dice que ya no lo reconocen | Lo olvidaron en la computadora: toca «Olvidar en este celular» y vuelve a emparejar. |
-| Munder se cerró y no estás en la compu | Si instalaste el Reviver: `munder reviver llamar <credencial> start` desde otra máquina, o `munder_start` desde ChatGPT. |
+</details>
 
 <details>
 <summary><b>Para desarrolladores: todo lo que cambia este fork, con detalle técnico</b></summary>
@@ -373,6 +334,25 @@ Cada push compila y corre la suite en los tres sistemas. Encontró un bug real: 
 - **Inventario:** clasifica cada operación de Remote, Link, el canal de control y el Reviver. Un test lee esas fuentes y falla si aparece una sin clasificar.
 - **Link intacto:** por Link, GPT es un peer y solo ve lo que esta oficina delegó.
 
+### 20. Barra global: Oficina · Configuración ▾ · Marketplace
+- **Una sola Configuración:** `components/globalNavModel.ts` tiene la lista de secciones que pintan el menú y `SettingsModal`; el menú abre el mismo modal en esa sección.
+- **Marketplace como capa:** se pinta encima del piso sin desmontarlo; terminales y agentes siguen vivos. Sin catálogo todavía (`MARKETPLACE_CATALOG_CONNECTED = false`).
+- **Accesible:** botón de menú ARIA con teclado completo; densidad por ancho (≥1180 / 900–1179 / <900 px). Auditoría y capturas en [`docs/ui-shell/`](./docs/ui-shell/README.md).
+
+### 21. OpenCode/OpenISy retoman su conversación
+- El plugin puente reporta el `session_id` **raíz** (nunca el de un subagente) y `hive.recordSession` lo guarda.
+- Los presets usan `--session <id>`, pero solo si la sesión sigue en `opencode.db` o en el storage JSON; si no, arranca limpio en vez de morir con «Session not found».
+- `opencode.json`/`tui.json` del agente se **fusionan** (`mergeJsonFile`), ya no se reescriben con solo el tema.
+
+### 22. Munder Mobile por Tailscale + Face ID
+- **ATS:** solo `NSAllowsArbitraryLoads`. Con `NSAllowsLocalNetworking` presente, iOS 10+ ignora la primera y bloqueaba las IP de Tailscale (100.64.0.0/10). `test/ios-ats.test.cjs` lo vigila; el contenido ya va cifrado por `RemoteCrypto`.
+- **Bloqueo:** `AppLock` y `LockPolicy` en `MunderMobileCore`, con `.deviceOwnerAuthentication` (Face ID con el código de respaldo). Bloquea al abrir y tras 60 s en segundo plano; reautentica cada acción que cambia la oficina fuera de una ventana de 30 s; tapa la captura del selector de apps. Un iPhone sin código abre con aviso.
+
+### 23. Harnesses externos (P0)
+- `munder harness` entrega una tarea a `codex exec` (JSONL) o a cualquier agente ACP v1, como DeepSeek Harness (`dsh --profile acp`), con selección explícita y sin ruteo.
+- Munder decide el veredicto, mide los artefactos con git, escribe el recibo, borra secretos por nombre, forma y valor, y corta la recursión con `MUNDER_HARNESS_CHAIN`.
+- Contrato en [`tools/munder/HARNESS_CONTRACT.md`](./HARNESS_CONTRACT.md); auditoría en [`tools/munder/EXTERNAL_HARNESS_AUDIT.md`](./EXTERNAL_HARNESS_AUDIT.md).
+
 </details>
 
 ## Garantías de este fork
@@ -382,7 +362,7 @@ Cada push compila y corre la suite en los tres sistemas. Encontró un bug real: 
 * **`avatar-engine.cjs` no se edita a mano.** Se genera desde `portraitArt.ts` con `node tools/munder/sync-avatar-engine.cjs`, y la suite verifica su hash.
 * **Tests:**
   * `npm run test:focused` (los mismos en los tres sistemas)
-  * `node --test tools/munder/link.test.cjs tools/munder/remote.test.cjs tools/munder/avatar.test.cjs tools/munder/reviver.test.cjs tools/munder/gpt.test.cjs`
+  * `node --test tools/munder/link.test.cjs tools/munder/remote.test.cjs tools/munder/avatar.test.cjs tools/munder/reviver.test.cjs tools/munder/gpt.test.cjs tools/munder/harness.test.cjs`
   * `npm run typecheck`
 * **Gate de release:** `node tools/check-release-links.cjs --live` comprueba que cada descarga anunciada exista de verdad.
 
