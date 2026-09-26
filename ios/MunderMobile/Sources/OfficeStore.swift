@@ -216,7 +216,7 @@ public final class OfficeStore: ObservableObject {
 
     /// Two buttons are desktop-only by design (see PANEL_OFF in lib-remote.cjs):
     /// the phone must not install a desktop shortcut, nor widen its own authority.
-    static let panelRemoteBlocked: Set<String> = ["shortcut.install", "link.phoneAuthority"]
+    public static let panelRemoteBlocked: Set<String> = ["shortcut.install", "link.phoneAuthority"]
 
     public func answer(_ task: TaskItem, text: String) async -> Bool {
         guard let q = task.question?.q else { return false }

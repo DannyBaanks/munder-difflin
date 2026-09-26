@@ -658,7 +658,7 @@ struct PanelTab: View {
                                 PixelLabel("Pide tu OK", size: 8, color: Px.ink500)
                                 ForEach(pending) { q in
                                     HStack(spacing: 8) {
-                                        Text(q.client ?? "alguien").font(.caption).foregroundColor(Px.ink500)
+                                        Text(q.name).font(.caption).foregroundColor(Px.ink500)
                                         Spacer()
                                         Button("Sí") { approve(q, yes: true) }.buttonStyle(PixelButtonStyle(kind: .ghost))
                                         Button("No") { approve(q, yes: false) }.buttonStyle(PixelButtonStyle(kind: .danger))
