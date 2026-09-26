@@ -45,7 +45,8 @@ jobs:
           ref: main
       - uses: actions/setup-node@v4
         with:
-          node-version: 20
+          # Same toolchain as CI (M4 roadmap 2026-09-26); runs a plain script.
+          node-version: 22
 
       - name: Regenerate CONTRIBUTORS.md
         env:
