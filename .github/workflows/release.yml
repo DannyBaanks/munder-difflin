@@ -64,10 +64,19 @@ jobs:
         # when the P12 secret exists. When set, electron-builder receives the
         # exact same values as before; when unset, identity auto-discovery finds
         # no cert, warns, and produces an unsigned build.
-        if: ${{ matrix.os == 'macos-latest' && secrets.APPLE_CERTIFICATE_P12 != '' }}
+        # NOTE: `secrets.*` is not a valid context inside step `if:` (parse
+        # error, zero-job run), so the gate is matrix-only and the emptiness
+        # check lives in bash with the secrets mapped through `env:` (safe for
+        # arbitrary password characters, unlike `${{ }}` inside the script).
+        if: ${{ matrix.os == 'macos-latest' }}
+        env:
+          P12_B64: ${{ secrets.APPLE_CERTIFICATE_P12 }}
+          P12_PASS: ${{ secrets.APPLE_CERTIFICATE_PASSWORD }}
         run: |
-          echo "CSC_LINK=${{ secrets.APPLE_CERTIFICATE_P12 }}" >> "$GITHUB_ENV"
-          echo "CSC_KEY_PASSWORD=${{ secrets.APPLE_CERTIFICATE_PASSWORD }}" >> "$GITHUB_ENV"
+          if [ -n "$P12_B64" ]; then
+            echo "CSC_LINK=$P12_B64" >> "$GITHUB_ENV"
+            echo "CSC_KEY_PASSWORD=$P12_PASS" >> "$GITHUB_ENV"
+          fi
 
       - name: Package installers
         # GH_TOKEN lets electron-builder skip its own publish; we upload via the
