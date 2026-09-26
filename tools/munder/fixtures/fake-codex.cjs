@@ -1,5 +1,5 @@
 // Stand-in for `codex exec --experimental-json` in CI (the real CLI is not installed there).
-// Behaviour from FAKE_CODEX: ok | no_settle | malformed | fail
+// Behaviour from FAKE_CODEX: ok | sprint | no_settle | malformed | fail
 const fs = require('fs');
 const path = require('path');
 const args = process.argv.slice(2);
@@ -14,6 +14,15 @@ process.stdin.on('end', () => {
   if (mode === 'malformed') { process.stdout.write('not json at all\n{broken\n'); process.exit(0); }
   out({ type: 'thread.started', thread_id: resume || 'thread-fake-1' });
   out({ type: 'turn.started' });
+  // AUDIT: the whole event burst, then death in the same tick. If the parent
+  // settles on 'exit' it can read none of this on Windows.
+  if (mode === 'sprint') {
+    out({ type: 'item.started', item: { id: 'i1', type: 'command_execution', command: 'write', status: 'in_progress' } });
+    out({ type: 'item.completed', item: { id: 'i1', type: 'command_execution', command: 'write', exit_code: 0, status: 'completed' } });
+    out({ type: 'item.completed', item: { id: 'i2', type: 'agent_message', text: 'hecho' } });
+    out({ type: 'turn.completed', usage: { input_tokens: 3, output_tokens: 2 } });
+    process.exit(0);
+  }
   if (mode === 'no_settle') process.exit(0);
   if (mode === 'fail') { out({ type: 'turn.failed', error: { message: 'model refused (fake)' } }); process.exit(1); }
   out({ type: 'item.started', item: { id: 'i1', type: 'command_execution', command: 'write', status: 'in_progress' } });

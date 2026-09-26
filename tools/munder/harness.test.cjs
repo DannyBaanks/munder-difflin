@@ -62,6 +62,12 @@ test('codex adapter: exit without settling, malformed output and turn.failed are
   assert.equal(r.error.code, 'harness_not_installed');
 });
 
+test('codex adapter: AUDIT the whole event burst plus an immediate exit is not lost', async () => {
+  const r = await H.run({ adapter: 'codex', prompt: 'x', cwd: repo(), env: env({ FAKE_CODEX: 'sprint' }) });
+  assert.equal(r.status, 'completed', JSON.stringify(r.error));
+  assert.ok(!r.error, 'a turn that settled is not a failure');
+});
+
 test('ACP adapter: Munder policy answers permission requests (reject by default, allow only when asked)', async () => {
   const denied = await H.run({ adapter: 'deepseek', prompt: 'escribe', cwd: repo(), env: env() });
   assert.equal(denied.status, 'completed');
