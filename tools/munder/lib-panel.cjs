@@ -148,7 +148,7 @@ async function linkState() {
     fingerprint: L.prettyFingerprint(me.office_id),
     peers: seen,
     pending: Object.values(L.loadPending()).map((q) => ({ name: q.name, kind: q.kind === 'remote' ? 'celular' : 'oficina', code: q.code })),
-    phones: Object.values(L.loadRemotes()).map((r) => ({ id: r.device_id, name: r.name, since: String(r.paired_at || '').slice(0, 10) })),
+    phones: Object.values(L.loadRemotes()).map((r) => ({ id: r.device_id, name: r.name, since: String(r.paired_at || '').slice(0, 10), authority: L.remoteAuthority(r) })),
     urls: L.appUrls().map((u) => ({ url: u.url, via: u.via === 'tailscale' ? 'Tailscale (también fuera de casa)' : 'red de casa' })),
   };
 }
@@ -229,6 +229,21 @@ const ACTIONS = {
     const r = L.forgetRemote(id);
     need(r, 'Ese celular ya no estaba emparejado.');
     return { ok: true, text: `Celular «${r.name}» olvidado: deja de funcionar en ese momento.` };
+  },
+  // The grant a phone needs before it can press anything that touches THIS
+  // computer. It is a desktop-only button on purpose: a phone cannot widen its
+  // own authority, and this one is not in the phone's action set (PANEL_OFF in
+  // lib-remote.cjs) precisely because that would be circular.
+  'link.phoneAuthority': async ({ id, on }) => {
+    need(typeof id === 'string' && id.length > 0 && id.length < 100, 'Falta el celular.');
+    const r = L.setRemoteAuthority(id, on ? L.REMOTE_AUTHORITY.MACHINE : L.REMOTE_AUTHORITY.OFFICE);
+    need(r, 'Ese celular no está emparejado con esta oficina.');
+    return {
+      ok: true,
+      text: r.authority === L.REMOTE_AUTHORITY.MACHINE
+        ? `Celular «${r.name}» ya puede manejar la computadora, no solo la oficina.`
+        : `Celular «${r.name}» vuelve a manejar solo la oficina.`,
+    };
   },
 
   'gpt.on': async () => runScript('gpt.cjs', ['encender'], { timeoutMs: 90_000 }),

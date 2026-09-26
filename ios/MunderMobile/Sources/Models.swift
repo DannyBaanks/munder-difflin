@@ -98,6 +98,107 @@ public struct DelegateReply: Decodable {
     public let taskId: String?
 }
 
+// MARK: - the Panel stratum
+//
+// `panel.state` is what tools/munder/lib-panel.cjs `state()` answers: the host,
+// not the office. Every leaf is optional because the panel reads a real machine
+// that may be half-asleep: no GPT gateway, no reviver, no link.
+
+public struct PanelApp: Decodable, Hashable {
+    public let running: Bool?
+    public let pid: Int?
+    public let version: String?
+}
+
+public struct PanelPeer: Decodable, Hashable, Identifiable {
+    public var id: String { name }
+    public let name: String
+    public let online: Bool?
+    public let latencyMs: Int?
+    public let workersIdle: Int?
+    public let workersTotal: Int?
+    public let reason: String?
+}
+
+public struct PanelPending: Decodable, Hashable, Identifiable {
+    public var id: String { code }
+    public let name: String
+    public let kind: String?
+    public let code: String
+}
+
+public struct PanelPhone: Decodable, Hashable, Identifiable {
+    public let id: String
+    public let name: String
+    public let since: String?
+    /// "office" from the pairing code, "machine" after `munder link panel <celular>`.
+    public let authority: String?
+}
+
+public struct PanelUrl: Decodable, Hashable, Identifiable {
+    public var id: String { url }
+    public let url: String
+    public let via: String?
+}
+
+public struct PanelLink: Decodable, Hashable {
+    public let on: Bool?
+    public let name: String?
+    public let fingerprint: String?
+    public let peers: [PanelPeer]?
+    public let pending: [PanelPending]?
+    public let phones: [PanelPhone]?
+    public let urls: [PanelUrl]?
+    public let error: String?
+}
+
+public struct PanelGrant: Decodable, Hashable, Identifiable {
+    public var id: String { String(describing: client) }
+    public let client: String?
+    public let scope: String?
+}
+
+public struct PanelGpt: Decodable, Hashable {
+    public let available: Bool?
+    public let on: Bool?
+    public let running: Bool?
+    public let profile: String?
+    public let publicUrl: String?
+    public let grants: Int?
+    public let pending: [PanelPending]?
+}
+
+public struct PanelReviver: Decodable, Hashable {
+    public let configured: Bool?
+    public let running: Bool?
+    public let healthy: Bool?
+    public let watchdog: String?
+}
+
+public struct PanelState: Decodable {
+    public let app: PanelApp?
+    public let link: PanelLink?
+    public let gpt: PanelGpt?
+    public let reviver: PanelReviver?
+    public let platform: String?
+    public let launcher: String?
+
+    /// What this host's phones may reach. The office grants the office at
+    /// pairing and the machine only on request, so the app asks here instead of
+    /// guessing: nil when this phone is not in the list (an older office).
+    public func authority(ofPhone id: String) -> String? {
+        link?.phones?.first { $0.id == id }?.authority
+    }
+}
+
+/// `panel.action` answers with the button's own words, in Spanish, from the
+/// desktop panel. Shown verbatim: the phone is not rephrasing the host.
+public struct PanelActionReply: Decodable {
+    public let action: String
+    public let ok: Bool
+    public let text: String
+}
+
 /// The office this phone is paired with. Not secret: the session key is in the Keychain.
 public struct PairedOffice: Codable, Equatable {
     public var officeId: String

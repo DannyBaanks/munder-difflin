@@ -348,7 +348,14 @@ Cada push compila y corre la suite en los tres sistemas. Encontró un bug real: 
 - **ATS:** solo `NSAllowsArbitraryLoads`. Con `NSAllowsLocalNetworking` presente, iOS 10+ ignora la primera y bloqueaba las IP de Tailscale (100.64.0.0/10). `test/ios-ats.test.cjs` lo vigila; el contenido ya va cifrado por `RemoteCrypto`.
 - **Bloqueo:** `AppLock` y `LockPolicy` en `MunderMobileCore`, con `.deviceOwnerAuthentication` (Face ID con el código de respaldo). Bloquea al abrir y tras 60 s en segundo plano; reautentica cada acción que cambia la oficina fuera de una ventana de 30 s; tapa la captura del selector de apps. Un iPhone sin código abre con aviso.
 
-### 23. Harnesses externos (P0)
+### 23. El Panel en el celular: dos autoridades sobre un solo canal
+- El celular ya es un cliente del estrato del Panel, no un clon: `panel.state` y `panel.action` viajan por el mismo sello `munder-remote@1` y ejecutan los mismos motores (`lib-panel.cjs` `ACTIONS`) que los botones de escritorio. Un solo protocolo, y la app nativa no reimplementa la oficina: la pide.
+- **El código de emparejamiento no abre la computadora.** Da la *oficina* (tablero, preguntas, la gente). Los ops que tocan el host llevan clase de autoridad `machine` y se niegan con `no_authority` hasta que alguien en la máquina lo concede: `munder link panel <celular>` (o el botón `link.phoneAuthority` del Panel, que es de escritorio y **no** está en el set del celular — un teléfono no puede ampliarse su propia autoridad). `--quitar` la devuelve.
+- **Por clase de autoridad y no por lista:** `app.restart` apaga tu Munder y `gpt.approve` autoriza un agente. Compartir credencial con `answer` habría convertido el teléfono en control remoto de la máquina con la misma llave que usa para leer el tablero. `OP_AUTHORITY` es fail-closed: un op sin declarar se trata como `machine`.
+- **Techo medido, no supuesto:** `panel.state` pesa 0,5% del límite de 256 KiB en una oficina viva y 17,8% en el peor caso construido con formas reales (100 peers, 50 celulares, 200 grants). Ningún op necesita paginación todavía. `ARG_MAX` declara el tope de cada argumento en el camino del celular, porque el Panel de escritorio no tenía ninguno.
+- `shortcut.install` y `link.phoneAuthority` quedan fuera del celular (`PANEL_OFF`): escriben en una pantalla que el teléfono no ve, y el segundo sería circular.
+
+### 24. Harnesses externos (P0)
 - `munder harness` entrega una tarea a `codex exec` (JSONL) o a cualquier agente ACP v1, como DeepSeek Harness (`dsh --profile acp`), con selección explícita y sin ruteo.
 - Munder decide el veredicto, mide los artefactos con git, escribe el recibo, borra secretos por nombre, forma y valor, y corta la recursión con `MUNDER_HARNESS_CHAIN`.
 - Contrato en [`tools/munder/HARNESS_CONTRACT.md`](./HARNESS_CONTRACT.md); auditoría en [`tools/munder/EXTERNAL_HARNESS_AUDIT.md`](./EXTERNAL_HARNESS_AUDIT.md).
