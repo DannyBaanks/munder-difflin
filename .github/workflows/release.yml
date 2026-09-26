@@ -31,7 +31,9 @@ jobs:
 
       - uses: actions/setup-node@v4
         with:
-          node-version: 20
+          # unpdf@1.8 needs node >=22 (EBADENGINE on 20); blog/ios/android
+          # already build on 22 (M4 roadmap 2026-09-26).
+          node-version: 22
           cache: npm
 
       # node-gyp (used to rebuild native node-pty) imports distutils, which was
