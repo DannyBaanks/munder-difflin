@@ -206,6 +206,7 @@ jobs:
             -derivedDataPath /tmp/mm_dd \
             CODE_SIGNING_ALLOWED=NO CODE_SIGN_IDENTITY= CODE_SIGNING_REQUIRED=NO \
             build 2>&1 | tail -5
+        working-directory: ios/MunderMobile
       - name: Package the .ipa
         run: |
           APP=$(find /tmp/mm_dd -name "MunderMobile.app" -type d -path "*iphoneos*" | head -1)
