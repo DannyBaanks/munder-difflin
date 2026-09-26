@@ -252,6 +252,13 @@ test('the wire: replays, tampering, a wrong clock and unknown ops are refused', 
   const old = await phone.send(phone.envelope('hello', {}, Date.now() - 10 * 60_000));
   assert.equal(old.code, 'stale');
 
+  // An op nobody declared is refused as `no_authority`, not `bad_op`: the
+  // default for an undeclared op is MACHINE, so a phone that was only granted
+  // the office never reaches the dispatch. Fail closed on purpose — if someone
+  // adds an op to `dispatch` and forgets OP_AUTHORITY, the phone is refused
+  // instead of allowed.
+  assert.equal((await phone.call('delete_everything')).code, 'no_authority');
+  L.setRemoteAuthority(phone.deviceId, L.REMOTE_AUTHORITY.MACHINE, o.dir); // o.dir, never the default: the default is the developer's real office
   assert.equal((await phone.call('delete_everything')).code, 'bad_op');
 
   // Someone else's key can't speak for this phone.

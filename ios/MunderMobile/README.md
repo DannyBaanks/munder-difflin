@@ -65,7 +65,28 @@ En el iPhone:
 | «Ya no reconoce este celular» | Lo olvidaron en la compu. En **Enlace**, toca «Olvidar en este celular» y vuelve a emparejar. |
 | La app no abre después de unos días | Caducó la firma de 7 días: vuelve a firmarla con tu herramienta. |
 
+## Panel: manejar la compu desde el celular
+
+La app puede ser también el Panel: abrir y cerrar Munder, prender y apagar el enlace, encender GPT, apagar y revivir la oficina. Los botones son los mismos y ejecutan lo mismo que los de escritorio; lo que cambia es quién los puede pulsar.
+
+**Emparejar NO da ese poder.** El código de 6 dígitos da acceso a la **oficina** (el tablero, las preguntas, la gente). Para tocar la **computadora** hay que concederlo en la máquina:
+
+```bash
+munder link panel <celular>          # concede; acepta nombre o fragmento del id
+munder link panel <celular> --quitar # quita
+```
+
+O desde el Panel de escritorio: en **Celulares**, el botón de permisos de cada uno.
+
+**Si ves «este celular puede manejar la oficina, no la computadora»**, es la puerta funcionando, no un error. Pídele a Michael que lo conceda, o concédelo tú en la compu.
+
+Dos botones **no** se pueden desde el celular, por diseño: **shortcut.install** (escribe un archivo en el escritorio que el celular no ve) y el que concede el permiso mismo (un teléfono no se amplía su propia autoridad).
+
+> **Mide la distancia:** apagar y prender tu Munder desde el celular es real, no un simulacro. Concédelo solo a celulares que controlas.
+
 ## Para desarrolladores
+
+- **El Panel como estrato:** `panel.state` y `panel.action` viajan por el mismo sello `munder-remote@1` y ejecutan los mismos motores que el Panel de escritorio (`tools/munder/lib-panel.cjs` `ACTIONS`). La app no reimplementa la oficina: la pide. La clase de autoridad de cada op está en `OP_AUTHORITY` (`tools/munder/lib-remote.cjs`) y es **fail-closed**: un op no declarado se trata como `machine`.
 
 - **Código:**
   - `Sources/` es el núcleo sin UI: el protocolo con CryptoKit (X25519, HKDF-SHA256, ChaCha20-Poly1305), el cliente que prueba varias direcciones, el Keychain y el estado.

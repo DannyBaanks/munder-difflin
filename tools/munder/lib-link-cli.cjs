@@ -26,6 +26,9 @@ const HELP = `munder link — enlaza oficinas (Michael ↔ Michael) por tu red o
   munder link cancelar <oficina> <task_id> [motivo]
   munder link olvidar <oficina|celular>
                                 Quita la confianza en esa oficina o celular
+  munder link panel <celular> [--quitar]
+                                Deja que ese celular maneje la computadora
+                                (los botones del Panel), no solo la oficina
   munder link celular           Maneja esta oficina desde el celular (Munder Remote)
   munder link nombre <nuevo>    Cambia el nombre de esta oficina
 
@@ -273,6 +276,17 @@ async function runLink(args, h) {
         const phone = L.forgetRemote(rest[0]);
         if (!phone) die(`no hay una oficina ni un celular «${rest[0]}»`);
         say(`celular olvidado: ${phone.name}. Deja de funcionar en su siguiente llamada.`);
+        break;
+      }
+      case 'panel': case 'botones': {
+        if (!rest[0]) die('uso: munder link panel <celular> [--quitar]');
+        const off = rest.includes('--quitar') || rest.includes('--off');
+        const r = L.setRemoteAuthority(rest[0], off ? L.REMOTE_AUTHORITY.OFFICE : L.REMOTE_AUTHORITY.MACHINE);
+        if (!r) die(`no hay un celular emparejado «${rest[0]}»`);
+        say(r.authority === L.REMOTE_AUTHORITY.MACHINE
+          ? `celular «${r.name}» ya puede manejar la computadora: abrir y cerrar Munder, el enlace y GPT.`
+          : `celular «${r.name}» vuelve a manejar solo la oficina.`);
+        if (!off) console.log(st('  con esto ese celular puede apagar tu Munder. Quitar: munder link panel ' + r.device_id + ' --quitar', C.dim));
         break;
       }
       case 'celular': case 'phone': case 'remote': {

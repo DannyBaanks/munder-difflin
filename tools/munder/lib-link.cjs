@@ -176,6 +176,42 @@ function forgetRemote(query, dir = stateDir()) {
   return { office_id: hit.device_id, name: hit.name, kind: 'remote' };
 }
 
+/**
+ * What a paired phone may reach.
+ *
+ *   'office'  the office: its board, its questions, its people. Granted by the
+ *             pairing code a human compares on both screens.
+ *   'machine' the computer itself: open and close Munder, the link, the GPT
+ *             gateway, the reviver. Never granted by the pairing code — a
+ *             separate, deliberate `munder link panel <celular>`, because these
+ *             are the buttons that can take the host down.
+ *
+ * A missing field means 'office': a phone paired before this existed must keep
+ * working, and the safe side of that default is the one that grants nothing new.
+ */
+const REMOTE_AUTHORITY = { OFFICE: 'office', MACHINE: 'machine' };
+
+/** The authority a paired record actually has, with the default applied. */
+function remoteAuthority(device) {
+  return device && device.authority === REMOTE_AUTHORITY.MACHINE
+    ? REMOTE_AUTHORITY.MACHINE : REMOTE_AUTHORITY.OFFICE;
+}
+
+/** By device id, name, or a unique fragment of either (same rules as forgetRemote). */
+function setRemoteAuthority(query, level, dir = stateDir()) {
+  const remotes = loadRemotes(dir);
+  const q = String(query).toLowerCase().trim();
+  if (!q) return null;
+  const all = Object.values(remotes);
+  const hit = all.find((r) => r.device_id === q || r.name.toLowerCase() === q)
+    || ((m) => (m.length === 1 ? m[0] : null))(all.filter((r) => r.device_id.startsWith(q) || r.name.toLowerCase().includes(q)));
+  if (!hit) return null;
+  if (level === REMOTE_AUTHORITY.MACHINE) remotes[hit.device_id].authority = REMOTE_AUTHORITY.MACHINE;
+  else delete remotes[hit.device_id].authority; // back to the pairing-code grant
+  saveRemotes(remotes, dir);
+  return { device_id: hit.device_id, name: hit.name, authority: remoteAuthority(remotes[hit.device_id]) };
+}
+
 /** Find a trusted peer by office id, name, or a unique prefix of either. */
 function findPeer(query, peers) {
   const q = String(query).toLowerCase().trim();
@@ -966,7 +1002,8 @@ module.exports = {
   MAX_DISCOVERY_ATTEMPTS, MAX_PEER_ADDRESSES,
   stateDir, files, loadIdentity, publicCard, prettyFingerprint, officeIdOf,
   loadPeers, loadPending, savePending, findPeer, sas, seal, open,
-  loadRemotes, trustRemote, forgetRemote, readJson, readBody, send, appendReceipt, MAX_PENDING, PENDING_TTL_MS, MAX_SKEW_MS, NONCE_TTL_MS,
+  loadRemotes, trustRemote, forgetRemote, setRemoteAuthority, remoteAuthority, REMOTE_AUTHORITY,
+  readJson, readBody, send, appendReceipt, MAX_PENDING, PENDING_TTL_MS, MAX_SKEW_MS, NONCE_TTL_MS,
   Office, localHiveRoot, capacity, hostCapacity,
   originKey, checkOriginRef, loadOrigins, saveOrigins, rememberOrigin,
   createLinkServer, createDiscoveryResponder,

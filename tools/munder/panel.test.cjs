@@ -94,7 +94,8 @@ test('it closes itself once the page stops asking', async () => {
 test('the real buttons are a closed list, and codes are 6 digits', async () => {
   assert.deepEqual(Object.keys(P.ACTIONS).sort(), [
     'app.close', 'app.open', 'app.restart', 'gpt.approve', 'gpt.deny', 'gpt.off', 'gpt.on',
-    'link.accept', 'link.forgetPhone', 'link.off', 'link.on', 'reviver.disable', 'reviver.enable', 'shortcut.install',
+    'link.accept', 'link.forgetPhone', 'link.off', 'link.on', 'link.phoneAuthority',
+    'reviver.disable', 'reviver.enable', 'shortcut.install',
   ]);
   for (const bad of [undefined, '12345', '1234567', '12a456', '123 456']) {
     await assert.rejects(P.ACTIONS['link.accept']({ code: bad }), /6 números/);
